@@ -1,0 +1,24 @@
+<!-- AI智能代码审查 -->
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Code Window Background -->
+    <rect x="30" y="30" width="140" height="140" fill="#ecfdf5" stroke="#10b981" stroke-width="2" rx="12"/>
+
+    <!-- Code Lines -->
+    <rect x="50" y="50" width="100" height="8" fill="#10b981" rx="4"/>
+    <rect x="50" y="70" width="90" height="8" fill="#10b981" rx="4"/>
+    <rect x="50" y="90" width="110" height="8" fill="#10b981" rx="4"/>
+
+    <!-- Animated Checkmark Indicating Review -->
+    <polyline points="70,120 85,135 115,105" fill="none" stroke="#059669" stroke-width="4">
+        <animate attributeName="stroke-dasharray" from="0,50" to="50,0" dur="1.5s" repeatCount="indefinite" />
+    </polyline>
+
+    <!-- Review Pulse -->
+    <circle cx="100" cy="125" r="20" fill="none" stroke="#6ee7b7" stroke-width="2">
+        <animate attributeName="r" from="20" to="40" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+    </circle>
+
+    <!-- Text Label -->
+    <text x="100" y="190" font-family="Arial, sans-serif" font-size="14" fill="#065f46" text-anchor="middle">代码审查</text>
+</svg>

@@ -1,0 +1,29 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Shape (Credit Card Style) -->
+    <rect x="30" y="30" width="140" height="140" rx="16" fill="#ffffff" stroke="#7B8DEF" stroke-width="2"/>
+
+    <!-- Card Stripe -->
+    <rect x="30" y="50" width="140" height="20" fill="#122591"/>
+
+    <!-- Code Snippet Blocks -->
+    <rect x="50" y="80" width="100" height="10" fill="#7B8DEF" rx="3"/>
+    <rect x="50" y="95" width="90" height="8" fill="#7B8DEF" rx="3"/>
+    <rect x="50" y="110" width="80" height="8" fill="#7B8DEF" rx="3"/>
+
+    <!-- Brain Emoji (Text-Based for Compatibility) -->
+    <text x="100" y="155" font-size="40" text-anchor="middle">🧠</text>
+
+    <!-- Dynamic Scanning Line -->
+    <rect x="40" y="60" width="120" height="2" fill="#10b981">
+        <animate attributeName="y" from="60" to="160" dur="2s" repeatCount="indefinite" />
+    </rect>
+
+    <!-- Animated Spark Effect -->
+    <circle cx="100" cy="140" r="5" fill="none" stroke="#6ee7b7" stroke-width="1.5" opacity="0.8">
+        <animate attributeName="r" from="5" to="15" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+    </circle>
+
+    <!-- Text Label -->
+    <text x="100" y="190" font-family="Arial, sans-serif" font-size="14" fill="#065f46" text-anchor="middle">数据记忆卡</text>
+</svg>

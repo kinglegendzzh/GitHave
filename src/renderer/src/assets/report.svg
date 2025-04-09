@@ -1,0 +1,23 @@
+<!-- AI智能分析报告 -->
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Document Background -->
+    <rect x="40" y="30" width="130" height="140" fill="#fef3c7" stroke="#f59e0b" stroke-width="2" rx="10"/>
+
+    <!-- Text Lines -->
+    <rect x="60" y="50" width="80" height="6" fill="#f59e0b" rx="3"/>
+    <rect x="60" y="65" width="70" height="6" fill="#f59e0b" rx="3"/>
+    <rect x="60" y="80" width="90" height="6" fill="#f59e0b" rx="3"/>
+
+    <!-- Chart Bars -->
+    <rect x="60" y="100" width="15" height="30" fill="#f59e0b"/>
+    <rect x="85" y="90" width="15" height="40" fill="#f59e0b"/>
+    <rect x="110" y="80" width="15" height="50" fill="#f59e0b"/>
+
+    <!-- Animated Circle Indicating Analysis -->
+    <circle cx="150" cy="50" r="12" fill="#facc15">
+        <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
+    </circle>
+
+    <!-- Text Label -->
+    <text x="100" y="190" font-family="Arial, sans-serif" font-size="14" fill="#92400e" text-anchor="middle">分析报告</text>
+</svg>

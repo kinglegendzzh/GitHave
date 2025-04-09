@@ -1,0 +1,31 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Circle -->
+    <circle cx="100" cy="100" r="90" fill="#eef2ff" stroke="#6366f1" stroke-width="2"/>
+<!--    <rect x="5" y="20" width="180" height="160" fill="#eef2ff" stroke="#6366f1" stroke-width="2" rx="10"/>-->
+
+    <!-- Magnifying Glass -->
+    <circle cx="80" cy="80" r="40" fill="none" stroke="#6366f1" stroke-width="6"/>
+    <line x1="108" y1="108" x2="140" y2="140" stroke="#6366f1" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Lens Reflection Effect -->
+    <ellipse cx="70" cy="70" rx="10" ry="6" fill="#ffffff" opacity="0.6" transform="rotate(-30 70 70)"/>
+
+    <!-- Animated Search Pulse -->
+    <circle cx="85" cy="85" r="20" fill="none" stroke="#818cf8" stroke-width="2" opacity="0.8">
+        <animate attributeName="r" from="20" to="50" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+    </circle>
+
+    <!-- AI Nodes (circles) -->
+    <circle cx="60" cy="60" r="6" fill="#4f46e5"/>
+    <circle cx="100" cy="60" r="6" fill="#4f46e5"/>
+    <circle cx="80" cy="100" r="6" fill="#4f46e5"/>
+
+    <!-- Connecting Lines -->
+    <line x1="60" y1="60" x2="85" y2="85" stroke="#a5b4fc" stroke-width="1.5"/>
+    <line x1="100" y1="60" x2="85" y2="85" stroke="#a5b4fc" stroke-width="1.5"/>
+    <line x1="80" y1="100" x2="85" y2="85" stroke="#a5b4fc" stroke-width="1.5"/>
+
+    <!-- Text Label -->
+    <text x="100" y="170" font-family="Arial, sans-serif" font-size="14" fill="#3730a3" text-anchor="middle">深度搜索</text>
+</svg>

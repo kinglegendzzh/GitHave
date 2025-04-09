@@ -1,0 +1,21 @@
+<svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <pattern id="minecraftGlassPattern" width="32" height="32" patternUnits="userSpaceOnUse">
+            <!-- 半透明边框 -->
+            <rect width="400" height="400" fill="#FFFFFF" stroke="#88C0D0" stroke-width="2" />
+
+            <!-- 像素纹理 -->
+            <rect x="4" y="4" width="4" height="4" fill="#C0E0F0" opacity="0.3" />
+            <rect x="8" y="6" width="2" height="2" fill="#FFFFFF" opacity="0.5" />
+            <rect x="24" y="4" width="4" height="4" fill="#C0E0F0" opacity="0.3" />
+            <rect x="2" y="22" width="6" height="6" fill="#C0E0F0" opacity="0.2" />
+            <rect x="20" y="24" width="4" height="4" fill="#FFFFFF" opacity="0.5" />
+
+            <!-- 交叉纹理 -->
+            <path d="M10,10 L22,22 M22,10 L10,22" stroke="#ffffff" opacity="0.2" stroke-width="2" />
+        </pattern>
+    </defs>
+
+    <!-- 使用定义的pattern填充圆形 -->
+    <circle cx="200" cy="200" r="100" fill="url(#minecraftGlassPattern)" stroke="#88C0D0" stroke-width="3" />
+</svg>

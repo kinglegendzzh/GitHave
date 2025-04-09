@@ -1,0 +1,29 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Circle -->
+    <circle cx="100" cy="100" r="90" fill="#f0f4ff" stroke="#88aaff" stroke-width="2"/>
+
+    <!-- Smart Lens Outer Circle -->
+    <circle cx="100" cy="100" r="60" fill="#cce0ff" stroke="#5588ff" stroke-width="3" opacity="0.8"/>
+
+    <!-- Inner Gradient Lens Effect -->
+    <defs>
+        <radialGradient id="lensGradient" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+            <stop offset="100%" stop-color="#88aaff" stop-opacity="0.2"/>
+        </radialGradient>
+    </defs>
+    <circle cx="100" cy="100" r="50" fill="url(#lensGradient)"/>
+
+    <!-- Crosshair for Intelligent Lens -->
+    <line x1="100" y1="70" x2="100" y2="130" stroke="#5588ff" stroke-width="2"/>
+    <line x1="70" y1="100" x2="130" y2="100" stroke="#5588ff" stroke-width="2"/>
+
+    <!-- Small focus circle in the center -->
+    <circle cx="100" cy="100" r="8" fill="#5588ff"/>
+
+    <!-- Animated pulses to indicate scanning or intelligence -->
+    <circle cx="100" cy="100" r="30" fill="none" stroke="#88aaff" stroke-width="2" opacity="0.7">
+        <animate attributeName="r" from="30" to="60" dur="1.5s" repeatCount="indefinite" />
+        <animate attributeName="opacity" from="0.7" to="0" dur="1.5s" repeatCount="indefinite" />
+    </circle>
+</svg>

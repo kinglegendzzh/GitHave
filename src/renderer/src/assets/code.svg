@@ -1,0 +1,27 @@
+<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Rectangle -->
+    <rect width="180" height="180" x="10" y="10" fill="#f9fafb" stroke="#d1d5db" stroke-width="2" rx="12"/>
+
+    <!-- Code Lines -->
+    <rect width="120" height="8" x="40" y="40" fill="#d1d5db" rx="4"/>
+    <rect width="100" height="8" x="40" y="60" fill="#d1d5db" rx="4"/>
+    <rect width="140" height="8" x="40" y="80" fill="#d1d5db" rx="4"/>
+    <rect width="90" height="8" x="40" y="100" fill="#d1d5db" rx="4"/>
+    <rect width="130" height="8" x="40" y="120" fill="#d1d5db" rx="4"/>
+
+    <!-- Audit Circle Indicator -->
+    <circle cx="160" cy="50" r="15" fill="#bbf7d0" stroke="#22c55e" stroke-width="2">
+        <animate attributeName="fill" values="#bbf7d0;#fecaca;#bbf7d0" dur="2s" repeatCount="indefinite" />
+    </circle>
+
+    <!-- Audit Checkmark -->
+    <polyline points="154,50 158,54 166,46" fill="none" stroke="#22c55e" stroke-width="3">
+        <animate attributeName="stroke" values="#22c55e;#ef4444;#22c55e" dur="2s" repeatCount="indefinite" />
+    </polyline>
+
+    <!-- Animated Scanning Line -->
+    <rect width="140" height="2" x="30" y="30" fill="#60a5fa">
+        <animate attributeName="y" from="30" to="130" dur="3s" repeatCount="indefinite" />
+    </rect>
+
+</svg>
