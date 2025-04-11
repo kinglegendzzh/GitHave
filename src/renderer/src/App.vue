@@ -1,14 +1,12 @@
 <template>
-  <v-app>
-    <div id="app" class="app-container">
-      <!-- 左侧导航栏 -->
-      <MainLayout/>
-    </div>
-  </v-app>
+  <div id="app" class="app-container">
+    <MainLayout></MainLayout>
+  </div>
 </template>
 
 <script>
-import MainLayout from "./components/MainLayout.vue";
+
+import MainLayout from './components/MainLayout.vue'
 
 export default {
   name: 'App',

@@ -1,6 +1,7 @@
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
+import vuetify from 'vite-plugin-vuetify'
 
 export default defineConfig({
   main: {
@@ -15,6 +16,15 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [vue()]
-  }
+    plugins: [
+      vue ( ) ,
+      vuetify ( {  autoImport : true  },) ,  // 默认启用
+    ]
+  },
+  // win.loadURL时启动
+  // base: './',
+  // build: {
+  //   outDir: 'out/renderer',
+  //   emptyOutDir: true,
+  // },
 })

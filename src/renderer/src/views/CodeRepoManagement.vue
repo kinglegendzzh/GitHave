@@ -1,33 +1,43 @@
 <template>
   <v-container fluid>
-      <!-- 顶部工具栏 -->
-      <v-toolbar outlined>
-        <v-toolbar-title>
-          <v-icon>mdi-github</v-icon>
-        </v-toolbar-title>
-        <v-spacer></v-spacer>
-        <v-tooltip bottom text="刷新卡片列表">
-          <template v-slot:activator="{ on, attrs }">
-            <v-btn v-bind="attrs" v-on="on" @click="fetchRepos" class="mr-2" outlined plain>
-              <v-icon>mdi-refresh</v-icon>
-            </v-btn>
-          </template>
-          <span>刷新卡片列表</span>
-        </v-tooltip>
-        <v-tooltip bottom text="新增仓库ID卡">
-          <template v-slot:activator="{ on, attrs }">
-            <v-btn v-bind="attrs" v-on="on" @click="openNewRepoDialog" class="mr-2" outlined plain>
-              <v-icon>mdi-plus</v-icon>
-            </v-btn>
-          </template>
-          <span>新增仓库ID卡</span>
-        </v-tooltip>
-      </v-toolbar>
+    <!-- 顶部工具栏 -->
+    <v-toolbar outlined>
+      <v-toolbar-title>
+        <v-icon>mdi-github</v-icon>
+      </v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-tooltip bottom>
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            @click="fetchRepos"
+            class="mr-2"
+            variant="outlined"
+          >
+            <v-icon>mdi-refresh</v-icon>
+          </v-btn>
+        </template>
+        <span>刷新卡片列表</span>
+      </v-tooltip>
+      <v-tooltip bottom>
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            @click="openNewRepoDialog"
+            class="mr-2"
+            variant="outlined"
+          >
+            <v-icon>mdi-plus</v-icon>
+          </v-btn>
+        </template>
+        <span>新增仓库ID卡</span>
+      </v-tooltip>
+    </v-toolbar>
 
       <!-- 卡片式仓库列表 -->
       <v-row class="mt-4 mr-4" justify="center">
         <v-col cols="6" v-for="repo in repos" :key="repo.id">
-          <v-card class="id-card" elevation="2">
+          <v-card class="id-card" elevation="2" style="display: block; width: 550px;height: 380px">
             <div class="id-card-header">
               <span class="id-card-title">代码仓库身份证</span>
               <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
@@ -170,7 +180,7 @@ export default {
   methods: {
     previewRepo(item) {
       const localPath = item.local_path;
-      const forceReplace = true;
+      const forceReplace = 'true';
       if (localPath) {
         this.$router.push({         // 使用路由名称和参数
           name: 'finder',           // 对应路由名称
@@ -280,7 +290,7 @@ export default {
     },
     handleLocalPathClick() {
       if (this.selectedRepo != null) {
-        console.log('rerere')
+        console.log('rerere');
         return;
       }
       if (!this.repoForm.name || !this.repoForm.repo_url) {
@@ -288,29 +298,30 @@ export default {
         return;
       }
       console.log('Local Path Clicked');
-      const electron = window.require ? window.require('electron') : null;
-      if (!electron) {
-        console.error('Electron module not found.');
-        return;
-      }
-      electron.remote.dialog.showOpenDialog({
+
+      // 通过 IPC 调用主进程中的 'dialog:openDirectory' 接口
+      window.electron.invoke('dialog:openDirectory', {
         properties: ['openDirectory']
       }).then(result => {
-        if (!result.canceled && result.filePaths.length > 0) {
+        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
           const selectedPath = result.filePaths[0];
-          const fs = window.require('fs');
-          const path = window.require('path');
-            // 拼接仓库名称作为子文件夹路径
-            const newFolderPath = path.join(selectedPath, this.repoForm.name);
-            if (!fs.existsSync(newFolderPath)) {
-              fs.mkdirSync(newFolderPath);
-              this.$store.dispatch('snackbar/showSnackbar', {
-                message: "已自动创建" + newFolderPath + "文件夹",
-                type: 'info'
-              });
-            }
-            this.repoForm.local_path = newFolderPath;
-            this.localFolderValid = true;
+          const fs = window.electron.fs;
+          const path = window.electron.path;
+          if (!fs || !path) {
+            console.error('无法加载 fs 或 path 模块');
+            return;
+          }
+          // 拼接仓库名称作为子文件夹路径
+          const newFolderPath = path.join(selectedPath, this.repoForm.name);
+          if (!fs.existsSync(newFolderPath)) {
+            fs.mkdirSync(newFolderPath);
+            this.$store.dispatch('snackbar/showSnackbar', {
+              message: "已自动创建 " + newFolderPath + " 文件夹",
+              type: 'info'
+            });
+          }
+          this.repoForm.local_path = newFolderPath;
+          this.localFolderValid = true;
         }
       }).catch(err => {
         console.error(err);

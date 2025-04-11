@@ -4,28 +4,18 @@
       <v-row style="display: flex;">
         <v-col cols="12" style="display: flex;">
           <v-autocomplete
-              v-model="lensPath"
-              :items="pathSuggestions"
-              label="选择透镜路径..."
-              outlined
-              dense
-              clearable
-              @focus="loadPathSuggestions"
-              style="width: 80%"
-              color="purple"
+            v-model="lensPath"
+            :items="pathSuggestions"
+            label="选择透镜路径..."
+            outlined
+            dense
+            clearable
+          item-title="title"
+          item-value="value"
+          @focus="loadPathSuggestions"
+          style="width: 80%"
+          color="purple"
           >
-            <!-- 自定义下拉项显示 -->
-            <template v-slot:item="data">
-              <div>
-                {{ data.item.value }} <span style="color: #666666">&lt;{{ data.item.description }}&gt;</span>
-              </div>
-            </template>
-            <!-- 自定义选中项显示 -->
-            <template v-slot:selection="data">
-              <div>
-                {{ data.item.value }} <span style="color: #666666">&lt;{{ data.item.description }}&gt;</span>
-              </div>
-            </template>
           </v-autocomplete>
           <v-btn color="purple" @click="applyLensPath">
             <v-icon color="white">
@@ -77,23 +67,25 @@
                   class="mx-2"
               ></v-skeleton-loader>
               <!-- 加载完成后显示列表 -->
-              <v-list v-else dense class="pa-0">
+              <v-list dense class="pa-0">
                 <v-list-item
-                    v-for="item in legendItems"
-                    :key="item.name"
-                    @click="onLegendItemClick($event, item)"
-                    @contextmenu="showContextMenu($event, item)"
-                    style="cursor: pointer;"
-
+                  v-for="item in legendItems"
+                  :key="item.name"
+                  @click="onLegendItemClick($event, item)"
+                  @contextmenu="showContextMenu($event, item)"
+                  style="cursor: pointer;"
                 >
-                  <v-list-item-avatar>
-                    <v-icon :color="item.color" outlined>{{ item.isDirectory ? item.icon : 'mdi-file-outline' }}</v-icon>
-                  </v-list-item-avatar>
-                  <v-list-item-content>
-                    <v-list-item-title>{{ item.name }}</v-list-item-title>
-                  </v-list-item-content>
+                  <template #prepend>
+                    <v-avatar size="32">
+                      <v-icon :color="item.color" outlined>
+                        {{ item.isDirectory ? item.icon : 'mdi-file-outline' }}
+                      </v-icon>
+                    </v-avatar>
+                  </template>
+                  <v-list-item-title>{{ item.name }}</v-list-item-title>
                 </v-list-item>
               </v-list>
+
             </div>
           </div>
         </v-col>
@@ -127,14 +119,14 @@
 
 
 <script>
-const { shell } = window.require('electron');
 // 引入 d3 模块
 import * as d3 from 'd3';
 // 在 Electron 环境下可以直接使用 Node 内置模块
-const fs = require('fs');
-const path = require('path');
+const fs = window.electron.fs;
+const path = window.electron.path;
 import grassSVG from '../assets/透镜.svg';
 import FileContextMenu from '../components/FileContextMenu.vue';
+import { listRepos } from '../service/api'
 
 export default {
   name: 'SpaceLens',
@@ -223,7 +215,7 @@ export default {
         console.log('跳转到文件浏览器页面，文件路径：', this.selectedFile.fullPath);
         this.$router.push({
           name: 'finder',
-          params: { localPath: this.selectedFile.fullPath }
+          params: { localPath: this.selectedFile.fullPath, forceDeep: true, forceReplace: true }
         });
       }
     },
@@ -233,7 +225,7 @@ export default {
       if (this.selectedFile && this.selectedFile.fullPath) {
         navigator.clipboard.writeText(this.selectedFile.fullPath)
           .then(() => {
-            this.$store.commit('setSnackbar', {
+            this.$store.dispatch('snackbar/showSnackbar', {
               show: true,
               message: '路径已复制到剪贴板',
               color: 'success'
@@ -247,13 +239,24 @@ export default {
 
     // 在访达中显示
     openInFinder() {
+      console.log('在访达中显示', this.selectedFile.fullPath)
       if (this.selectedFile && this.selectedFile.fullPath) {
-        shell.showItemInFolder(this.selectedFile.fullPath);
+        // shell.showItemInFolder(this.selectedFile.fullPath);
+        window.electron.shell.openPath(path.dirname(this.selectedFile.fullPath));
+        // shell.openPath(this.selectedFile.fullPath).then(error => {
+        //   if (error) {
+        //     console.error("打开文件失败:", error);
+        //     this.$store.dispatch('snackbar/showSnackbar', {
+        //       message: `打开文件失败: ${error}`,
+        //       type: 'error'
+        //     });
+        //   }
+        // });
       }
     },
 
     openFile(filePath) {
-      shell.openPath(filePath).then(error => {
+      window.electron.shell.openPath(filePath).then(error => {
         if (error) {
           console.error("打开文件失败:", error);
         }
@@ -287,6 +290,7 @@ export default {
     // 新增/修改：用户点击确认按钮时触发扫描
     async applyLensPath() {
       if (this.lensPath) {
+        console.log(`用户输入的路径: ${this.lensPath}`)
         try {
           // 规范路径格式（将反斜杠替换为正斜杠）
           this.lensPath = this.lensPath.replace(/\\/g, '/');
@@ -315,6 +319,7 @@ export default {
           });
         }
       } else {
+        console.log('输入为空，不进行扫描')
         // 当输入框为空时，重置状态，确保显示占位图及标题
         // 当输入为空时，重置状态
         this.depth = 3;
@@ -343,7 +348,8 @@ export default {
               this.updateSunburst(this.currentFocus);
             }
           } else {
-            this.showContextMenu(event, item);
+            // 此处必须使用 $event，而不是未定义的 event
+            this.showContextMenu($event, item);
           }
         }
       }
@@ -435,7 +441,7 @@ export default {
       } catch (err) {
         if (err.code === 'EPERM') {
           console.warn(`权限不足，跳过目录：${dirPath}`);
-          this.$store.commit('setSnackbar', {
+          this.$store.dispatch('snackbar/showSnackbar', {
             show: true,
             message: `权限不足，已跳过目录：${path.basename(dirPath)}`,
             color: 'warning'
@@ -477,13 +483,13 @@ export default {
         const fullPath = path.join(dirPath, file);
         try {
           await fs.promises.access(fullPath, fs.constants.F_OK);
-          const stats = await fs.promises.stat(fullPath);
-          if (stats.isDirectory()) {
+          const statData = await window.electron.getFileStats(fullPath);
+          if (statData.isDirectory) {
             const subtree = await this.buildFileTreeAsync(fullPath, name, depth + 1, maxDepth);
             totalSize += subtree.size;
             return subtree;
-          } else if (stats.isFile()) {
-            const fileSizeKB = Math.ceil(stats.size / 1024);
+          } else if (statData.isFile) {
+            const fileSizeKB = Math.ceil(statData.size / 1024);
             totalSize += fileSizeKB;
             return {
               name: file,
@@ -817,15 +823,35 @@ export default {
       updateSunburst(this.currentFocus);
     },
     loadPathSuggestions() {
-      // 此处可以调用实际接口获取数据，这里用模拟数据示例
-      this.pathSuggestions = [
-        { value: '/Users/apple/Public/generates-git/repo_pinkstone', description: '算网编排中心' },
-        { value: '/Users/apple/Public/generates-git/repo_eino', description: 'AI智能体编排框架' },
-        { value: '/Users/apple', description: '根目录' },
-        { value: '/Users/apple/Documents', description: '我的文档' },
-        { value: '/Users/apple/Public', description: '我的公共' },
-        { value: '/Users/apple/Downloads', description: '我的下载' },
-      ];
+      // 调用接口获取仓库数据
+      listRepos().then(response => {
+        console.log('loadPathSuggestions', JSON.stringify(response.data))
+        // 检查返回数据是否存在以及是否为数组
+        if (!response.data || !Array.isArray(response.data)) {
+          return;
+        }
+
+        // 将接口返回的仓库数组映射为符合 pathSuggestions 格式的数据
+        // 使用 repo.local_path 作为 value，repo.desc 作为 title；如果 desc 不存在，则采用 repo.name
+        this.pathSuggestions = response.data.map(repo => {
+          return {
+            value: repo.local_path,
+            title: `${repo.desc}(${repo.name})`
+          };
+        });
+      }).catch(err => {
+        // 捕获接口调用过程中可能出现的错误，打印错误信息以便调试
+        console.error("获取仓库数据失败:", err);
+      });
+
+      // this.pathSuggestions = [
+      //   { value: '/Users/apple/Public/generates-git/repo_pinkstone', title: '算网编排中心' },
+      //   { value: '/Users/apple/Public/generates-git/repo_eino', title: 'AI智能体编排框架' },
+      //   { value: '/Users/apple', title: '根目录' },
+      //   { value: '/Users/apple/Documents', title: '我的文档' },
+      //   { value: '/Users/apple/Public', title: '我的公共' },
+      //   { value: '/Users/apple/Downloads', title: '我的下载' },
+      // ];
     }
   },
   async mounted() {

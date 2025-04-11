@@ -4,7 +4,8 @@
     :position-x="x"
     :position-y="y"
     absolute
-    offset-y
+    attach="body"
+    :style="{ top: y + 'px', left: x + 'px' }"
     transition="fab-transition"
   >
     <v-list dense>
@@ -13,9 +14,9 @@
         :key="index"
         @click="handleItemClick(item)"
       >
-        <v-list-item-icon v-if="item.icon">
+        <template v-if="item.icon" #prepend>
           <v-icon>{{ item.icon }}</v-icon>
-        </v-list-item-icon>
+        </template>
         <v-list-item-title>{{ item.title }}</v-list-item-title>
       </v-list-item>
     </v-list>
@@ -47,6 +48,7 @@ export default {
       this.x = event.clientX
       this.y = event.clientY
       this.showMenu = true
+      console.log('showMenu', this.x, this.y)
     },
     // 隐藏菜单
     hide() {

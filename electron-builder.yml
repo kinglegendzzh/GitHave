@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: gitgo
+appId: com.gitgo.app
+productName: GitGo
 directories:
   buildResources: build
 files:
@@ -12,8 +12,10 @@ files:
   - 'out/**/*'  # 包括 out 目录下的所有文件
 asarUnpack:
   - resources/**
+  - bin/**/*
+#  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
 win:
-  executableName: gitgo
+  executableName: GitGo
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -44,3 +46,7 @@ publish:
   url: https://example.com/auto-updates
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
+asar: true
+#protocols: # win.loadURL时启动
+#  name: gitgo
+#  schemes: [gitgo]

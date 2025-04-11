@@ -1,13 +1,13 @@
 <template>
   <v-container>
     <v-card class="pa-4" outlined>
-      <v-card-title class="headline">模型配置</v-card-title>
+<!--      <v-card-title class="headline">模型配置</v-card-title>-->
       <v-card-text>
         <v-form ref="form" v-model="valid">
           <v-expansion-panels v-model="expandedPanels" multiple variant="popout">
             <v-expansion-panel>
-              <v-expansion-panel-header id="offline-panel-header">离线智能</v-expansion-panel-header>
-              <v-expansion-panel-content>
+              <v-expansion-panel-title id="offline-panel-header">📴 离线智能</v-expansion-panel-title>
+              <v-expansion-panel-text>
                 <v-row>
                   <v-col
                       v-for="(value, key) in config.ollama"
@@ -22,70 +22,128 @@
                   </v-col>
                 </v-row>
                 <v-card class="pa-4 mb-4" outlined>
-                  <p class="blockquote">检测部署状态并自动安装</p>
+                  <v-card-title class="headline">检测部署状态并自动安装</v-card-title>
                   <v-card-text>
+                    <!-- 使用 v-stepper 控制当前步骤 -->
                     <v-stepper v-model="deploymentStep">
+                      <!-- 上方区域：步骤条和步骤标题 -->
                       <v-stepper-header>
-                        <v-stepper-step :complete="deploymentStep > 1" step="1">
-                          检查 ollama 状态
-                        </v-stepper-step>
-                        <v-divider></v-divider>
-                        <v-stepper-step :complete="deploymentStep > 2" step="2">
-                          检查模型部署
-                        </v-stepper-step>
-                        <v-divider></v-divider>
-                        <v-stepper-step step="3">
-                          自动部署模型
-                        </v-stepper-step>
+                        <v-stepper-item
+                          value="1"
+                          :complete="deploymentStep > 1"
+                          editable
+                        >
+                          <template #title>
+                            检查 ollama 状态
+                          </template>
+                        </v-stepper-item>
+
+                        <v-divider class="mx-2"></v-divider>
+
+                        <v-stepper-item
+                          value="2"
+                          :complete="deploymentStep > 2"
+                          editable
+                        >
+                          <template #title>
+                            检查模型部署
+                          </template>
+                        </v-stepper-item>
+
+                        <v-divider class="mx-2"></v-divider>
+
+                        <v-stepper-item value="3" editable>
+                          <template #title>
+                            自动部署
+                          </template>
+                        </v-stepper-item>
                       </v-stepper-header>
-                      <v-stepper-items>
-                        <!-- 步骤1：检查 ollama 状态 -->
-                        <v-stepper-content step="1">
+
+                      <!-- 下方区域：步骤内容和操作按钮 -->
+                      <v-container>
+                        <!-- 步骤 1 内容 -->
+                        <div v-if="deploymentStep === 1">
                           <div v-if="ollamaInstalled === null">
                             正在检测 ollama 状态...
                           </div>
                           <div v-else-if="ollamaInstalled">
                             ollama 已安装且正在运行。
-                            <v-btn color="primary" class="mt-2" @click="nextStep">下一步</v-btn>
                           </div>
                           <div v-else>
                             ollama 未安装。请点击下面按钮进入官网下载安装。
-                            <v-btn color="error" class="mt-2" @click="openOllamaWebsite">前往 ollama 官网</v-btn>
                           </div>
-                        </v-stepper-content>
-                        <!-- 步骤2：检查模型部署 -->
-                        <v-stepper-content step="2">
+                          <v-btn
+                            v-if="ollamaInstalled || ollamaInstalled === null"
+                            color="primary"
+                            class="mt-2"
+                            @click="nextStep"
+                          >
+                            下一步
+                          </v-btn>
+                          <v-btn
+                            v-else
+                            color="error"
+                            class="mt-2"
+                            @click="openOllamaWebsite"
+                          >
+                            前往 ollama 官网
+                          </v-btn>
+                        </div>
+
+                      <!-- 步骤 2 内容 -->
+                        <div v-if="deploymentStep === 2">
                           <div v-if="modelsDeployed === null">
-                            正在检查所需模型部署情况...
+                            检查所需模型部署情况
                           </div>
                           <div v-else-if="modelsDeployed">
                             所需模型已全部部署。
-                            <v-btn color="success" class="mt-2" @click="nextStep">完成</v-btn>
                           </div>
                           <div v-else>
-                            检测到部分模型未部署，请点击“开始部署”自动安装。{{modelsNotExits}}
-                            <v-btn color="primary" class="mt-2" @click="startDeployment">开始部署</v-btn>
+                            检测到部分模型未部署，请点击“开始部署”自动安装。<span>{{ modelsNotExits }}</span>
                           </div>
-                        </v-stepper-content>
-                        <!-- 步骤3：自动部署模型 -->
-                        <v-stepper-content step="3">
+                          <v-btn
+                            v-if="modelsDeployed"
+                            color="success"
+                            class="mt-2"
+                            @click="nextStep"
+                          >
+                            完成
+                          </v-btn>
+                          <v-btn
+                            v-else
+                            color="primary"
+                            class="mt-2"
+                            @click="startDeployment"
+                          >
+                            开始部署
+                          </v-btn>
+                        </div>
+
+                      <!-- 步骤 3 内容 -->
+                        <div v-if="deploymentStep === 3">
                           <div v-if="deploymentInProgress">
                             <div>正在部署模型：{{ currentDeployingModel }}</div>
-                            <v-progress-linear :value="deploymentProgress" height="20" striped></v-progress-linear>
+                            <v-progress-linear
+                              :value="deploymentProgress"
+                              height="20"
+                              striped
+                              class="mt-2"
+                            ></v-progress-linear>
                           </div>
                           <div v-else>
-                            部署完成。
+                            已部署完成。
                           </div>
-                        </v-stepper-content>
-                      </v-stepper-items>
+                        </div>
+                      </v-container>
                     </v-stepper>
                   </v-card-text>
                 </v-card>
-              </v-expansion-panel-content>
+
+              </v-expansion-panel-text>
             </v-expansion-panel>
             <v-expansion-panel>
-              <v-expansion-panel-header id="cloud-panel-header">云端智能</v-expansion-panel-header>
-              <v-expansion-panel-content>
+              <v-expansion-panel-title id="cloud-panel-header">☁️ 云端智能</v-expansion-panel-title>
+              <v-expansion-panel-text>
                 <div v-for="(modelConfig, modelKey) in config.custom" :key="modelKey">
                   <v-card flat class="mb-4 pa-2">
                     <v-card-title class="subtitle-1">{{ checkCustomLabel(modelKey) }}</v-card-title>
@@ -106,7 +164,7 @@
                     </v-card-text>
                   </v-card>
                 </div>
-              </v-expansion-panel-content>
+              </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
         </v-form>
@@ -184,8 +242,8 @@ export default {
           label: "模型厂商",
           isModel: false,
         },
-        enable: {
-          label: "是否启用",
+        enabled: {
+          label: "是否启用(关闭则默认使用本地模型)",
           isModel: false,
         },
         url: {
@@ -275,8 +333,7 @@ export default {
           }
         }
       }
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.invoke('check-model-deployment', modelsList).then(result => {
+      window.electron.checkModelDeployment(modelsList).then(result => {
         this.modelsDeployed = result;
         if (result) {
           this.offlineStatus.message = '所有模型均已部署。';
@@ -302,21 +359,20 @@ export default {
       }
       console.log("modelsList for deployment:", modelsList);
       this.deploymentInProgress = true;
-      const { ipcRenderer } = window.require('electron');
       // 监听安装进度事件
-      ipcRenderer.on('install-progress', (event, data) => {
+      window.electron.onInstallProgress((data) => {
         console.log("Install progress event:", data);
         this.deploymentProgress = data.progress;
         this.currentDeployingModel = data.model;
       });
       // 调用安装模型的IPC方法
-      ipcRenderer.invoke('install-models', modelsList).then(() => {
+      window.electron.installModels(modelsList).then(() => {
         console.log("install-models resolved");
         this.animateProgress(2000).then(() => {
           this.deploymentInProgress = false;
           this.deploymentStep = 3;
           this.offlineStatus.message = '离线智能部署已完成。';
-          ipcRenderer.removeAllListeners('install-progress');
+          window.electron.clearInstallProgressListeners();
           console.log("Deployment complete, step set to 3");
         });
       }).catch(error => {
@@ -343,8 +399,7 @@ export default {
           });
     },
     checkOllama() {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.invoke('check-ollama').then(result => {
+      window.electron.checkOllamaIPC().then(result => {
         this.ollamaInstalled = result;
       }).catch(error => {
         console.error('检查ollama状态失败：', error);

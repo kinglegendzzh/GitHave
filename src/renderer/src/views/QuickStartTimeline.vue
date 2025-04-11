@@ -1,13 +1,13 @@
 <template>
   <v-container>
     <v-app>
-      <v-timeline dense>
+      <v-timeline density="compact">
         <template v-for="(step, index) in steps" :key="index">
           <v-timeline-item
-              :color="step.color"
+              :dot-color="step.color"
               :icon="step.icon"
           >
-            <v-card flat class="pa-2">
+            <v-card variant="flat" class="pa-2">
               <v-card-title class="headline">{{ step.title }}</v-card-title>
               <v-card-text v-if="step.description">
                 {{ step.description }}
@@ -20,16 +20,20 @@
                   <v-stepper v-model="step.currentStep" class="elevation-0">
                     <v-stepper-header class="elevation-0">
                       <template v-for="(subStep, subIndex) in step.subSteps" :key="subIndex">
-                        <v-stepper-step
-                            :step="subIndex + 1"
+                        <v-stepper-item
+                            :value="subIndex + 1"
                             :complete="step.currentStep > subIndex + 1"
                             @click="selectSubStep(step, subStep)"
                             class="cursor-pointer"
                             editable
                         >
-                          <v-icon small class="mr-1">{{ subStep.icon || 'mdi-checkbox-blank-circle-outline' }}</v-icon>
-                          {{ subStep.title }}
-                        </v-stepper-step>
+                          <template v-slot:title>
+                            <div class="d-flex align-center">
+                              <v-icon size="small" class="mr-1">{{ subStep.icon || 'mdi-checkbox-blank-circle-outline' }}</v-icon>
+                              <span>{{ subStep.title }}</span>
+                            </div>
+                          </template>
+                        </v-stepper-item>
                         <v-divider
                             v-if="subIndex < step.subSteps.length - 1"
                             :key="'divider-' + subIndex"
@@ -38,7 +42,7 @@
                     </v-stepper-header>
                   </v-stepper>
                   <!-- 子步骤描述展示区域 -->
-                  <v-card-text v-if="step.selectedSubStep && step.selectedSubStep.description" class="mt-3 grey lighten-4 rounded">
+                  <v-card-text v-if="step.selectedSubStep && step.selectedSubStep.description" class="mt-3 bg-grey-lighten-4 rounded">
                     {{ step.selectedSubStep.description }}
                   </v-card-text>
                 </div>
@@ -53,7 +57,7 @@
                            :key="branchIndex"
                            :cols="12 / step.branches.length">
                       <v-card
-                          outlined
+                          variant="outlined"
                           class="branch-option"
                           :class="{ 'selected': selectedBranch === branch.value }"
                           @click="selectBranch(branch.value)"
@@ -194,8 +198,8 @@ export default {
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 .branch-option.selected {
-  border-color: var(--v-primary-base);
-  background-color: var(--v-primary-lighten5);
+  border-color: rgb(var(--v-theme-primary));
+  background-color: rgb(var(--v-theme-primary), 0.1);
 }
 .branch-options {
   position: relative;
@@ -207,7 +211,7 @@ export default {
   left: 50%;
   width: 2px;
   height: 20px;
-  background-color: var(--v-warning-base);
+  background-color: rgb(var(--v-theme-warning));
   transform: translate(-50%, -100%);
 }
 
@@ -221,11 +225,11 @@ export default {
 .cursor-pointer {
   cursor: pointer;
 }
-.v-stepper__step {
+.v-stepper__item {
   padding: 8px 12px;
 }
-.v-stepper__step:hover {
-  background-color: var(--v-primary-lighten5);
+.v-stepper__item:hover {
+  background-color: rgb(var(--v-theme-primary), 0.1);
   border-radius: 4px;
 }
 </style>
