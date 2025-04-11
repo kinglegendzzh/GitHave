@@ -288,7 +288,7 @@ export default {
     getAvatarIcon(repoId) {
       return generateAvatar(repoId);
     },
-    handleLocalPathClick() {
+    async handleLocalPathClick() {
       if (this.selectedRepo != null) {
         console.log('rerere');
         return;
@@ -300,27 +300,39 @@ export default {
       console.log('Local Path Clicked');
 
       // 通过 IPC 调用主进程中的 'dialog:openDirectory' 接口
-      window.electron.invoke('dialog:openDirectory', {
+      await window.electron.invoke('dialog:openDirectory', {
+        defaultPath: this.repoForm.local_path,
         properties: ['openDirectory']
-      }).then(result => {
+      }).then(async result => {
         if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
           const selectedPath = result.filePaths[0];
-          const fs = window.electron.fs;
-          const path = window.electron.path;
+          const fs = await window.electron.fs;
+          const path = await window.electron.path;
           if (!fs || !path) {
             console.error('无法加载 fs 或 path 模块');
             return;
           }
-          // 拼接仓库名称作为子文件夹路径
-          const newFolderPath = path.join(selectedPath, this.repoForm.name);
-          if (!fs.existsSync(newFolderPath)) {
-            fs.mkdirSync(newFolderPath);
+          // 判断选中的文件夹是否为空
+          const folderContent = fs.readdirSync(selectedPath);
+          if (folderContent.length === 0) {
+            // 文件夹为空，不自动创建子文件夹，直接使用当前选择的路径
+            this.repoForm.local_path = selectedPath;
             this.$store.dispatch('snackbar/showSnackbar', {
-              message: "已自动创建 " + newFolderPath + " 文件夹",
+              message: "选中的文件夹为空，直接使用该目录。",
               type: 'info'
             });
+          } else {
+            // 文件夹不为空，拼接仓库名称作为子文件夹路径
+            const newFolderPath = path.join(selectedPath, this.repoForm.name);
+            if (!fs.existsSync(newFolderPath)) {
+              fs.mkdirSync(newFolderPath);
+              this.$store.dispatch('snackbar/showSnackbar', {
+                message: "已自动创建 " + newFolderPath + " 文件夹",
+                type: 'info'
+              });
+            }
+            this.repoForm.local_path = newFolderPath;
           }
-          this.repoForm.local_path = newFolderPath;
           this.localFolderValid = true;
         }
       }).catch(err => {

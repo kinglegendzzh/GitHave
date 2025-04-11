@@ -92,7 +92,9 @@ const api = {
   clearInstallProgressListeners,
 
   platform: process.platform,
-  env: process.env
+  env: process.env,
+
+  getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
 };
 
 // 使用 contextBridge 向渲染进程暴露安全 API，对外命名为 electron

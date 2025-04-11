@@ -422,6 +422,11 @@ ipcMain.handle('write-config', async (event, configPath = null, data) => {
   }
 });
 
+ipcMain.handle('get-user-data-path', async () => {
+  // 获取并返回 userData 目录的绝对路径
+  return app.getPath('userData');
+});
+
 // 修改窗口创建逻辑，根据环境加载不同资源
 async function createWindow() {
   const win = new BrowserWindow({

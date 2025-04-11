@@ -1,125 +1,136 @@
 <template>
-  <!-- 主内容区 -->
   <v-container fluid class="cover-fill" style="height: 100vh">
-    <v-row>
-      <v-toolbar class="mb-1">
-        <v-toolbar-title>
-          <v-icon>mdi-code-block-tags</v-icon>
-        </v-toolbar-title>
-        <div class="d-flex align-center ml-auto">
-          <v-autocomplete
-            v-model="newRootPath"
-            :items="pathSuggestions"
-            label="选择访达路径..."
-            outlined
-            dense
-            clearable
-            item-title="title"
-            item-value="value"
-            @focus="loadPathSuggestions"
-            color="success"
-            class="mr-2"
-            style="min-width: 400px;max-width: 400px;height: auto;"
-            @update:menu="resetRoot"
-          >
-          </v-autocomplete>
-          <v-btn title="从本地目录打开" @click="openOutside(breadcrumbs, true)" outlined plain class="mr-2">
-            <v-icon>mdi-folder-eye</v-icon>
-          </v-btn>
-          <v-btn title="从本地应用程序打开" @click="openOutside(breadcrumbs, false)" outlined plain class="mr-2">
-            <v-icon>mdi-file-search-outline</v-icon>
-          </v-btn>
-          <v-btn title="更多操作" outlined plain class="mr-2">
-            <v-icon>mdi-dots-vertical</v-icon>
-          </v-btn>
-        </div>
-      </v-toolbar>
-    </v-row>
-    <v-row style="display: flex; height: calc(100% - 80px);">
-      <!-- 左侧目录树 -->
-      <v-col cols="12" md="4" lg="3" class="mb-4" style="width: 300px; max-width: 300px; position: relative;">
-        <v-card outlined class="pa-2 h-100" style="height: 100vh; overflow: auto;">
-          <v-card-title class="subtitle-1">访达目录树</v-card-title>
-          <v-divider></v-divider>
-          <Treeselect
-            v-model="treeselectValue"
-            :options="treeData"
-            :normalizer="nodeNormalizer"
-            placeholder="选择目录树..."
-            :item="['123', '321']"
-            item-key="path"
-            :load-options="loadDirectoryOptions"
-            @click="handleOptionClick"
-            :multiple="false"
-            :searchable="true"
-            :clearable="true"
-            :auto-load-root-options="true"
-            :always-open="true"
-            class="mt-2"
-            style="min-width: 800px;"
-            :menuHeight="1000"
-          >
-          </Treeselect>
-        </v-card>
+    <!-- 当 loading 为 true 时显示加载动画，反之显示主体页面 -->
+    <v-row v-if="loading" align="center" justify="center" style="height: 100vh;">
+      <v-col cols="12" class="text-center">
+        <v-progress-circular indeterminate color="primary" size="70"></v-progress-circular>
+        <div class="mt-4" style="font-size: 1.2rem;">加载中...</div>
       </v-col>
+    </v-row>
 
-      <!-- 右侧文件预览和标签 -->
-      <v-col cols="12" md="8" lg="9" style="width: 800px; max-width: 800px;" class="mb-4 d-flex flex-column h-100">
-        <div class="flex-shrink-0">
-          <!-- 顶部标签页 -->
-          <v-tabs v-model="activeTab" class="mb-4">
-            <v-tab v-for="(tab, index) in tabs" :key="tab.path" class="d-flex align-center">
-              <v-icon class="ml-2" @click.stop="removeTab(index)" style="cursor: pointer;">mdi-close</v-icon>
-              <span @click="selectTab(tab)" style="cursor: pointer;" class="text-blue-grey-darken-4">{{ tab.name }}</span>
-            </v-tab>
-          </v-tabs>
-          <!-- 面包屑导航 -->
-          <v-breadcrumbs :items="breadcrumbs" class="pa-0">
-            <template v-slot:item="{ item }">
-              <v-breadcrumbs-item @click="navigateTo(item.path)">{{ item.text }}</v-breadcrumbs-item>
-            </template>
-          </v-breadcrumbs>
-        </div>
-        <v-divider></v-divider>
-        <v-card tonal class="flex-grow-1" style="height: 100%; overflow-y: auto;">
-          <v-card-text>
-            <div v-if="selectedFileName" class="preview-content">
-              <!-- PDF 预览 -->
-              <div v-if="isPDF(selectedFileName)">
-                <iframe :src="getPDFUrl()" style="width: 100%; height: 100%;" frameborder="0"></iframe>
+    <template v-else>
+      <!-- 主内容区 -->
+      <v-row>
+        <v-toolbar class="mb-1">
+          <v-toolbar-title>
+            <v-icon>mdi-code-block-tags</v-icon>
+          </v-toolbar-title>
+          <div class="d-flex align-center ml-auto">
+            <v-autocomplete
+              v-model="newRootPath"
+              :items="pathSuggestions"
+              label="选择访达路径..."
+              outlined
+              dense
+              clearable
+              item-title="title"
+              item-value="value"
+              @focus="loadPathSuggestions"
+              color="success"
+              class="mr-2"
+              style="min-width: 400px;max-width: 400px;height: auto;"
+              @update:menu="resetRoot"
+            >
+            </v-autocomplete>
+            <v-btn title="从本地目录打开" @click="openOutside(breadcrumbs, true)" outlined plain class="mr-2">
+              <v-icon>mdi-folder-eye</v-icon>
+            </v-btn>
+            <v-btn title="从本地应用程序打开" @click="openOutside(breadcrumbs, false)" outlined plain class="mr-2">
+              <v-icon>mdi-file-search-outline</v-icon>
+            </v-btn>
+            <v-btn title="更多操作" outlined plain class="mr-2">
+              <v-icon>mdi-dots-vertical</v-icon>
+            </v-btn>
+          </div>
+        </v-toolbar>
+      </v-row>
+
+      <v-row style="display: flex; height: calc(100% - 80px);">
+        <!-- 左侧目录树 -->
+        <v-col cols="12" md="4" lg="3" class="mb-4" style="width: 300px; max-width: 300px; position: relative;">
+          <v-card outlined class="pa-2 h-100" style="height: 100vh; overflow: auto;">
+            <v-card-title class="subtitle-1">访达目录树</v-card-title>
+            <v-divider></v-divider>
+            <Treeselect
+              v-model="treeselectValue"
+              :options="treeData"
+              :normalizer="nodeNormalizer"
+              placeholder="选择目录树..."
+              :item="['123', '321']"
+              item-key="path"
+              :load-options="loadDirectoryOptions"
+              @click="handleOptionClick"
+              :multiple="false"
+              :searchable="true"
+              :clearable="true"
+              :auto-load-root-options="true"
+              :always-open="true"
+              class="mt-2"
+              style="min-width: 800px;"
+              :menuHeight="1000"
+            >
+            </Treeselect>
+          </v-card>
+        </v-col>
+
+        <!-- 右侧文件预览和标签 -->
+        <v-col cols="12" md="8" lg="9" style="width: 800px; max-width: 800px;" class="mb-4 d-flex flex-column h-100">
+          <div class="flex-shrink-0">
+            <!-- 顶部标签页 -->
+            <v-tabs v-model="activeTab" class="mb-4">
+              <v-tab v-for="(tab, index) in tabs" :key="tab.path" class="d-flex align-center">
+                <v-icon class="ml-2" @click.stop="removeTab(index)" style="cursor: pointer;">mdi-close</v-icon>
+                <span @click="selectTab(tab)" style="cursor: pointer;" class="text-blue-grey-darken-4">{{ tab.name }}</span>
+              </v-tab>
+            </v-tabs>
+            <!-- 面包屑导航 -->
+            <v-breadcrumbs :items="breadcrumbs" class="pa-0">
+              <template v-slot:item="{ item }">
+                <v-breadcrumbs-item @click="navigateTo(item.path)">{{ item.text }}</v-breadcrumbs-item>
+              </template>
+            </v-breadcrumbs>
+          </div>
+          <v-divider></v-divider>
+          <v-card tonal class="flex-grow-1" style="height: 100%; overflow-y: auto;">
+            <v-card-text>
+              <div v-if="selectedFileName" class="preview-content">
+                <!-- PDF 预览 -->
+                <div v-if="isPDF(selectedFileName)">
+                  <iframe :src="getPDFUrl()" style="width: 100%; height: 100%;" frameborder="0"></iframe>
+                </div>
+                <!-- DOCX 预览 -->
+                <div v-else-if="isDocx(selectedFileName)">
+                  <div v-if="renderedDocx" v-html="renderedDocx"></div>
+                  <div v-else>加载 DOCX 中...</div>
+                </div>
+                <!-- XLSX 预览 -->
+                <div v-else-if="isXlsx(selectedFileName)">
+                  <div v-if="renderedXlsx" v-html="renderedXlsx"></div>
+                  <div v-else>加载 XLSX 中...</div>
+                </div>
+                <!-- Markdown 预览 -->
+                <div v-else-if="isMarkdown(selectedFileName)" v-html="renderMarkdown(fileContent)"></div>
+                <!-- 代码文件预览 -->
+                <pre v-else-if="isCodeFile">
+                  <code :class="`hljs ${path.extname(selectedFileName).slice(1)}`"
+                        v-html="highlightCode(fileContent, path.extname(selectedFileName))"></code>
+                </pre>
+                <!-- 其他文本文件预览 -->
+                <pre v-else>{{ fileContent }}</pre>
               </div>
-              <!-- DOCX 预览 -->
-              <div v-else-if="isDocx(selectedFileName)">
-                <div v-if="renderedDocx" v-html="renderedDocx"></div>
-                <div v-else>加载 DOCX 中...</div>
+              <div v-else style="text-align: center;">
+                <img :src="placeholderImage" alt="Chart Placeholder" draggable="false"
+                     style="max-width: 100%; max-height: 100%; display: block; margin: auto; user-select: none; pointer-events: none;" />
+                <h1 style="margin-top: 16px;user-select: none; pointer-events: none;">代码详情</h1>
               </div>
-              <!-- XLSX 预览 -->
-              <div v-else-if="isXlsx(selectedFileName)">
-                <div v-if="renderedXlsx" v-html="renderedXlsx"></div>
-                <div v-else>加载 XLSX 中...</div>
-              </div>
-              <!-- Markdown 预览 -->
-              <div v-else-if="isMarkdown(selectedFileName)" v-html="renderMarkdown(fileContent)"></div>
-              <!-- 代码文件预览 -->
-              <pre v-else-if="isCodeFile">
-                <code :class="`hljs ${path.extname(selectedFileName).slice(1)}`"
-                      v-html="highlightCode(fileContent, path.extname(selectedFileName))"></code>
-              </pre>
-              <!-- 其他文本文件预览 -->
-              <pre v-else>{{ fileContent }}</pre>
-            </div>
-            <div v-else style="text-align: center;">
-              <img :src="placeholderImage" alt="Chart Placeholder" draggable="false"
-                   style="max-width: 100%; max-height: 100%; display: block; margin: auto; user-select: none; pointer-events: none;" />
-              <h1 style="margin-top: 16px;user-select: none; pointer-events: none;">代码详情</h1>
-            </div>
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-      {{ snackbar.message }}
-    </v-snackbar>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+        {{ snackbar.message }}
+      </v-snackbar>
+    </template>
   </v-container>
 </template>
 
@@ -155,6 +166,7 @@ export default {
   },
   data() {
     return {
+      loading: true, // 新增 loading 状态
       treeselectValue: null,
       tabs: [],
       activeTab: null,
@@ -202,13 +214,15 @@ export default {
     }
   },
   created() {
-    // 统一初始化入口
-    this.initialize(this.localPath);
+    // 使用包装后的初始化方法
+    this.initializePage();
   },
   watch: {
     localPath(newPath) {
       if (newPath) {
-        this.initialize(newPath);
+        this.initialize(newPath).finally(() => {
+          this.loading = false;
+        });
       }
     },
     activeTab(newIndex) {
@@ -232,14 +246,26 @@ export default {
     },
   },
   methods: {
-    // 统一初始化入口
+    // 包装后的初始化方法，控制 loading 状态
+    async initializePage() {
+      this.loading = true;
+      try {
+        await this.initialize(this.localPath);
+      } catch (e) {
+        console.error("初始化过程出错：", e);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    // 原有初始化逻辑
     async initialize(initialPath) {
       let rootDir = "";
       if (this.forceReplace && initialPath) {
         this.newRootPath = initialPath;
         rootDir = this.isFilePath(initialPath) ? path.dirname(initialPath) : initialPath;
       } else {
-        rootDir = window.electron ? window.electron.homeDir : '';
+        rootDir = await window.electron.homeDir;
       }
       if (rootDir) {
         await this.resetTree(rootDir);
@@ -290,13 +316,9 @@ export default {
       const ext = this.path.extname(fileName).toLowerCase();
       return ['.md', '.markdown'].includes(ext);
     },
-
-    // 构造文件预览 URL
     getPDFUrl() {
       return this.selectedFileUrl;
     },
-
-    // 统一加载文件方法，根据文件后缀调用相应处理
     async loadFileByType(selectedPath) {
       const ext = this.path.extname(selectedPath).toLowerCase();
       try {
@@ -313,7 +335,6 @@ export default {
           const arrayBuffer = this.convertBuffer(buffer);
           this.updateFileState(selectedPath, { renderedXlsx: this.renderXlsx(arrayBuffer) });
         } else {
-          // 默认文本文件读取
           const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' });
           this.updateFileState(selectedPath, { fileContent: content });
         }
@@ -322,7 +343,6 @@ export default {
         this.updateFileState(selectedPath, { fileContent: `读取文件失败：${err.message}` });
       }
     },
-    // 更新当前文件状态，并统一设置文件名
     updateFileState(selectedPath, updates) {
       const fileName = this.path.basename(selectedPath);
       this.selectedFileName = fileName;
@@ -330,7 +350,6 @@ export default {
         this[key] = updates[key];
       });
     },
-    // 恢复tab保存的状态
     restoreState(tab) {
       this.selectedFileName = tab.selectedFileName || this.path.basename(tab.path);
       this.fileContent = tab.fileContent || '';
@@ -339,11 +358,9 @@ export default {
       this.selectedFileUrl = tab.selectedFileUrl || '';
       this.breadcrumbs = tab.breadcrumbs || [];
     },
-    // 标签页管理（添加或切换）
     addOrSwitchTab(tabData) {
       let tab = this.tabs.find(t => t.path === tabData.path);
       if (!tab) {
-        // 保存当前状态一起存入 tab 中
         tab = Object.assign({
           fileContent: this.fileContent,
           renderedDocx: this.renderedDocx,
@@ -357,8 +374,6 @@ export default {
       this.currentTab = this.tabs[this.activeTab];
       this.breadcrumbs = this.currentTab.breadcrumbs;
     },
-
-    // 目录树加载的异步回调
     loadDirectoryOptions({ action, parentNode, searchQuery, callback }) {
       if (action === LOAD_ROOT_OPTIONS) {
         this.fetchChildren(this.rootPath || '/')
@@ -398,7 +413,6 @@ export default {
     handleOptionClick(option) {
       console.log('handleOptionClick', JSON.stringify(option))
     },
-    // 遍历目录树查找节点
     findNodeByPath(nodes, targetPath) {
       for (const node of nodes) {
         if (node.path === targetPath) return node;
@@ -409,7 +423,6 @@ export default {
       }
       return null;
     },
-    // 目录项选择处理，统一对目录和文件做不同处理
     async handleNodeSelection(activeItems) {
       if (!activeItems.length) return;
       const selectedPath = activeItems[activeItems.length - 1];
@@ -436,7 +449,6 @@ export default {
         });
       }
     },
-    // 面包屑导航生成
     buildBreadcrumb(fullPath) {
       const parts = fullPath.split(this.path.sep).filter(p => p);
       let currentPath = '';
@@ -469,7 +481,6 @@ export default {
       this.tabs.splice(index, 1);
       this.fileContent = '';
     },
-    // 代码高亮
     highlightCode(code, lang) {
       const language = lang.slice(1);
       const validLang = hljs.getLanguage(language) ? language : 'plaintext';
@@ -478,7 +489,6 @@ export default {
     renderMarkdown(content) {
       return this.md.render(content);
     },
-    // 目录读取及过滤（去除隐藏文件，根据扩展名过滤）
     async fetchChildren(item) {
       if (!item.isDirectory) return [];
       try {
@@ -497,7 +507,6 @@ export default {
         return [];
       }
     },
-    // 将 Buffer 转换为 ArrayBuffer
     convertBuffer(buffer) {
       if (buffer instanceof ArrayBuffer) return buffer;
       if (buffer instanceof Uint8Array) return buffer.buffer;
@@ -528,9 +537,8 @@ export default {
         return `<p>XLSX 渲染失败：${error.message}</p>`;
       }
     },
-    // 展开路径到目标节点（仅允许在 homeDir 内操作）
     async expandToPath(targetPath) {
-      const homeDir = window.electron ? window.electron.homeDir : '';
+      const homeDir = await window.electron.homeDir;
       if (!targetPath.startsWith(homeDir)) return;
       const relativePath = this.path.relative(homeDir, targetPath);
       const segments = relativePath.split(this.path.sep);
@@ -564,7 +572,7 @@ export default {
         console.error('获取应用路径失败:', err);
       }
     },
-    openOutside(breadcrumbs, shouldFile) {
+    async openOutside(breadcrumbs, shouldFile) {
       if (!breadcrumbs || breadcrumbs.length === 0) {
         this.$store.dispatch('snackbar/showSnackbar', {
           message: '请先预览一个文件',
@@ -577,18 +585,18 @@ export default {
         const isFile = this.isFilePath(url);
         url = '/' + url;
         const targetPath = shouldFile ? (isFile ? path.dirname(url) : url) : url;
-        window.electron.checkPathExists(targetPath).then(async exists => {
+        await window.electron.checkPathExists(targetPath).then(async exists => {
           if (exists) {
             if (!shouldFile) {
               const ext = this.path.extname(targetPath).toLowerCase();
               const mapping = this.customAppMapping[ext];
               if (mapping) {
-                const platform = window.electron.platform;
+                const platform = await window.electron.platform;
                 const appName = mapping[platform];
                 if (appName) {
                   try {
                     const appPath = await this.getAppPath(appName);
-                    window.electron.openPathWithApp(targetPath, appPath)
+                    await window.electron.openPathWithApp(targetPath, appPath)
                       .then(error => {
                         if (error) {
                           this.$store.dispatch('snackbar/showSnackbar', {
@@ -604,7 +612,7 @@ export default {
                 }
               }
             }
-            window.electron.shell.openPath(targetPath)
+            await window.electron.shell.openPath(targetPath)
               .then(error => {
                 if (error) {
                   this.$store.dispatch('snackbar/showSnackbar', {
@@ -653,35 +661,17 @@ export default {
       }
     },
     loadPathSuggestions() {
-      // 调用接口获取仓库数据
       listRepos().then(response => {
-        console.log('loadPathSuggestions', JSON.stringify(response.data))
-        // 检查返回数据是否存在以及是否为数组
         if (!response.data || !Array.isArray(response.data)) {
           return;
         }
-
-        // 将接口返回的仓库数组映射为符合 pathSuggestions 格式的数据
-        // 使用 repo.local_path 作为 value，repo.desc 作为 title；如果 desc 不存在，则采用 repo.name
-        this.pathSuggestions = response.data.map(repo => {
-          return {
-            value: repo.local_path,
-            title: `${repo.desc}(${repo.name})`
-          };
-        });
+        this.pathSuggestions = response.data.map(repo => ({
+          value: repo.local_path,
+          title: `${repo.desc}(${repo.name})`
+        }));
       }).catch(err => {
-        // 捕获接口调用过程中可能出现的错误，打印错误信息以便调试
         console.error("获取仓库数据失败:", err);
       });
-
-      // this.pathSuggestions = [
-      //   { value: '/Users/apple/Public/generates-git/repo_pinkstone', title: '算网编排中心' },
-      //   { value: '/Users/apple/Public/generates-git/repo_eino', title: 'AI智能体编排框架' },
-      //   { value: '/Users/apple', title: '根目录' },
-      //   { value: '/Users/apple/Documents', title: '我的文档' },
-      //   { value: '/Users/apple/Public', title: '我的公共' },
-      //   { value: '/Users/apple/Downloads', title: '我的下载' },
-      // ];
     }
   }
 }

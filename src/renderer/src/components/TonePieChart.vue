@@ -233,7 +233,7 @@ export default defineComponent({
     };
 
     // 利用防抖在用户停止操作一定时间后更新图表
-    const debouncedUpdateThresholds = debounce(updateThresholdsFromSliders, 2);
+    const debouncedUpdateThresholds = debounce(updateThresholdsFromSliders, 100);
     watch(
       () => adjustableThresholds.value,
       () => {

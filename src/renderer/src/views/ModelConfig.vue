@@ -323,7 +323,7 @@ export default {
       }
     },
     // 检测模型部署情况
-    checkModelsDeployment() {
+    async checkModelsDeployment() {
       let modelsList = [];
       if (this.config.ollama) {
         console.log('this.config.ollama', JSON.stringify(this.config.ollama));
@@ -333,7 +333,7 @@ export default {
           }
         }
       }
-      window.electron.checkModelDeployment(modelsList).then(result => {
+      await window.electron.checkModelDeployment(modelsList).then(result => {
         this.modelsDeployed = result;
         if (result) {
           this.offlineStatus.message = '所有模型均已部署。';
@@ -346,7 +346,7 @@ export default {
       });
     },
     // 开始部署：调用IPC接口安装模型，并自动跳转到步骤3
-    startDeployment() {
+    async startDeployment() {
       this.deploymentStep = 3;
       let modelsList = [];
       if (this.config.ollama) {
@@ -360,19 +360,19 @@ export default {
       console.log("modelsList for deployment:", modelsList);
       this.deploymentInProgress = true;
       // 监听安装进度事件
-      window.electron.onInstallProgress((data) => {
+      await window.electron.onInstallProgress((data) => {
         console.log("Install progress event:", data);
         this.deploymentProgress = data.progress;
         this.currentDeployingModel = data.model;
       });
       // 调用安装模型的IPC方法
-      window.electron.installModels(modelsList).then(() => {
+      await window.electron.installModels(modelsList).then(() => {
         console.log("install-models resolved");
-        this.animateProgress(2000).then(() => {
+        this.animateProgress(2000).then(async () => {
           this.deploymentInProgress = false;
           this.deploymentStep = 3;
           this.offlineStatus.message = '离线智能部署已完成。';
-          window.electron.clearInstallProgressListeners();
+          await window.electron.clearInstallProgressListeners();
           console.log("Deployment complete, step set to 3");
         });
       }).catch(error => {

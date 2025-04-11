@@ -3,7 +3,13 @@
 <!--    <TonePieChart :mode-ranges="modeData"></TonePieChart>-->
     <!-- Card：企微推送智能体 -->
     <v-card outlined class="pa-4 mb-4">
-      <v-card-title class="headline">📳 企微推送智能体</v-card-title>
+      <v-card-title class="d-flex align-center justify-space-between">
+        <span class="headline">📳 企微推送智能体</span>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="saveConfig">保存配置</v-btn>
+        </v-card-actions>
+      </v-card-title>
       <v-card-text>
         <v-form ref="form" v-model="valid">
           <v-expansion-panels multiple>
@@ -145,15 +151,18 @@
           </v-expansion-panels>
         </v-form>
       </v-card-text>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn color="primary" @click="saveConfig">保存配置</v-btn>
-      </v-card-actions>
+
     </v-card>
 
     <!-- Card：分析报告智能体 -->
     <v-card outlined class="pa-4">
-      <v-card-title class="headline">📃 分析报告智能体</v-card-title>
+      <v-card-title class="d-flex align-center justify-space-between">
+        <v-card-title class="headline">📃 分析报告智能体</v-card-title>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" @click="saveConfig">保存配置</v-btn>
+        </v-card-actions>
+      </v-card-title>
       <v-card-text>
         <v-form ref="reportForm" v-model="validReport">
           <v-textarea
@@ -164,10 +173,6 @@
           ></v-textarea>
         </v-form>
       </v-card-text>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn color="primary" @click="saveConfig">保存配置</v-btn>
-      </v-card-actions>
     </v-card>
 
     <!-- 仓库详情弹窗 -->
@@ -183,7 +188,7 @@
             <v-text-field label="用户名" v-model="selectedRepo.Username" outlined></v-text-field>
             <v-text-field label="密码" v-model="selectedRepo.Password" outlined type="password"></v-text-field>
             <v-text-field label="分支" v-model="selectedRepo.Branch" outlined></v-text-field>
-            <v-text-field label="本地路径" v-model="selectedRepo.LocalPath" outlined></v-text-field>
+            <v-text-field label="本地路径" v-model="selectedRepo.LocalPath" outlined @click.native="handleLocalPathClick"></v-text-field>
             <v-text-field label="描述" v-model="selectedRepo.Desc" outlined></v-text-field>
           </v-form>
         </v-card-text>
@@ -235,19 +240,25 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+      {{ snackbar.message }}
+    </v-snackbar>
   </v-container>
 </template>
 
 <script>
 import { getConfig, updateConfig, listRepos, getRepo } from '../service/api.js'
-import ModePieChart from '../components/ModePieChart.vue'
 import TonePieChart from '../components/TonePieChart.vue'
 
 export default {
   name: 'AgentConfig',
   components: {
     TonePieChart,
-    ModePieChart
+  },
+  computed: {
+    snackbar() {
+      return this.$store.state.snackbar;
+    },
   },
   data() {
     return {
@@ -406,6 +417,51 @@ export default {
     updateModeRangesSecond(newData) {
       this.config.mode_ranges_second = newData
     },
+    async handleLocalPathClick() {
+      //todo 自动判断，如果目录为空，则自动创建‘仓库名称’文件夹；如果目录不为空，则视为该文件夹内存在代码分支记录，不进行如何处理
+      if (!this.selectedRepo.Name || !this.selectedRepo.RepoURL) {
+        alert('请先填写名称和仓库 URL');
+        return;
+      }
+      console.log('Local Path Clicked');
+
+      // 通过 IPC 调用主进程中的 'dialog:openDirectory' 接口
+      await window.electron.invoke('dialog:openDirectory', {
+        defaultPath: this.selectedRepo.LocalPath,
+        properties: ['openDirectory']
+      }).then(async result => {
+        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+          const selectedPath = result.filePaths[0];
+          const fs = await window.electron.fs;
+          const path = await window.electron.path;
+          if (!fs || !path) {
+            console.error('无法加载 fs 或 path 模块');
+            return;
+          }
+          const folderContent = fs.readdirSync(selectedPath);
+          if (folderContent.length === 0) {
+            // 文件夹为空，不自动创建子文件夹，直接使用当前选择的路径
+            this.selectedRepo.LocalPath = selectedPath;
+            this.$store.dispatch('snackbar/showSnackbar', {
+              message: "选中的文件夹为空，直接使用该目录。",
+              type: 'info'
+            });
+          } else {
+            const newFolderPath = path.join(selectedPath, this.selectedRepo.Name);
+            if (!fs.existsSync(newFolderPath)) {
+              fs.mkdirSync(newFolderPath);
+              this.$store.dispatch('snackbar/showSnackbar', {
+                message: "已自动创建 " + newFolderPath + " 文件夹",
+                type: 'info'
+              });
+            }
+            this.selectedRepo.LocalPath = newFolderPath;
+          }
+        }
+      }).catch(err => {
+        console.error(err);
+      });
+    },
     // 新增：打开仓库导入弹窗，并加载仓库列表
     openImportDialog() {
       listRepos()
@@ -428,13 +484,15 @@ export default {
       // 对每个选中的仓库调用 getRepo 获取详情，然后添加到 config.repos
       this.selectedImportRepoIds.forEach(id => {
         getRepo(id)
-          .then(resp => {
-            // 映射返回的仓库字段到本地配置的字段名
+          .then(async resp => {
             const data = resp.data;
+            const userDataPath = await window.electron.getUserDataPath();
+            const localPath = await window.electron.path.join(userDataPath, data.name)
+            console.log('create User Data Path:', localPath);
             const mappedRepo = {
               RepoURL: data.repo_url,
               Branch: data.branch,
-              LocalPath: data.local_path,
+              LocalPath: localPath,
               Username: data.username,
               Password: data.password,
               Name: data.name,
