@@ -1,6 +1,5 @@
 <template>
   <v-container>
-<!--    <TonePieChart :mode-ranges="modeData"></TonePieChart>-->
     <!-- Card：企微推送智能体 -->
     <v-card outlined class="pa-4 mb-4">
       <v-card-title class="d-flex align-center justify-space-between">
@@ -93,7 +92,9 @@
             <v-expansion-panel>
               <v-expansion-panel-title>🤖 AI评价语气风格</v-expansion-panel-title>
               <v-expansion-panel-text>
-                <TonePieChart v-model="config.mode_ranges"></TonePieChart>
+                <Suspense>
+                  <TonePieChart v-model="config.mode_ranges" />
+                </Suspense>
                 <!-- 新增：语气设置编辑区域 -->
                 <v-divider class="my-3"></v-divider>
                 <div>
@@ -104,18 +105,20 @@
                         label="最小值"
                         v-model.number="config.mode_ranges[index].min"
                         type="number"
-                      ></v-text-field>
+                      />
                     </v-col>
                     <v-col cols="8">
                       <v-text-field
                         label="语气描述"
                         v-model="config.mode_ranges[index].mode"
-                      ></v-text-field>
+                      />
                     </v-col>
                   </v-row>
                 </div>
                 <v-btn color="primary" class="mt-3" @click="addModeRange" outlined>添加语气</v-btn>
-                <v-btn color="error" class="mt-3" @click="removeModeRange" :disabled="config.mode_ranges.length <= 1" outlined>删除语气</v-btn>
+                <v-btn color="error" class="mt-3" @click="removeModeRange" :disabled="config.mode_ranges.length <= 1"
+                       outlined>删除语气
+                </v-btn>
               </v-expansion-panel-text>
             </v-expansion-panel>
 
@@ -123,7 +126,9 @@
             <v-expansion-panel>
               <v-expansion-panel-title>👾 AI消息总结语气风格</v-expansion-panel-title>
               <v-expansion-panel-text>
-                <TonePieChart v-model="config.mode_ranges_second"></TonePieChart>
+                <Suspense>
+                    <TonePieChart v-model="config.mode_ranges_second" />
+                </Suspense>
                 <!-- 新增：语气设置编辑区域 -->
                 <v-divider class="my-3"></v-divider>
                 <div>
@@ -134,24 +139,25 @@
                         label="最小值"
                         v-model.number="config.mode_ranges_second[index].min"
                         type="number"
-                      ></v-text-field>
+                      />
                     </v-col>
                     <v-col cols="8">
                       <v-text-field
                         label="语气描述"
                         v-model="config.mode_ranges_second[index].mode"
-                      ></v-text-field>
+                      />
                     </v-col>
                   </v-row>
                 </div>
                 <v-btn color="primary" class="mt-3" @click="addModeRangeSecond" outlined>添加语气</v-btn>
-                <v-btn color="error" class="mt-3" @click="removeModeRangeSecond" :disabled="config.mode_ranges_second.length <= 1" outlined>删除语气</v-btn>
+                <v-btn color="error" class="mt-3" @click="removeModeRangeSecond"
+                       :disabled="config.mode_ranges_second.length <= 1" outlined>删除语气
+                </v-btn>
               </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
         </v-form>
       </v-card-text>
-
     </v-card>
 
     <!-- Card：分析报告智能体 -->
@@ -170,7 +176,7 @@
             v-model="config.code_reports"
             outlined
             rows="5"
-          ></v-textarea>
+          />
         </v-form>
       </v-card-text>
     </v-card>
@@ -183,13 +189,13 @@
         </v-card-title>
         <v-card-text>
           <v-form ref="repoForm">
-            <v-text-field label="名称" v-model="selectedRepo.Name" outlined></v-text-field>
-            <v-text-field label="代码地址" v-model="selectedRepo.RepoURL" outlined></v-text-field>
-            <v-text-field label="用户名" v-model="selectedRepo.Username" outlined></v-text-field>
-            <v-text-field label="密码" v-model="selectedRepo.Password" outlined type="password"></v-text-field>
-            <v-text-field label="分支" v-model="selectedRepo.Branch" outlined></v-text-field>
-            <v-text-field label="本地路径" v-model="selectedRepo.LocalPath" outlined @click.native="handleLocalPathClick"></v-text-field>
-            <v-text-field label="描述" v-model="selectedRepo.Desc" outlined></v-text-field>
+            <v-text-field label="名称" v-model="selectedRepo.Name" outlined />
+            <v-text-field label="代码地址" v-model="selectedRepo.RepoURL" outlined />
+            <v-text-field label="用户名" v-model="selectedRepo.Username" outlined />
+            <v-text-field label="密码" v-model="selectedRepo.Password" outlined type="password" />
+            <v-text-field label="分支" v-model="selectedRepo.Branch" outlined />
+            <v-text-field label="本地路径" v-model="selectedRepo.LocalPath" outlined @click="handleLocalPathClick" />
+            <v-text-field label="描述" v-model="selectedRepo.Desc" outlined />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -217,14 +223,13 @@
               <div class="text-body-1">
                 {{ item.name || item.repo_url }} ({{ item.desc }})
               </div>
-
               <!-- 右侧操作区域：复选框 -->
               <div>
                 <v-checkbox
                   v-model="selectedImportRepoIds"
                   :value="item.id"
                   hide-details
-                ></v-checkbox>
+                />
               </div>
             </v-list-item>
           </v-list>
@@ -240,281 +245,294 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
       {{ snackbar.message }}
     </v-snackbar>
   </v-container>
 </template>
 
-<script>
-import { getConfig, updateConfig, listRepos, getRepo } from '../service/api.js'
-import TonePieChart from '../components/TonePieChart.vue'
+<script setup>
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useStore } from 'vuex'
+import { getConfig, updateConfig, listRepos, getRepo } from '../service/api'
+import { defineAsyncComponent } from 'vue';
 
-export default {
-  name: 'AgentConfig',
-  components: {
-    TonePieChart,
+// 异步加载 TonePieChart 组件
+const TonePieChart = defineAsyncComponent(() =>
+  import('../components/TonePieChart.vue')
+);
+
+// 如果需要向父组件 emit 事件，可用 defineEmits
+const emit = defineEmits(['config-saved'])
+
+const store = useStore()
+const snackbar = computed(() => store.state.snackbar)
+
+const valid = ref(true)
+const validReport = ref(true)
+const repoDialog = ref(false)
+const importDialog = ref(false)
+const importReposList = ref([])
+const selectedImportRepoIds = ref([])
+const selectedRepo = ref({})
+const selectedRepoIndex = ref(-1)
+
+const config = reactive({
+  webhook_url: '',
+  key: '',
+  listen_ip: '',
+  listen_port: '',
+  cron_spec: '',
+  plugin_cron: {
+    GitHunt: '',
+    GitSummary: ''
   },
-  computed: {
-    snackbar() {
-      return this.$store.state.snackbar;
-    },
-  },
-  data() {
-    return {
-      modeData: [
-        { min: 90, mode: '无厘头' },
-        { min: 80, mode: '搞笑' },
-        { min: 60, mode: '悬疑' },
-        { min: 40, mode: '黑色幽默' },
-        { min: 20, mode: '浮夸' },
-        { min: 0, mode: '严肃' }
-      ],
-      valid: true,
-      validReport: true,
-      repoDialog: false,
-      importDialog: false,          // 控制仓库导入弹窗
-      importReposList: [],          // 存储从 API 获取的仓库列表
-      selectedImportRepoIds: [],    // 存储用户选择的仓库 ID 数组
-      selectedRepo: {},
-      selectedRepoIndex: -1,
-      config: {
-        webhook_url: '',
-        key: '',
-        listen_ip: '',
-        listen_port: '',
-        cron_spec: '',
-        plugin_cron: {
-          GitHunt: '',
-          GitSummary: ''
-        },
-        headerTemplate: '',
-        footerTemplate: '',
-        repos: [],
-        context_window: '',
-        // AI评价语气风格设定
-        mode_ranges: [
+  headerTemplate: '',
+  footerTemplate: '',
+  repos: [],
+  context_window: '',
+  mode_ranges: [
+    { min: 90, mode: '无厘头' },
+    { min: 80, mode: '搞笑' },
+    { min: 60, mode: '悬疑' },
+    { min: 40, mode: '黑色幽默' },
+    { min: 20, mode: '浮夸' },
+    { min: 0, mode: '严肃' }
+  ],
+  message_templates: {},
+  mode_ranges_second: [
+    { min: 90, mode: '无厘头' },
+    { min: 80, mode: '搞笑' },
+    { min: 60, mode: '悬疑' },
+    { min: 40, mode: '黑色幽默' },
+    { min: 20, mode: '浮夸' },
+    { min: 0, mode: '严肃' }
+  ],
+  code_reports: ''
+})
+
+const fetchConfig = async () => {
+  try {
+    const response = await getConfig()
+    if (response && response.data) {
+      const data = response.data
+      config.webhook_url = data.webhook_url || ''
+      config.key = data.key || ''
+      config.listen_ip = data.listen_ip || ''
+      config.listen_port = data.listen_port || ''
+      config.cron_spec = data.cron_spec || ''
+      config.plugin_cron = data.plugin_cron || { GitHunt: '', GitSummary: '' }
+      config.headerTemplate = data.headerTemplate || ''
+      config.footerTemplate = data.footerTemplate || ''
+      config.repos = data.repos || []
+      config.context_window = data.context_window || ''
+      config.mode_ranges = (data.mode_ranges && data.mode_ranges.length)
+        ? data.mode_ranges
+        : [
           { min: 90, mode: '无厘头' },
           { min: 80, mode: '搞笑' },
           { min: 60, mode: '悬疑' },
           { min: 40, mode: '黑色幽默' },
           { min: 20, mode: '浮夸' },
           { min: 0, mode: '严肃' }
-        ],
-        message_templates: {},
-        // AI消息总结语气风格设定
-        mode_ranges_second: [
+        ]
+      config.message_templates = data.message_templates || {}
+      config.mode_ranges_second = (data.mode_ranges_second && data.mode_ranges_second.length)
+        ? data.mode_ranges_second
+        : [
           { min: 90, mode: '无厘头' },
           { min: 80, mode: '搞笑' },
           { min: 60, mode: '悬疑' },
           { min: 40, mode: '黑色幽默' },
           { min: 20, mode: '浮夸' },
           { min: 0, mode: '严肃' }
-        ],
-        code_reports: ''
-      }
+        ]
+      config.code_reports = data.code_reports || ''
     }
-  },
-  async mounted() {
-    await this.fetchConfig()
-  },
-  methods: {
-    async fetchConfig() {
-      await getConfig()
-        .then(response => {
-          this.config = response.data
-          // 初始化配置项
-          this.config.repos = this.config.repos || []
-          this.config.plugin_cron = this.config.plugin_cron || { GitHunt: '', GitSummary: '' }
-          this.config.mode_ranges = (this.config.mode_ranges && this.config.mode_ranges.length)
-            ? this.config.mode_ranges
-            : [
-              { min: 90, mode: '无厘头' },
-              { min: 80, mode: '搞笑' },
-              { min: 60, mode: '悬疑' },
-              { min: 40, mode: '黑色幽默' },
-              { min: 20, mode: '浮夸' },
-              { min: 0, mode: '严肃' }
-            ]
-          this.config.message_templates = this.config.message_templates || {}
-          this.config.mode_ranges_second = (this.config.mode_ranges_second && this.config.mode_ranges_second.length)
-            ? this.config.mode_ranges_second
-            : [
-              { min: 90, mode: '无厘头' },
-              { min: 80, mode: '搞笑' },
-              { min: 60, mode: '悬疑' },
-              { min: 40, mode: '黑色幽默' },
-              { min: 20, mode: '浮夸' },
-              { min: 0, mode: '严肃' }
-            ]
-        })
-        .catch(error => {
-          console.error('获取配置失败：', error)
-        })
-    },
-    async saveConfig() {
-      await updateConfig(this.config)
-        .then(() => {
-          this.$emit('config-saved')
-          alert('配置已保存！')
-          this.fetchConfig()
-        })
-        .catch(error => {
-          console.error('保存配置失败：', error)
-        })
-    },
-    // 仓库操作
-    addRepo() {
-      this.config.repos.push({
-        RepoURL: '',
-        Username: '',
-        Password: '',
-        Branch: '',
-        LocalPath: '',
-        Name: '',
-        Desc: ''
-      })
-    },
-    deleteRepo(index) {
-      if (confirm(`是否确认删除该仓库?`)) {
-        this.config.repos.splice(index, 1)
-      }
-    },
-    openRepoDialog(repo, index) {
-      this.selectedRepo = Object.assign({}, repo)
-      this.selectedRepoIndex = index
-      this.repoDialog = true
-    },
-    closeRepoDialog() {
-      this.repoDialog = false
-      this.selectedRepo = {}
-      this.selectedRepoIndex = -1
-    },
-    saveRepoDialog() {
-      this.config.repos.splice(this.selectedRepoIndex, 1, this.selectedRepo)
-      this.closeRepoDialog()
-    },
-    // AI评价语气风格设定操作
-    addModeRange() {
-      this.config.mode_ranges.push({ min: 50, mode: '新模式' })
-    },
-    removeModeRange() {
-      if (this.config.mode_ranges.length > 1) {
-        this.config.mode_ranges.pop()
-      }
-    },
-    addModeRangeSecond() {
-      this.config.mode_ranges_second.push({ min: 50, mode: '新模式' })
-    },
-    removeModeRangeSecond() {
-      if (this.config.mode_ranges_second.length > 1) {
-        this.config.mode_ranges_second.pop()
-      }
-    },
-    updateModeRanges(newData) {
-      this.config.mode_ranges = newData
-    },
-    updateModeRangesSecond(newData) {
-      this.config.mode_ranges_second = newData
-    },
-    async handleLocalPathClick() {
-      if (!this.selectedRepo.Name || !this.selectedRepo.RepoURL) {
-        alert('请先填写名称和仓库 URL');
-        return;
-      }
-      console.log('Local Path Clicked');
-
-      // 通过 IPC 调用主进程中的 'dialog:openDirectory' 接口
-      await window.electron.invoke('dialog:openDirectory', {
-        defaultPath: this.selectedRepo.LocalPath,
-        properties: ['openDirectory']
-      }).then(async result => {
-        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
-          const selectedPath = result.filePaths[0];
-          const fs = await window.electron.fs;
-          const path = await window.electron.path;
-          if (!fs || !path) {
-            console.error('无法加载 fs 或 path 模块');
-            return;
-          }
-          const folderContent = fs.readdirSync(selectedPath);
-          if (folderContent.length === 0) {
-            // 文件夹为空，不自动创建子文件夹，直接使用当前选择的路径
-            this.selectedRepo.LocalPath = selectedPath;
-            this.$store.dispatch('snackbar/showSnackbar', {
-              message: "选中的文件夹为空，直接使用该目录。",
-              type: 'info'
-            });
-          } else {
-            const newFolderPath = path.join(selectedPath, this.selectedRepo.Name);
-            if (!fs.existsSync(newFolderPath)) {
-              fs.mkdirSync(newFolderPath);
-              this.$store.dispatch('snackbar/showSnackbar', {
-                message: "已自动创建 " + newFolderPath + " 文件夹",
-                type: 'info'
-              });
-            }
-            this.selectedRepo.LocalPath = newFolderPath;
-          }
-        }
-      }).catch(err => {
-        console.error(err);
-      });
-    },
-    // 新增：打开仓库导入弹窗，并加载仓库列表
-    async openImportDialog() {
-      await listRepos()
-        .then(response => {
-          this.importReposList = response.data || []
-          // 初始化已选中的仓库
-          this.selectedImportRepoIds = []
-          // 显示导入弹窗
-          this.importDialog = true
-        })
-        .catch(error => {
-          console.error("获取仓库列表失败：", error)
-        })
-    },
-    closeImportDialog() {
-      this.importDialog = false
-    },
-    // 用户确认后导入选中的仓库
-    async confirmImport() {
-      // 对每个选中的仓库调用 getRepo 获取详情，然后添加到 config.repos
-      for (const id of this.selectedImportRepoIds) {
-        await getRepo(id)
-          .then(async resp => {
-            const data = resp.data;
-            const userDataPath = await window.electron.getUserDataPath();
-            const localPath = await window.electron.path.join(userDataPath, data.name)
-            console.log('create User Data Path:', localPath);
-            const mappedRepo = {
-              RepoURL: data.repo_url,
-              Branch: data.branch,
-              LocalPath: localPath,
-              Username: data.username,
-              Password: data.password,
-              Name: data.name,
-              Desc: data.desc
-            };
-            this.config.repos.push(mappedRepo);
-          })
-          .catch(err => {
-            console.error("获取仓库详情失败:", err);
-          })
-      }
-      // 关闭导入弹窗
-      this.importDialog = false;
-    }
+  } catch (error) {
+    console.error('获取配置失败：', error)
   }
 }
+
+const saveConfig = async () => {
+  try {
+    await updateConfig(config)
+    emit('config-saved')
+    alert('配置已保存！')
+    await fetchConfig()
+  } catch (error) {
+    console.error('保存配置失败：', error)
+  }
+}
+
+const addRepo = () => {
+  config.repos.push({
+    RepoURL: '',
+    Username: '',
+    Password: '',
+    Branch: '',
+    LocalPath: '',
+    Name: '',
+    Desc: ''
+  })
+}
+
+const deleteRepo = (index) => {
+  if (confirm(`是否确认删除该仓库?`)) {
+    config.repos.splice(index, 1)
+  }
+}
+
+const openRepoDialog = (repo, index) => {
+  selectedRepo.value = { ...repo }
+  selectedRepoIndex.value = index
+  repoDialog.value = true
+}
+
+const closeRepoDialog = () => {
+  repoDialog.value = false
+  selectedRepo.value = {}
+  selectedRepoIndex.value = -1
+}
+
+const saveRepoDialog = () => {
+  config.repos.splice(selectedRepoIndex.value, 1, selectedRepo.value)
+  closeRepoDialog()
+}
+
+const addModeRange = () => {
+  config.mode_ranges.push({ min: 50, mode: '新模式' })
+}
+
+const removeModeRange = () => {
+  if (config.mode_ranges.length > 1) {
+    config.mode_ranges.pop()
+  }
+}
+
+const addModeRangeSecond = () => {
+  config.mode_ranges_second.push({ min: 50, mode: '新模式' })
+}
+
+const removeModeRangeSecond = () => {
+  if (config.mode_ranges_second.length > 1) {
+    config.mode_ranges_second.pop()
+  }
+}
+
+const updateModeRanges = (newData) => {
+  config.mode_ranges = newData
+}
+
+const updateModeRangesSecond = (newData) => {
+  config.mode_ranges_second = newData
+}
+
+const handleLocalPathClick = async () => {
+  if (!selectedRepo.value.Name || !selectedRepo.value.RepoURL) {
+    alert('请先填写名称和仓库 URL')
+    return
+  }
+  console.log('Local Path Clicked')
+  try {
+    const result = await window.electron.invoke('dialog:openDirectory', {
+      defaultPath: selectedRepo.value.LocalPath,
+      properties: ['openDirectory']
+    })
+    if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+      const selectedPath = result.filePaths[0]
+      const fs = await window.electron.fs
+      const path = await window.electron.path
+      if (!fs || !path) {
+        console.error('无法加载 fs 或 path 模块')
+        return
+      }
+      const folderContent = fs.readdirSync(selectedPath)
+      if (folderContent.length === 0) {
+        selectedRepo.value.LocalPath = selectedPath
+        store.dispatch('snackbar/showSnackbar', {
+          message: "选中的文件夹为空，直接使用该目录。",
+          type: 'info'
+        })
+      } else {
+        const newFolderPath = path.join(selectedPath, selectedRepo.value.Name)
+        if (!fs.existsSync(newFolderPath)) {
+          fs.mkdirSync(newFolderPath)
+          store.dispatch('snackbar/showSnackbar', {
+            message: "已自动创建 " + newFolderPath + " 文件夹",
+            type: 'info'
+          })
+        }
+        selectedRepo.value.LocalPath = newFolderPath
+      }
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+const openImportDialog = async () => {
+  try {
+    const response = await listRepos()
+    importReposList.value = response.data || []
+    selectedImportRepoIds.value = []
+    importDialog.value = true
+  } catch (error) {
+    console.error("获取仓库列表失败：", error)
+  }
+}
+
+const closeImportDialog = () => {
+  importDialog.value = false
+}
+
+const confirmImport = async () => {
+  for (const id of selectedImportRepoIds.value) {
+    try {
+      const resp = await getRepo(id)
+      const data = resp.data
+      const userDataPath = await window.electron.getUserDataPath()
+      const localPath = await window.electron.path.join(userDataPath, data.name)
+      console.log('create User Data Path:', localPath)
+      const mappedRepo = {
+        RepoURL: data.repo_url,
+        Branch: data.branch,
+        LocalPath: localPath,
+        Username: data.username,
+        Password: data.password,
+        Name: data.name,
+        Desc: data.desc
+      }
+      config.repos.push(mappedRepo)
+    } catch (err) {
+      console.error("获取仓库详情失败:", err)
+    }
+  }
+  importDialog.value = false
+}
+
+onMounted(() => {
+  fetchConfig()
+})
 </script>
 
 <style scoped>
 .v-expansion-panel-title {
   font-weight: 500;
 }
+
 .v-card-title.headline {
   font-size: 24px;
+}
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}
+.loading-svg {
+  width: 80px;
+  height: auto;
 }
 </style>
