@@ -261,16 +261,16 @@ export default {
       },
     }
   },
-  mounted() {
-    getConfig()
-        .then(response => {
-          this.config = response.data;
-          this.checkOllama();
-          this.handleHashNavigation();
-        })
-        .catch(error => {
-          console.error('获取配置失败：', error);
-        });
+  async mounted() {
+    await getConfig()
+      .then(response => {
+        this.config = response.data;
+        this.checkOllama();
+        this.handleHashNavigation();
+      })
+      .catch(error => {
+        console.error('获取配置失败：', error);
+      });
   },
   methods: {
     checkOllamaLabel(key) {
@@ -380,23 +380,23 @@ export default {
         this.deploymentInProgress = false;
       });
     },
-    fetchConfig() {
-      getConfig()
-          .then(response => {
-            this.config = response.data;
-          })
-          .catch(error => {
-            console.error('获取配置失败：', error);
-          });
+    async fetchConfig() {
+      await getConfig()
+        .then(response => {
+          this.config = response.data;
+        })
+        .catch(error => {
+          console.error('获取配置失败：', error);
+        });
     },
-    saveModelConfig() {
-      updateConfig(this.config)
-          .then(() => {
-            alert('模型配置已保存！');
-          })
-          .catch(error => {
-            console.error('保存模型配置失败：', error);
-          });
+    async saveModelConfig() {
+      await updateConfig(this.config)
+        .then(() => {
+          alert('模型配置已保存！');
+        })
+        .catch(error => {
+          console.error('保存模型配置失败：', error);
+        });
     },
     checkOllama() {
       window.electron.checkOllamaIPC().then(result => {

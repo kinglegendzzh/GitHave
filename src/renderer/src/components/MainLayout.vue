@@ -113,9 +113,11 @@
     <!-- 主体区域：直接使用 router-view，子页面自行控制容器 -->
     <v-main>
       <RouterView  v-slot="{ Component }">
-        <keep-alive :exclude="['FileBrowser', 'CodeRepoManagement']">
-          <component :is="Component" />
-        </keep-alive>
+        <Suspense>
+          <keep-alive :exclude="['FileBrowser', 'CodeRepoManagement']">
+              <component :is="Component" />
+          </keep-alive>
+        </Suspense>
       </RouterView>
     </v-main>
   </v-app>
@@ -174,7 +176,6 @@ export default {
             { title: "深度搜索", to: "/search", icon: "mdi-book-search" },
             { title: "代码审查", to: "/commits", icon: "mdi-robot-angry" },
             { title: "数据记忆卡", to: "/scan", icon: "mdi-credit-card-scan" },
-            // { title: "其他", to: "/config", icon: "mdi-cog" },
           ]
         },
       ],
@@ -186,7 +187,7 @@ export default {
       return this.$route.meta.title || 'GitGo';
     }
   },
-  created() {
+  async created() {
     this.detectSystemTheme();
   },
   methods: {
@@ -226,7 +227,7 @@ export default {
       deep: true
     }
   },
-  mounted() {
+  async mounted() {
     const storedTheme = localStorage.getItem('isDark');
     if (storedTheme !== null) {
       this.isDark = storedTheme === 'true';

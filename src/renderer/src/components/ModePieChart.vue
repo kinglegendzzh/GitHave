@@ -51,7 +51,7 @@ export default {
       chart: null
     }
   },
-  mounted() {
+  async mounted() {
     this.initChart()
   },
   beforeDestroy() {
