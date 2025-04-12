@@ -1,5 +1,5 @@
 <template>
-  <v-container fluid class="cover-fill" style="height: 100vh">
+  <v-container fluid class="cover-fill" style="height: 90vh">
     <!-- 当 loading 为 true 时显示加载动画，反之显示主体页面 -->
     <v-row v-if="loading" align="center" justify="center" style="height: 100vh;">
       <v-col cols="12" class="text-center">
@@ -8,7 +8,7 @@
       </v-col>
     </v-row>
 
-    <template v-else>
+    <div v-else style="height: 90vh;">
       <!-- 主内容区 -->
       <v-row>
         <v-toolbar class="mb-1">
@@ -84,11 +84,13 @@
               </v-tab>
             </v-tabs>
             <!-- 面包屑导航 -->
-            <v-breadcrumbs :items="breadcrumbs" class="pa-0">
-              <template v-slot:item="{ item }">
-                <v-breadcrumbs-item @click="navigateTo(item.path)">{{ item.text }}</v-breadcrumbs-item>
-              </template>
-            </v-breadcrumbs>
+            <div class="breadcrumb-container">
+              <v-breadcrumbs :items="breadcrumbs" class="pa-0">
+                <template v-slot:item="{ item }">
+                  <v-breadcrumbs-item @click="navigateTo(item.path)">{{ item.text }}</v-breadcrumbs-item>
+                </template>
+              </v-breadcrumbs>
+            </div>
           </div>
           <v-divider></v-divider>
           <v-card tonal class="flex-grow-1" style="height: 100%; overflow-y: auto;">
@@ -109,7 +111,11 @@
                   <div v-else>加载 XLSX 中...</div>
                 </div>
                 <!-- Markdown 预览 -->
-                <div v-else-if="isMarkdown(selectedFileName)" v-html="renderMarkdown(fileContent)"></div>
+                <div
+                  v-else-if="isMarkdown(selectedFileName)"
+                  v-html="renderMarkdown(fileContent)"
+                  @click="handleLinkClick">
+                </div>
                 <!-- 代码文件预览 -->
                 <pre v-else-if="isCodeFile">
                   <code :class="`hljs ${path.extname(selectedFileName).slice(1)}`"
@@ -130,7 +136,7 @@
       <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
         {{ snackbar.message }}
       </v-snackbar>
-    </template>
+    </div>
   </v-container>
 </template>
 
@@ -213,9 +219,9 @@ export default {
       },
     }
   },
-  created() {
+  async created() {
     // 使用包装后的初始化方法
-    this.initializePage();
+    await this.initializePage();
   },
   watch: {
     localPath(newPath) {
@@ -246,6 +252,25 @@ export default {
     },
   },
   methods: {
+    async handleLinkClick(event) {
+      console.log("点击目标：", event.target);
+      let target = event.target;
+      while (target && target !== event.currentTarget) {
+        if (target.tagName === 'A') {
+          event.preventDefault();  // 阻止默认链接行为
+          const url = target.getAttribute('href');
+          console.log("捕获到链接点击，链接为：", url);
+          // 调用 Electron API 打开新窗口
+          if (window.electron && typeof window.electron.openNewWindow === 'function') {
+            window.electron.openNewWindow(url);
+          } else {
+            window.open(url, '_blank');
+          }
+          break;
+        }
+        target = target.parentNode;
+      }
+    },
     // 包装后的初始化方法，控制 loading 状态
     async initializePage() {
       this.loading = true;
@@ -660,8 +685,8 @@ export default {
         console.error('路径加载失败:', e);
       }
     },
-    loadPathSuggestions() {
-      listRepos().then(response => {
+    async loadPathSuggestions() {
+      await listRepos().then(response => {
         if (!response.data || !Array.isArray(response.data)) {
           return;
         }
@@ -684,9 +709,6 @@ pre {
   word-break: break-all;
   margin: 0;
 }
-:deep(.v-breadcrumbs) {
-  padding: 0;
-}
 :deep(.v-card) {
   min-height: 200px;
 }
@@ -701,7 +723,33 @@ html, body {
   overflow: hidden;
 }
 :deep(.vue-treeselect__menu) {
-  max-height: 1000px;
-  overflow-y: auto;
+  height: 1000px !important;
+  max-height: 1000px !important;
+  overflow: auto;
+}
+.breadcrumb-container {
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  max-width: 100%;
+}
+
+.breadcrumb-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.breadcrumb-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.breadcrumb-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 2px;
+}
+
+:deep(.v-breadcrumbs) {
+  flex-wrap: nowrap;
+  min-width: min-content;
 }
 </style>
