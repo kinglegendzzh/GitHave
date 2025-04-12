@@ -1,11 +1,11 @@
 <template>
-  <v-app>
+  <v-container class="cover-fill" style="height: 80vh">
     <!-- 全局加载遮罩：在调用 IPC 时显示 -->
     <v-overlay :value="isProcessing" absolute>
       <v-progress-circular indeterminate color="purple" size="64"></v-progress-circular>
     </v-overlay>
 
-    <v-container fluid>
+    <v-container fluid class="cover-fill" style="height: 80vh">
       <v-row style="display: flex;">
         <v-col cols="12" style="display: flex;">
           <v-autocomplete
@@ -68,7 +68,6 @@
               <v-skeleton-loader
                 v-if="legendLoading"
                 type="table"
-                class="mx-2"
               ></v-skeleton-loader>
               <!-- 加载完成后显示列表 -->
               <v-list dense class="pa-0">
@@ -117,7 +116,7 @@
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
       {{ snackbar.message }}
     </v-snackbar>
-  </v-app>
+  </v-container>
 </template>
 
 <script>
@@ -189,7 +188,7 @@ export default {
       return this.$store.state.snackbar;
     }
   },
-  created() {
+  async created() {
     if (this.dirPath != null) {
       // 仅填充输入框，不自动扫描
       this.lensPath = this.dirPath;
@@ -735,8 +734,8 @@ export default {
       };
       updateSunburst(this.currentFocus);
     },
-    loadPathSuggestions() {
-      listRepos().then(response => {
+    async loadPathSuggestions() {
+      await listRepos().then(response => {
         console.log('loadPathSuggestions', JSON.stringify(response.data));
         if (!response.data || !Array.isArray(response.data)) {
           return;

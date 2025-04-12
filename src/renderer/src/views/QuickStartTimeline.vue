@@ -3,10 +3,7 @@
     <v-app>
       <v-timeline density="compact">
         <template v-for="(step, index) in steps" :key="index">
-          <v-timeline-item
-              :dot-color="step.color"
-              :icon="step.icon"
-          >
+          <v-timeline-item :dot-color="step.color" :icon="step.icon">
             <v-card variant="flat" class="pa-2">
               <v-card-title class="headline">{{ step.title }}</v-card-title>
               <v-card-text v-if="step.description">
@@ -15,34 +12,45 @@
 
               <!-- 子流程项展示 -->
               <template v-if="step.subSteps && step.subSteps.length > 0">
-                <div style="min-width: 900px;max-width: 900px">
+                <div style="min-width: 900px; max-width: 900px">
                   <v-divider class="my-3"></v-divider>
                   <v-stepper v-model="step.currentStep" class="elevation-0">
                     <v-stepper-header class="elevation-0">
-                      <template v-for="(subStep, subIndex) in step.subSteps" :key="subIndex">
+                      <template
+                        v-for="(subStep, subIndex) in step.subSteps"
+                        :key="subIndex"
+                      >
                         <v-stepper-item
-                            :value="subIndex + 1"
-                            :complete="step.currentStep > subIndex + 1"
-                            @click="selectSubStep(step, subStep)"
-                            class="cursor-pointer"
-                            editable
+                          :value="subIndex + 1"
+                          :complete="step.currentStep > subIndex + 1"
+                          @click="selectSubStep(step, subStep)"
+                          class="cursor-pointer"
+                          editable
                         >
                           <template v-slot:title>
                             <div class="d-flex align-center">
-                              <v-icon size="small" class="mr-1">{{ subStep.icon || 'mdi-checkbox-blank-circle-outline' }}</v-icon>
+                              <v-icon size="small" class="mr-1">
+                                {{
+                                  subStep.icon ||
+                                  'mdi-checkbox-blank-circle-outline'
+                                }}
+                              </v-icon>
                               <span>{{ subStep.title }}</span>
                             </div>
                           </template>
                         </v-stepper-item>
                         <v-divider
-                            v-if="subIndex < step.subSteps.length - 1"
-                            :key="'divider-' + subIndex"
+                          v-if="subIndex < step.subSteps.length - 1"
+                          :key="'divider-' + subIndex"
                         ></v-divider>
                       </template>
                     </v-stepper-header>
                   </v-stepper>
                   <!-- 子步骤描述展示区域 -->
-                  <v-card-text v-if="step.selectedSubStep && step.selectedSubStep.description" class="mt-3 bg-grey-lighten-4 rounded">
+                  <v-card-text
+                    v-if="step.selectedSubStep && step.selectedSubStep.description"
+                    class="mt-3 bg-grey-lighten-4 rounded"
+                  >
                     {{ step.selectedSubStep.description }}
                   </v-card-text>
                 </div>
@@ -50,17 +58,19 @@
 
               <!-- 分支选择部分 -->
               <template v-if="step.branches && step.branches.length > 0">
-                <div style="min-width: 900px;max-width: 900px">
+                <div style="min-width: 900px; max-width: 900px">
                   <v-divider class="my-3"></v-divider>
                   <v-row class="branch-options">
-                    <v-col v-for="(branch, branchIndex) in step.branches"
-                           :key="branchIndex"
-                           :cols="12 / step.branches.length">
+                    <v-col
+                      v-for="(branch, branchIndex) in step.branches"
+                      :key="branchIndex"
+                      :cols="12 / step.branches.length"
+                    >
                       <v-card
-                          variant="outlined"
-                          class="branch-option"
-                          :class="{ 'selected': selectedBranch === branch.value }"
-                          @click="selectBranch(branch.value)"
+                        variant="outlined"
+                        class="branch-option"
+                        :class="{ selected: selectedBranch === branch.value }"
+                        @click="jumpToRoute(branch.value)"
                       >
                         <v-card-text class="text-center">
                           <v-icon>{{ branch.icon }}</v-icon>
@@ -71,6 +81,13 @@
                   </v-row>
                 </div>
               </template>
+
+              <!-- 跳转按钮（对非分支步骤） -->
+              <v-card-actions v-if="step.route">
+                <v-btn color="primary" @click="jumpToRoute(step.route)">
+                  前往 {{ step.buttonText || step.title }}
+                </v-btn>
+              </v-card-actions>
             </v-card>
           </v-timeline-item>
         </template>
@@ -79,12 +96,13 @@
   </v-container>
 </template>
 
+
 <script>
 export default {
   name: 'QuickStartTimeline',
-  mounted() {
+  async mounted() {
     // 初始化时为每个带有子流程的步骤选中第一个子步骤
-    this.steps.forEach(step => {
+    this.steps.forEach((step) => {
       if (step.subSteps && step.subSteps.length > 0) {
         this.selectSubStep(step, step.subSteps[0]);
       }
@@ -96,38 +114,55 @@ export default {
     },
     selectSubStep(step, subStep) {
       step.selectedSubStep = subStep;
-    }
+    },
+    // 新增方法：调用 vue-router 的路由跳转
+    jumpToRoute(route) {
+      // 如果 route 是相对路径或者完全路由路径则直接跳转
+      this.$router.push(route).catch((err) => {
+        // 忽略 NavigationDuplicated 错误
+        if (err.name !== 'NavigationDuplicated') {
+          console.error(err);
+        }
+      });
+    },
   },
   data() {
     return {
       selectedBranch: null,
       steps: [
         {
-          title: 'GitGo，是一个集AI大模型与多智能体协同编排的智能化代码助理软件',
+          title:
+            'GitGo，是一个集AI大模型与多智能体协同编排的智能化代码助理软件',
           description: '下面我们来进行快速使用流程👇',
           icon: 'mdi-play',
           color: 'primary',
-          currentStep: 1
+          // 此步骤暂不需要按钮跳转，可直接作为介绍
         },
         {
           title: '1. 代码仓库初始化',
-          description: '从任何公网的GitHub、Gitee，或公司内网的GitLab，将代码仓库导入到这里',
+          description:
+            '从任何公网的GitHub、Gitee，或公司内网的GitLab，将代码仓库导入到这里',
           icon: 'mdi-source-repository',
           color: 'success',
           currentStep: 1,
-          selectedSubStep: 1,
+          selectedSubStep: null,
           subSteps: [
             {
               title: '创建仓库身份证',
               icon: 'mdi-card-account-details',
-              description: '为你的代码仓库创建唯一身份标识，便于后续管理和追踪'
+              description:
+                '为你的代码仓库创建唯一身份标识，便于后续管理和追踪',
             },
             {
               title: '生成数据记忆卡',
               icon: 'mdi-memory',
-              description: '基于仓库内容生成数据记忆卡，构建智能索引，提升AI理解和分析能力'
-            }
-          ]
+              description:
+                '基于仓库内容生成数据记忆卡，构建智能索引，提升AI理解和分析能力',
+            },
+          ],
+          // 添加跳转到仓库管理页面的路由
+          route: '/repo',
+          buttonText: '仓库配置',
         },
         {
           title: '2. 配置大模型',
@@ -135,9 +170,12 @@ export default {
           icon: 'mdi-cog',
           color: 'info',
           branches: [
-            { title: '离线智能', value: 'local', icon: 'mdi-laptop' },
-            { title: '云端智能', value: 'cloud', icon: 'mdi-cloud' }
-          ]
+            { title: '离线智能', value: '/model', icon: 'mdi-laptop' },
+            { title: '云端智能', value: '/model', icon: 'mdi-cloud' },
+          ],
+          // 如果你需要对整个步骤跳转，也可以添加 route
+          // route: '/model',
+          // buttonText: '模型配置',
         },
         {
           title: '3. 配置智能体',
@@ -145,24 +183,27 @@ export default {
           icon: 'mdi-robot',
           color: 'purple',
           currentStep: 1,
-          selectedSubStep: 1,
+          selectedSubStep: null,
           subSteps: [
             {
-              title: '配置角色',
+              title: '定制智能体行为',
               icon: 'mdi-text-box',
-              description: '选择AI角色，定义其行为和目标'
+              description: '定制智能体的行为逻辑与风格设定，使它更具备符合项目特点的个性化特征',
             },
             {
-              title: '生成提示词',
+              title: '定制提示词',
               icon: 'mdi-text-box',
-              description: '根据项目特点生成个性化的提示词，指导AI行为'
+              description: '编写符合智能体行为逻辑的提示词，指导AI行为',
             },
             {
               title: '参数微调',
               icon: 'mdi-tune',
-              description: '精细调整AI模型参数，优化智能体表现'
-            }
-          ]
+              description: '精细调整AI模型的参数，如温度、Top-K、上下文长度、重复惩罚等模型高级特性，优化智能体表现。',
+            },
+          ],
+          // 跳转到智能体管理页面
+          route: '/agent',
+          buttonText: '智能体管理',
         },
         {
           title: '4. 启动AI能力',
@@ -170,17 +211,40 @@ export default {
           icon: 'mdi-rocket',
           color: 'red',
           branches: [
-            { title: '空间透镜', value: '/space', icon: 'mdi-telescope' },
-            { title: '深度搜索', value: '/search', icon: 'mdi-book-search' },
-            { title: '分析报告', value: '/report', icon:'mdi-microsoft-word' },
-            { title: '代码审查', value: '/commits', icon:'mdi-robot-angry' },
-          ]
-        }
-      ]
-    }
-  }
-}
+            {
+              title: '空间透镜',
+              value: '/space',
+              icon: 'mdi-telescope',
+            },
+            {
+              title: '智能推送',
+              value: '/sender',
+              icon: 'mdi-send',
+            },
+            {
+              title: '代码审查',
+              value: '/commits',
+              icon: 'mdi-robot-angry',
+            },
+            {
+              title: '分析报告',
+              value: '/report',
+              icon: 'mdi-microsoft-word',
+            },
+            {
+              title: '深度搜索',
+              value: '/search',
+              icon: 'mdi-book-search',
+            },
+          ],
+          // 对于分支步骤，由于每个分支本身支持跳转，因此这里无需额外按钮
+        },
+      ],
+    };
+  },
+};
 </script>
+
 
 <style scoped>
 .v-timeline {

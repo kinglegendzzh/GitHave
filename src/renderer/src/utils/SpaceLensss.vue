@@ -75,7 +75,7 @@ export default {
       legendItems: []  // will be populated in mounted
     };
   },
-  mounted() {
+  async mounted() {
     // 太阳耀斑图的尺寸设置
     const width = 600;
     const height = 600;
