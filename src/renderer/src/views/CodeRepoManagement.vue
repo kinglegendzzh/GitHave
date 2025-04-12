@@ -81,7 +81,7 @@
                 </v-tooltip>
                 <v-tooltip text="删除仓库">
                   <template v-slot:activator="{ props }">
-                    <v-btn v-bind="props" small class="delete-btn mr-2" color="error" @click="deleteRepo(repo)">
+                    <v-btn v-bind="props" small class="delete-btn mr-2" color="error" @click="deleteRepoo(repo)">
                       <v-icon>mdi-delete</v-icon>
                     </v-btn>
                   </template>
@@ -174,7 +174,7 @@ export default {
       return this.$store.state.snackbar;
     },
   },
-  created() {
+  async created() {
     this.fetchRepos()
   },
   methods: {
@@ -213,29 +213,29 @@ export default {
       }
       this.dialog = true
     },
-    viewRepo(item) {
-      getRepo(item.id)
-          .then(response => {
-            this.selectedRepo = response.data
-            this.repoForm = {
-              name: response.data.name,
-              repo_url: response.data.repo_url,
-              branch: response.data.branch,
-              local_path: response.data.local_path,
-              username: response.data.username,
-              password: response.data.password,
-              desc: response.data.desc
-            }
-            this.dialog = true
-          })
-          .catch(err => {
-            console.error('获取仓库详情错误:', err)
-          })
+    async viewRepo(item) {
+      await getRepo(item.id)
+        .then(response => {
+          this.selectedRepo = response.data
+          this.repoForm = {
+            name: response.data.name,
+            repo_url: response.data.repo_url,
+            branch: response.data.branch,
+            local_path: response.data.local_path,
+            username: response.data.username,
+            password: response.data.password,
+            desc: response.data.desc
+          }
+          this.dialog = true
+        })
+        .catch(err => {
+          console.error('获取仓库详情错误:', err)
+        })
     },
-    saveRepo() {
+    async saveRepo() {
       if (this.selectedRepo) {
         // 更新操作，仅更新 branch 和 LocalPath（与后端实现对应）
-        updateRepo(this.selectedRepo.id, {
+        await updateRepo(this.selectedRepo.id, {
           repo_url: this.repoForm.repo_url,
           branch: this.repoForm.branch,
           local_path: this.repoForm.local_path,
@@ -244,16 +244,16 @@ export default {
           name: this.repoForm.name,
           desc: this.repoForm.desc,
         })
-            .then(() => {
-              this.dialog = false
-              this.fetchRepos()
-            })
-            .catch(err => {
-              console.error('更新仓库错误:', err)
-            })
+          .then(() => {
+            this.dialog = false
+            this.fetchRepos()
+          })
+          .catch(err => {
+            console.error('更新仓库错误:', err)
+          })
       } else {
         // 创建操作，发送完整数据
-        createRepo({
+        await createRepo({
           repo_url: this.repoForm.repo_url,
           branch: this.repoForm.branch,
           local_path: this.repoForm.local_path,
@@ -262,24 +262,24 @@ export default {
           name: this.repoForm.name,
           desc: this.repoForm.desc
         })
-            .then(() => {
-              this.dialog = false
-              this.fetchRepos()
-            })
-            .catch(err => {
-              console.error('新增仓库错误:', err)
-            })
+          .then(() => {
+            this.dialog = false
+            this.fetchRepos()
+          })
+          .catch(err => {
+            console.error('新增仓库错误:', err)
+          })
       }
     },
-    deleteRepo(item) {
+    async deleteRepoo(item) {
       if (confirm(`确定删除仓库 ${item.name}?`)) {
-        deleteRepo(item.id)
-            .then(() => {
-              this.fetchRepos()
-            })
-            .catch(err => {
-              console.error('删除仓库错误:', err)
-            })
+        await deleteRepo(item.id)
+          .then(() => {
+            this.fetchRepos()
+          })
+          .catch(err => {
+            console.error('删除仓库错误:', err)
+          })
       }
     },
     closeDialog() {
