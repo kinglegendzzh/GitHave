@@ -95,6 +95,7 @@ const api = {
   env: process.env,
 
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+  openNewWindow: (url) => ipcRenderer.send('open-new-window', url),
 };
 
 // 使用 contextBridge 向渲染进程暴露安全 API，对外命名为 electron

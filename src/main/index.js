@@ -159,6 +159,19 @@ function startExternalProcesses() {
   console.log('启动外部程序成功');
 }
 
+ipcMain.on('open-new-window', (event, url) => {
+  const win = new BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nativeWindowOpen: true,
+    },
+  });
+  win.loadURL(url);
+});
+
 // 各 ipcMain.handle 代码保持不变
 ipcMain.handle('dialog:openDirectory', async (event, options) => {
   const focusedWindow = BrowserWindow.getFocusedWindow();

@@ -3,10 +3,69 @@ import App from './App.vue'
 import router from './router'
 import store from './store'
 import { createVuetify } from 'vuetify'
-import 'vuetify/styles'  // 引入 Vuetify 的样式
-import '@mdi/font/css/materialdesignicons.css' // Ensure you are using css-loader
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
+import {
+  VApp,
+  VCard,
+  VBtn,
+  VTabs,
+  VTab,
+  VContainer,
+  VRow,
+  VCol,
+
+  VSlider,
+  VWindow,
+  VWindowItem,
+  VList,
+  VListItem,
+  VListItemTitle,
+  VCardText,
+  VDivider,
+  VCardActions,
+
+  VImg,
+  VAvatar,
+  VListGroup,
+  VNavigationDrawer,
+  VIcon,
+  VTooltip,
+  VToolbarTitle,
+  VSpacer,
+  VSwitch,
+  VAppBar,
+  VMain,
+  VCardTitle,
+  VStepper,
+  VStepperItem,
+  VStepperHeader,
+  VTimeline,
+  VTimelineItem,
+
+  VSnackbar,
+  VMenu,
+  VProgressCircular,
+  VOverlay,
+  VAutocomplete,
+  VBreadcrumbsItem,
+  VBreadcrumbs,
+  VToolbar,
+  VSkeletonLoader,
+  VTextField,
+  VTextarea,
+  VForm,
+  VDialog,
+  VExpansionPanelTitle,
+  VProgressLinear,
+  VExpansionPanelText,
+  VExpansionPanels,
+  VExpansionPanel,
+  VCardSubtitle,
+  VCheckbox,
+  VChip,
+} from 'vuetify/components'
+import { Ripple } from 'vuetify/directives'
+import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
+import '@mdi/font/css/materialdesignicons.css' // 图标字体
 
 // 创建 Vue 应用实例
 const app = createApp(App)
@@ -15,17 +74,75 @@ app.component('transition', Transition)
 app.config.globalProperties.$createElement = h
 // 创建 Vuetify 实例
 const vuetify = createVuetify({
-  // icons: {
-  //   defaultSet: 'mdi', // This is already the default value - only for display purposes
-  // },
-  // components,
-  // directives,
+  components: {
+    VApp,
+    VCard,
+    VBtn,
+    VTabs,
+    VTab,
+    VContainer,
+    VRow,
+    VCol,
+    VSlider,
+    VWindow,
+    VWindowItem,
+    VList,
+    VListItem,
+    VListItemTitle,
+    VCardText,
+    VDivider,
+    VCardActions,
+    VImg,
+    VAvatar,
+    VListGroup,
+    VNavigationDrawer,
+    VIcon,
+    VTooltip,
+    VToolbarTitle,
+    VSpacer,
+    VSwitch,
+    VAppBar,
+    VMain,
+    VCardTitle,
+    VStepper,
+    VStepperItem,
+    VStepperHeader,
+    VTimeline,
+    VTimelineItem,
+    VSnackbar,
+    VMenu,
+    VProgressCircular,
+    VOverlay,
+    VAutocomplete,
+    VBreadcrumbsItem,
+    VBreadcrumbs,
+    VToolbar,
+    VSkeletonLoader,
+    VTextField,
+    VTextarea,
+    VForm,
+    VDialog,
+    VExpansionPanelTitle,
+    VProgressLinear,
+    VExpansionPanelText,
+    VExpansionPanels,
+    VExpansionPanel,
+    VCardSubtitle,
+    VCheckbox,
+    VChip,
+  },
+  directives: {
+    Ripple
+  }
 })
 
-// 使用 Vuetify 插件、router 和 store
+// 注册插件、router 和 store
 app.use(router)
 app.use(store)
 app.use(vuetify)
 
+// 关闭生产模式 tip
 app.config.productionTip = false
+
+// 挂载应用
 app.mount('#app')

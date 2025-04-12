@@ -1,0 +1,43 @@
+<svg
+  width="80"
+  height="30"
+  viewBox="0 0 80 30"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <!-- 第一个圆点 -->
+  <circle cx="10" cy="15" r="5" fill="#333">
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 0,-8; 0,0"
+      begin="0s"
+      dur="0.6s"
+      repeatCount="indefinite"
+    />
+  </circle>
+
+  <!-- 第二个圆点，延迟 0.2s 开始动画 -->
+  <circle cx="30" cy="15" r="5" fill="#333">
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 0,-8; 0,0"
+      begin="0.2s"
+      dur="0.6s"
+      repeatCount="indefinite"
+    />
+  </circle>
+
+  <!-- 第三个圆点，延迟 0.4s 开始动画 -->
+  <circle cx="50" cy="15" r="5" fill="#333">
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 0,-8; 0,0"
+      begin="0.4s"
+      dur="0.6s"
+      repeatCount="indefinite"
+    />
+  </circle>
+</svg>
