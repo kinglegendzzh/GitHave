@@ -16,6 +16,16 @@
             <v-expansion-panel>
               <v-expansion-panel-title>⚙️ 基本设置</v-expansion-panel-title>
               <v-expansion-panel-text>
+                <v-text-field
+                  label="企业微信机器人的WebhookUrl"
+                  v-model="config.webhook_url"
+                  outlined
+                ></v-text-field>
+                <v-text-field
+                  label="企业微信机器人的Key(WebhookUrl后面的key=?)"
+                  v-model="config.key"
+                  outlined
+                ></v-text-field>
                 <v-textarea
                   label="消息头 (Header Template)"
                   v-model="config.headerTemplate"

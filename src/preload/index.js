@@ -67,10 +67,59 @@ const api = {
   writeConfig: async (configPath, data) => await ipcRenderer.invoke('write-config', configPath, data),
 
   // 启动外部进程
-  startBot: async (configPath) => await ipcRenderer.invoke('start-bot', configPath),
-  startApp: async (configPath) => await ipcRenderer.invoke('start-app', configPath),
-  startFlashmemory: async (dir) => await ipcRenderer.invoke('start-flashmemory', dir),
-  queryFlashmemory: async (dir, query) => await ipcRenderer.invoke('query-flashmemory', dir, query),
+  // 停止 app 进程
+  stopApp: async () => {
+    try {
+      const result = await ipcRenderer.invoke('stop-app');
+      console.log('[preload.js] stop-app result:', result);
+      return result;
+    } catch (error) {
+      console.error('[preload.js] stop-app error:', error);
+      throw error;
+    }
+  },
+
+  // 启动 app 进程，configPath 为启动参数之一
+  startApp: async (configPath) => {
+    try {
+      const result = await ipcRenderer.invoke('start-app', configPath);
+      console.log('[preload.js] start-app result:', result);
+      return result;
+    } catch (error) {
+      console.error('[preload.js] start-app error:', error);
+      throw error;
+    }
+  },
+
+  // 停止 bot 进程
+  stopBot: async () => {
+    try {
+      const result = await ipcRenderer.invoke('stop-bot');
+      console.log('[preload.js] stop-bot result:', result);
+      return result;
+    } catch (error) {
+      console.error('[preload.js] stop-bot error:', error);
+      throw error;
+    }
+  },
+
+  // 启动 bot 进程，configPath 为启动参数之一
+  startBot: async (configPath) => {
+    try {
+      const result = await ipcRenderer.invoke('start-bot', configPath);
+      console.log('[preload.js] start-bot result:', result);
+      return result;
+    } catch (error) {
+      console.error('[preload.js] start-bot error:', error);
+      throw error;
+    }
+  },
+
+  // 健康检查接口
+  checkBotHealth: () => ipcRenderer.invoke('check-bot-health'),
+  checkAppHealth: () => ipcRenderer.invoke('check-app-health'),
+
+  sysConfig: (options) => ipcRenderer.invoke('sys-config', options),
 
   // 路径/系统工具接口
   getAppPathIPC: async (appName) => await ipcRenderer.invoke('get-app-path', appName),

@@ -1,24 +1,39 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>退出确认</title>
   <style>
+    /* 昼夜主题支持 */
     html, body {
       margin: 0;
       padding: 20px;
-      font-family: sans-serif;
-      background-color: #f7f7f7;
-      -webkit-user-select: none;
-      -webkit-app-region: drag;  /* 整个页面允许拖拽 */
+      font-family: system-ui, sans-serif;
+      /* 默认浅色 */
+      background-color: #fff;
+      color: #000;
+      -webkit-app-region: drag; /* 全局支持拖拽 */
+      box-sizing: border-box;
+    }
+    @media (prefers-color-scheme: dark) {
+      html, body {
+        background-color: #111;
+        color: #fff;
+      }
     }
     .container {
       text-align: center;
+      max-width: 400px;
+      margin: 0 auto;
     }
     h2 {
       margin-top: 0;
+      font-size: 1.1rem;
     }
     p {
+      font-size: 0.85rem;
+      line-height: 1.4;
       margin: 20px 0;
     }
     .btn-container {
@@ -28,9 +43,9 @@
       margin-top: 20px;
     }
     button {
-      -webkit-app-region: no-drag;  /* 按钮区域禁止拖拽 */
-      padding: 10px 20px;
-      font-size: 14px;
+      -webkit-app-region: no-drag; /* 按钮区域禁止拖拽 */
+      padding: 6px 12px;
+      font-size: 0.8rem;
       cursor: pointer;
       border: none;
       border-radius: 4px;
@@ -40,28 +55,79 @@
       color: #fff;
     }
     .btn-no {
-      background-color: #5bc0de;
+      background-color: #5fc56d;
       color: #fff;
+    }
+    /* 动画区域：用于在点击“停止核心服务并退出”后展示缩小版 SVG 和提示文字 */
+    .loading-area {
+      margin-top: 30px;
+    }
+    /* 缩小版 SVG 动画样式 */
+    .loading-svg {
+      width: 80px;  /* 缩小尺寸 */
+      height: auto;
+      margin: 0 auto;
+      display: block;
+    }
+    /* 动态提示文字样式，字体稍小 */
+    .loading-text {
+      font-size: 0.8rem;
+      text-align: center;
+      margin-top: 16px;
+      opacity: 0;
+      transform: scale(0.8);
+      animation: fadeInBounce 3s infinite;
+    }
+    @keyframes fadeInBounce {
+      0% {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      30% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+      50% {
+        transform: scale(0.95);
+      }
+      70% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.8);
+      }
     }
   </style>
 </head>
 <body>
-<div class="container">
+<div class="container" id="content">
   <h2>退出确认</h2>
   <p>是否停止核心进程服务？<br>
-    选择直接退出将保留后台服务，下次启动更快，但可能会略微损耗性能。</p>
-  <div class="btn-container">
-    <button class="btn-yes" id="btnYes">停止核心服务并退出</button>
-    <button class="btn-no" id="btnNo">直接退出（保留后台服务）</button>
+    <span style="color: grey">停止核心服务会花费些许时间；当你本次直接退出并保留后台服务时，下次启动app的速度将会些许变慢。</span></p>
+  <div class="btn-container" id="btnContainer">
+    <button style="width: 180px; height: auto" class="btn-yes" id="btnYes">停止核心服务并完全退出</button>
+    <button style="width: 200px; height: auto" class="btn-no" id="btnNo">直接退出（保留后台服务）</button>
   </div>
 </div>
+
 <script>
   const { ipcRenderer } = require('electron');
-  document.getElementById('btnYes').addEventListener('click', () => {
-    ipcRenderer.send('shutdown-yes');
-  });
+
+  // 当点击直接退出按钮时，发送信号给主进程
   document.getElementById('btnNo').addEventListener('click', () => {
     ipcRenderer.send('shutdown-no');
+  });
+
+  // 点击“停止核心服务并退出”按钮时，切换内容显示退出效果
+  document.getElementById('btnYes').addEventListener('click', () => {
+    // 隐藏按钮容器
+    const btnContainer = document.getElementById('btnContainer');
+    btnContainer.style.display = 'none';
+
+    // 发送信号给主进程，表示用户选择停止核心服务并退出
+    ipcRenderer.send('shutdown-yes');
   });
 </script>
 </body>

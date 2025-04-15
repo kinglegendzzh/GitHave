@@ -96,14 +96,15 @@
       <div
         v-if="tooltipVisible"
         :style="{
-          position: 'absolute',
-          left: tooltipX + 'px',
-          top: tooltipY + 'px',
-          pointerEvents: 'none',
-          zIndex: 1000
-        }"
+      position: 'absolute',
+      left: tooltipX + 'px',
+      top: tooltipY + 'px',
+      pointerEvents: 'none',
+      zIndex: 1000
+    }"
       >
-        <v-card class="tooltip-card" outlined>
+        <!-- 此处没有明确设置背景颜色，由 v-card 全局主题决定 -->
+        <v-card class="tooltip-card theme--light" outlined>
           <v-icon left>mdi-comment</v-icon>
           <span style="font-size: 18px; margin-left: 4px;">{{ tooltipContent }}</span>
         </v-card>
@@ -720,5 +721,8 @@ onMounted(() => {
   padding: 8px;
   border-radius: 16px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.tooltip-card span {
+  color: #454545 !important;
 }
 </style>

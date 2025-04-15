@@ -9,7 +9,14 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()]
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [
+      externalizeDepsPlugin()
+    ],
+    build: {
+      rollupOptions: {
+        external: ['os', 'fs', 'path']
+      }
+    }
   },
   renderer: {
     resolve: {

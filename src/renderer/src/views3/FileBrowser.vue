@@ -78,7 +78,7 @@
             <!-- 顶部标签页 -->
             <v-tabs v-model="activeTab" class="mb-4">
               <v-tab v-for="(tab, index) in tabs" :key="tab.path" class="d-flex align-center">
-                <v-icon class="ml-2" @click.stop="removeTab(index)" style="cursor: pointer;">mdi-close</v-icon>
+                <v-icon class="ml-2" @click.stop="removeTab(index)" style="cursor: pointer;" color="error">mdi-close</v-icon>
                 <span @click="selectTab(tab)" style="cursor: pointer;" class="text-blue-grey-darken-4">{{ tab.name }}</span>
               </v-tab>
             </v-tabs>
@@ -769,6 +769,15 @@ html, body {
   height: 1000px !important;
   max-height: 1000px !important;
   overflow: auto;
+  background: #f8f8f8;
+  :deep(.vue-treeselect__label) {
+    color: #292929;
+    background: #f8f8f8
+  }
+}
+:deep(.v-slide-group__container) {
+  background: #f4f4f4;
+  border-radius: 10px;
 }
 .breadcrumb-container {
   overflow-x: auto;

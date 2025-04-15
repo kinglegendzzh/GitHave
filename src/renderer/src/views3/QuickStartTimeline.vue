@@ -122,11 +122,11 @@ const loading = ref(true);
 // 分支选择（全局）状态
 const selectedBranch = ref(null);
 
-// 定义时间轴流程项，使用 ref 保存一个数组（包含各个步骤及其子流程和分支）
+// 定义时间轴流程项
 const steps = ref([
   {
     title:
-      'GitGo，是一个集AI大模型与多智能体协同编排的智能化代码助理软件',
+      'GitGo，是一个代码智能助理软件',
     description: '下面我们来进行快速使用流程👇',
     icon: 'mdi-play',
     color: 'primary',
@@ -253,17 +253,21 @@ function jumpToRoute(route) {
   });
 }
 
-// 组件加载时：为每个带子流程的步骤选择第一个子流程，同时模拟加载过程
+// 组件加载时：为每个带子流程的步骤选择第一个子流程，并等待页面完全加载
 onMounted(() => {
   steps.value.forEach((step) => {
     if (step.subSteps && step.subSteps.length) {
       selectSubStep(step, step.subSteps[0]);
     }
   });
-  // 模拟1秒的加载时间，用于显示动态加载图
-  setTimeout(() => {
+  // 判断页面是否已完全加载：
+  if (document.readyState === 'complete') {
     loading.value = false;
-  }, 1000);
+  } else {
+    window.addEventListener('load', () => {
+      loading.value = false;
+    });
+  }
 });
 </script>
 
@@ -281,6 +285,7 @@ onMounted(() => {
   width: 80px;
   height: auto;
 }
+
 @keyframes spin {
   100% {
     transform: rotate(360deg);
@@ -291,24 +296,30 @@ onMounted(() => {
 .v-timeline {
   margin-top: 20px;
 }
+
 .v-timeline-item {
   margin-bottom: 16px;
 }
+
 .branch-option {
   cursor: pointer;
   transition: all 0.3s;
 }
+
 .branch-option:hover {
   transform: translateY(-2px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
+
 .branch-option.selected {
   border-color: rgb(var(--v-theme-primary));
   background-color: rgba(var(--v-theme-primary), 0.1);
 }
+
 .branch-options {
   position: relative;
 }
+
 .branch-options::before {
   content: '';
   position: absolute;
@@ -324,15 +335,19 @@ onMounted(() => {
 .v-stepper {
   box-shadow: none !important;
 }
+
 .v-stepper__header {
   box-shadow: none !important;
 }
+
 .cursor-pointer {
   cursor: pointer;
 }
+
 .v-stepper__item {
   padding: 8px 12px;
 }
+
 .v-stepper__item:hover {
   background-color: rgba(var(--v-theme-primary), 0.1);
   border-radius: 4px;

@@ -10,9 +10,11 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - 'bin/**/*'  # 包括 bin 目录下的所有文件
   - 'out/**/*'  # 包括 out 目录下的所有文件
+  - 'public/**/*'
 asarUnpack:
   - resources/**
   - bin/**/*
+  - 'public/**/*'
 #  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
 win:
   executableName: GitGo
@@ -50,3 +52,6 @@ asar: true
 #protocols: # win.loadURL时启动
 #  name: gitgo
 #  schemes: [gitgo]
+extraResources:
+  - from: "src/renderer/skeleton.html"
+    to: "renderer/skeleton.html"
