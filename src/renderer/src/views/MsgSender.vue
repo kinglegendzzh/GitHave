@@ -62,11 +62,11 @@ export default {
     }
   },
   methods: {
-    handleSwitchChange() {
+    async handleSwitchChange() {
       // 触发开关状态变化时，调用相应的 IPC 方法
       if (this.isSwitched) {
         if (this.botHealthState === '已停止') {
-          const sysConfigResp = window.electron.sysConfig();
+          const sysConfigResp = await window.electron.sysConfig();
           console.log('configPath:', sysConfigResp.configPath);
           window.electron.startBot(sysConfigResp.configPath);  // 启动 Bot
           this.botHealthState = '正在启动...';

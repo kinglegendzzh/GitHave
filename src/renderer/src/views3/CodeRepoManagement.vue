@@ -113,11 +113,11 @@
                 <v-text-field v-model="repoForm.local_path" required :disabled="selectedRepo !== null" readonly @click="handleLocalPathClick" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
               </div>
               <div class="info-item">
-                <span class="label">用户名 / Username</span>
+                <span class="label">用户名 / Username (私有仓库需要填写)</span>
                 <v-text-field v-model="repoForm.username" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
               </div>
               <div class="info-item">
-                <span class="label">密码 / Password</span>
+                <span class="label">密码 / Password (私有仓库需要填写)</span>
                 <v-text-field v-model="repoForm.password" type="password" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
               </div>
               <div class="info-item">
@@ -298,8 +298,16 @@ const closeDialog = () => {
 
 // 获取头像图标（利用外部生成函数）
 const getAvatarIcon = (repoId) => {
-  return generateAvatar(repoId)
+  if (!repoId) {
+    return '';  // 如果 repoId 无效，则返回空字符串
+  }
+  // 当repoId为'new'或非数字时，使用固定的数值作为种子
+  if (repoId === 'new' || isNaN(Number(repoId))) {
+    return generateAvatar(12345); // 使用固定数值作为种子
+  }
+  return generateAvatar(repoId);
 }
+
 
 // 处理本地路径选择（使用 Electron 的 IPC 调用）
 const handleLocalPathClick = async () => {
