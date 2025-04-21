@@ -83,39 +83,69 @@
     </v-row>
 
     <!-- 弹出对话框：用于新增或编辑仓库 -->
-    <v-dialog v-model="dialog" max-width="400" scrollable persistent>
-      <v-card>
-        <v-card-title>
-          <span class="headline">{{ selectedRepo ? '编辑ID卡' : '新增仓库ID卡' }}</span>
-        </v-card-title>
-        <v-card-text>
-          <v-form ref="form" v-model="formValid">
-            <v-text-field label="名称" v-model="repoForm.name" required :disabled="selectedRepo !== null" />
-            <v-text-field label="仓库 URL" v-model="repoForm.repo_url" required :disabled="selectedRepo !== null" />
-            <v-text-field label="分支" v-model="repoForm.branch" required />
-            <v-text-field label="本地路径" v-model="repoForm.local_path" required :disabled="selectedRepo !== null" readonly @click="handleLocalPathClick" />
-            <v-text-field label="用户名" v-model="repoForm.username" />
-            <v-text-field label="密码" v-model="repoForm.password" type="password" />
-            <v-textarea label="描述" v-model="repoForm.desc" />
-          </v-form>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-tooltip text="取消">
-            <template #activator="{ props }">
-              <v-btn v-bind="props" text @click="closeDialog">
-                <v-icon>mdi-close</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
-          <v-tooltip text="保存">
-            <template #activator="{ props }">
-              <v-btn v-bind="props" text @click="saveRepo" :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)">
-                <v-icon>mdi-content-save</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
-        </v-card-actions>
+    <v-dialog v-model="dialog" max-width="550" scrollable persistent>
+      <v-card class="id-card-edit" elevation="2">
+        <div class="id-card-header">
+          <span class="id-card-title">{{ selectedRepo ? '编辑ID卡' : '新增仓库ID卡' }}</span>
+          <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
+        </div>
+        <div class="id-card-content">
+            <div class="id-card-left">
+              <div class="avatar-icon" v-html="getAvatarIcon(selectedRepo ? selectedRepo.id : 'new')"></div>
+              <div class="repo-name">{{ repoForm.name || '新仓库' }}</div>
+            </div>
+            <div class="id-card-right edit-form-content">
+              <v-form ref="form" v-model="formValid" class="edit-form">
+              <div class="info-item">
+                <span class="label">名称 / Name</span>
+                <v-text-field v-model="repoForm.name" required :disabled="selectedRepo !== null" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+              </div>
+              <div class="info-item">
+                <span class="label">仓库地址 / URL</span>
+                <v-text-field v-model="repoForm.repo_url" required :disabled="selectedRepo !== null" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+              </div>
+              <div class="info-item">
+                <span class="label">分支 / Branch</span>
+                <v-text-field v-model="repoForm.branch" required density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+              </div>
+              <div class="info-item">
+                <span class="label">本地路径 / Local Path</span>
+                <v-text-field v-model="repoForm.local_path" required :disabled="selectedRepo !== null" readonly @click="handleLocalPathClick" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+              </div>
+              <div class="info-item">
+                <span class="label">用户名 / Username</span>
+                <v-text-field v-model="repoForm.username" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+              </div>
+              <div class="info-item">
+                <span class="label">密码 / Password</span>
+                <v-text-field v-model="repoForm.password" type="password" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+              </div>
+              <div class="info-item">
+                <span class="label">描述 / Description</span>
+                <v-textarea v-model="repoForm.desc" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details rows="2" class="custom-field" />
+              </div>
+            </v-form>
+          </div>
+        </div>
+        <div class="id-card-footer">
+          <div class="id-number">{{ selectedRepo ? '编辑' : '新增' }}</div>
+          <div class="action-buttons">
+            <v-tooltip text="取消">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" small class="cancel-btn mr-2" color="error" @click="closeDialog">
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip text="保存">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" small class="save-btn" color="primary" @click="saveRepo" :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)">
+                  <v-icon>mdi-content-save</v-icon>
+                </v-btn>
+              </template>
+            </v-tooltip>
+          </div>
+        </div>
       </v-card>
     </v-dialog>
 
@@ -457,5 +487,69 @@ onMounted(() => {
 /* 确保卡片居中排列 */
 .v-row {
   justify-content: center;
+}
+/* 身份证卡片编辑样式 */
+.id-card-edit {
+  width: 650px; /* 与列表卡片宽度一致 */
+  height: 680px; /* 与列表卡片高度一致 */
+  margin: 10px;
+  padding: 20px;
+  padding-bottom: 60px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
+  position: relative;
+  border-radius: 10px; /* 圆角与列表卡片一致 */
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); /* 与列表卡片一致的阴影 */
+  overflow: hidden;
+}
+
+/* 添加与列表卡片一致的背景图案 */
+.id-card-edit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E") repeat;
+  opacity: 0.3;
+  z-index: 0;
+}
+
+/* 编辑表单内容区域 */
+.edit-form-content {
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: 260px;
+  padding-right: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.edit-form {
+  width: 100%;
+}
+
+/* 自定义表单字段样式 */
+.custom-field {
+  margin-bottom: 5px;
+  font-size: 14px;
+  color: #1a237e;
+}
+
+/* 表单项样式 */
+.info-item {
+  margin-bottom: 10px;
+}
+
+/* 保存按钮样式 */
+.save-btn {
+  min-width: 36px;
+  height: 36px;
+}
+
+/* 取消按钮样式 */
+.cancel-btn {
+  min-width: 36px;
+  height: 36px;
 }
 </style>
