@@ -4,7 +4,7 @@ import axios from 'axios'
 // 创建一个 axios 实例
 const instance = axios.create({
     baseURL: 'http://127.0.0.1:19151',
-    timeout: 5000
+    timeout: 30000 // 增加超时时间到30秒，解决长时间处理的请求问题
 })
 
 // 获取仓库列表
@@ -28,8 +28,8 @@ export function updateRepo(id, data) {
 }
 
 // 删除仓库
-export function deleteRepo(id) {
-    return instance.delete(`/repos/delete/${id}`)
+export function deleteRepo(id, params) {
+    return request.delete(`/repos/${id}`, params)
 }
 
 // 获取系统数据

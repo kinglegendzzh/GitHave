@@ -37,14 +37,10 @@ let timeout = 0;
  */
 // 日志文件路径
 const logFilePath = path.join(app.getPath('userData'), 'logs.log');
-// 创建 winston 日志记录器
+// 创建 winston 日志记录器 - 不添加任何前缀，直接输出原始消息
 const winstonLogger = winston.createLogger({
   level: 'info',
-  format: format.combine(
-    format.timestamp(),
-    // 注意：模板字符串用反引号包裹
-    format.printf(info => `${info.timestamp} [${info.level.toUpperCase()}] ${info.message}`)
-  ),
+  format: format.printf(info => `${info.message}`), // 只输出消息内容，不添加时间戳和日志级别
   transports: [
     // 控制台日志
     new transports.Console(),

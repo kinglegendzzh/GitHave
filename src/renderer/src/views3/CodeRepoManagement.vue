@@ -152,6 +152,54 @@
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
       {{ snackbar.message }}
     </v-snackbar>
+
+    <!-- 进度条弹窗 -->
+    <v-dialog v-model="progressDialog" persistent max-width="400">
+      <v-card>
+        <v-card-title class="text-center">{{ progressTitle }}</v-card-title>
+        <v-card-text>
+          <v-progress-linear
+            :model-value="progress"
+            color="primary"
+            height="25"
+            striped
+          >
+            <template v-slot:default="{ value }">
+              <strong>{{ Math.ceil(value) }}%</strong>
+            </template>
+          </v-progress-linear>
+          <div class="text-center mt-2">{{ progressMessage }}</div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- 删除确认对话框 -->
+    <v-dialog v-model="deleteDialog" persistent max-width="450">
+      <v-card>
+        <v-card-title class="text-h5">确认删除仓库</v-card-title>
+        <v-card-text>
+          您确定要删除仓库 "{{ repoToDelete?.name }}" 吗？
+          <v-checkbox
+            v-model="deleteLocalDirectory"
+            label="同时删除本地仓库目录？（此操作无法恢复）"
+            color="error"
+            class="mt-2"
+          ></v-checkbox>
+          <div v-if="deleteLocalDirectory && repoToDelete?.local_path" class="text-caption text-error">
+            本地目录: {{ repoToDelete.local_path }}
+          </div>
+           <div v-else-if="deleteLocalDirectory && !repoToDelete?.local_path" class="text-caption text-warning">
+            警告：未找到本地路径信息，无法删除本地目录。
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="blue darken-1" text @click="closeDeleteDialog">取消</v-btn>
+          <v-btn color="error darken-1" text @click="confirmDeleteRepo">确认删除</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
   </v-container>
 </template>
 
@@ -176,6 +224,18 @@ const formValid = ref(false)
 const selectedRepo = ref(null)
 const localFolderValid = ref(true)
 
+// 删除确认对话框状态
+const deleteDialog = ref(false)
+const repoToDelete = ref(null)
+const deleteLocalDirectory = ref(false)
+
+// 进度条状态
+const progressDialog = ref(false)
+const progress = ref(0)
+const progressTitle = ref('')
+const progressMessage = ref('')
+const progressTimer = ref(null)
+
 // 仓库表单数据采用 reactive 管理
 const repoForm = reactive({
   name: '',
@@ -187,13 +247,30 @@ const repoForm = reactive({
   desc: ''
 })
 
+// 显示错误提示信息
+const showErrorSnackbar = (message) => {
+  store.dispatch('snackbar/showSnackbar', {
+    message: message,
+    type: 'error'
+  })
+}
+
 // 获取仓库列表（尽量用 async/await，提高可读性和错误处理能力）
 const fetchRepos = async () => {
   try {
     const response = await listRepos()
-    repos.value = response.data
+    if (response.status === 200) {
+      repos.value = response.data
+    } else {
+      // 处理非200状态码，从响应体中提取错误信息
+      const errorMsg = response.data || '无法获取仓库列表'
+      showErrorSnackbar(errorMsg)
+    }
   } catch (err) {
     console.error('获取仓库列表错误:', err)
+    // 捕获网络错误或其他异常
+    const errorMsg = err.response?.data || err.message || '拉取仓库失败'
+    showErrorSnackbar(errorMsg)
   }
 }
 
@@ -243,11 +320,75 @@ const viewRepo = async (item) => {
     dialog.value = true
   } catch (err) {
     console.error('获取仓库详情错误:', err)
+    const errorMsg = err.response?.data || err.message || '获取仓库详情失败'
+    showErrorSnackbar(errorMsg)
+  }
+}
+
+// 启动进度条模拟
+const startProgressSimulation = () => {
+  // 设置初始状态
+  progress.value = 0
+  progressTitle.value = selectedRepo.value ? '正在更新仓库' : '正在创建仓库'
+  progressMessage.value = '正在初始化...' 
+  progressDialog.value = true
+  
+  // 清除可能存在的旧定时器
+  if (progressTimer.value) {
+    clearInterval(progressTimer.value)
+  }
+  
+  // 创建新的定时器，模拟进度增长
+  progressTimer.value = setInterval(() => {
+    if (progress.value < 90) {
+      // 非线性增长，开始快，接近90%时变慢
+      const increment = (90 - progress.value) / 10
+      progress.value += Math.max(0.5, increment)
+      
+      // 根据进度更新消息
+      if (progress.value < 30) {
+        progressMessage.value = '正在准备仓库数据...'
+      } else if (progress.value < 60) {
+        progressMessage.value = '正在处理仓库信息...'
+      } else {
+        progressMessage.value = '即将完成，请稍候...'
+      }
+    }
+  }, 200) // 每200毫秒更新一次
+}
+
+// 完成进度条
+const completeProgress = (success = true) => {
+  // 清除定时器
+  if (progressTimer.value) {
+    clearInterval(progressTimer.value)
+    progressTimer.value = null
+  }
+  
+  if (success) {
+    // 成功完成，直接设置为100%
+    progress.value = 100
+    progressMessage.value = selectedRepo.value ? '仓库更新成功！' : '仓库创建成功！'
+    
+    // 短暂显示100%后关闭进度条
+    setTimeout(() => {
+      progressDialog.value = false
+      // 重置进度
+      progress.value = 0
+    }, 1000)
+  } else {
+    // 失败，关闭进度条
+    progressDialog.value = false
+    // 重置进度
+    progress.value = 0
   }
 }
 
 // 保存仓库（判断更新或新增）
 const saveRepo = async () => {
+  // 启动进度条模拟
+  startProgressSimulation()
+  
   try {
     if (selectedRepo.value) {
       // 更新操作：仅更新部分字段
@@ -272,26 +413,72 @@ const saveRepo = async () => {
         desc: repoForm.desc
       })
     }
+    
+    // 操作成功，完成进度条
+    completeProgress(true)
     dialog.value = false
     fetchRepos()
+    
+    // 显示成功提示
+    store.dispatch('snackbar/showSnackbar', {
+      message: selectedRepo.value ? '仓库更新成功' : '仓库创建成功',
+      type: 'success'
+    })
   } catch (err) {
     console.error(selectedRepo.value ? '更新仓库错误:' : '新增仓库错误:', err)
-  }
-}
-
-// 删除仓库操作
-const deleteRepoo = async (item) => {
-  if (confirm(`确定删除仓库 ${item.name}?`)) {
-    try {
-      await deleteRepo(item.id)
-      fetchRepos()
-    } catch (err) {
-      console.error('删除仓库错误:', err)
+    
+    // 操作失败，停止进度条
+    completeProgress(false)
+    
+    // 特殊处理超时错误
+    if (err.code === 'ECONNABORTED' && err.message.includes('timeout')) {
+      showErrorSnackbar('请求超时，服务器处理时间较长，请稍后刷新页面查看是否操作成功')
+    } else {
+      const errorMsg = err.response?.data || err.message || (selectedRepo.value ? '更新仓库失败' : '新增仓库失败')
+      showErrorSnackbar(errorMsg)
     }
   }
 }
 
-// 关闭对话框
+// 删除仓库操作 - 打开确认对话框
+const deleteRepoo = (item) => {
+  repoToDelete.value = item
+  deleteLocalDirectory.value = false // 重置复选框状态
+  deleteDialog.value = true
+}
+
+// 确认删除仓库
+const confirmDeleteRepo = async () => {
+  if (!repoToDelete.value) return
+
+  const repoId = repoToDelete.value.id
+  const repoName = repoToDelete.value.name
+  const shouldDeleteLocal = deleteLocalDirectory.value
+
+  closeDeleteDialog() // 先关闭对话框
+
+  try {
+    // 调用后端删除接口，并根据复选框状态传递 deleteLocal 参数
+    await deleteRepo(repoId, { params: { deleteLocal: shouldDeleteLocal } })
+    fetchRepos() // 重新获取列表
+    store.dispatch('snackbar/showSnackbar', {
+      message: `仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''),
+      type: 'success'
+    })
+  } catch (err) {
+    console.error('删除仓库错误:', err)
+    const errorMsg = err.response?.data || err.message || '删除仓库失败'
+    showErrorSnackbar(errorMsg)
+  }
+}
+
+// 关闭删除确认对话框
+const closeDeleteDialog = () => {
+  deleteDialog.value = false
+  repoToDelete.value = null // 清除待删除的仓库信息
+}
+
+// 关闭（新增/编辑）对话框
 const closeDialog = () => {
   dialog.value = false
 }

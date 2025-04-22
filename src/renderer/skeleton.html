@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Loading...</title>
+  <style>
+    /* 浅色模式（默认） */
+    body {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      min-height: 100vh;
+      background-color: #fff;
+      color: #000;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      font-family: sans-serif;
+    }
+    /* 深色模式 */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #111;
+        color: #fff;
+      }
+    }
+
+    /* SVG 样式 */
+    #hole {
+      margin-top: 1px;
+      width: 5%;
+      height: auto;
+      overflow: visible;
+      transform: perspective(900px) rotateX(45deg);
+    }
+
+    .loading-text {
+      margin-top: 16px;
+      font-size: 0.7rem;
+      text-align: center;
+      /* 初始样式 */
+      opacity: 0;
+      transform: scale(0.8);
+      /* 循环播放动画 */
+      animation: fadeInBounceLoop 3s infinite;
+    }
+
+    /* 定义循环播放的文字动画 */
+    @keyframes fadeInBounceLoop {
+      0% {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+      30% {
+        opacity: 1;
+        transform: scale(1.1);
+      }
+      50% {
+        transform: scale(0.95);
+      }
+      70% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.8);
+      }
+    }
+  </style>
+</head>
+<body>
+<svg id="hole" viewBox="0 0 40 300">
+  <!-- 定义渐变 -->
+  <defs>
+    <radialGradient id="holeGradient" cx="50%" cy="50%" r="60%">
+      <!-- 从中心深黑，到边缘较浅 -->
+      <stop offset="0%" stop-color="#000" />
+      <stop offset="100%" stop-color="#333" />
+    </radialGradient>
+  </defs>
+
+  <!-- 整个场景容器，用于整体旋转 -->
+  <g id="scene" transform="translate(150,150)">
+    <!-- 三角形窟窿，使用渐变填充 -->
+    <polygon
+      id="hole"
+      points="0,-60 -50,50 50,50"
+      fill="url(#holeGradient)" />
+
+    <!-- 扳手 -->
+    <path
+      fill="#666"
+      d="M1,-6 L3,-6 L4,-4 L3,-2 L4,-1 L2,1 L1,2 L-1,2 L-2,1 L-4,-1 L-3,-2 L-4,-4 L-3,-6 L-1,-6 Z"
+    >
+      <animateTransform
+        attributeName="transform"
+        type="translate"
+        from="0 -120"
+        to="0 50"
+        begin="0s"
+        dur="2.5s"
+        repeatCount="indefinite"
+      />
+      <animate
+        attributeName="opacity"
+        values="1;1;1;0"
+        keyTimes="0;0.7;0.8;1"
+        dur="2.5s"
+        repeatCount="indefinite"
+      />
+    </path>
+
+    <!-- 工具箱 -->
+    <path
+      fill="#666"
+      d="M-5,-5 h10 v5 h-10 z M-3,-10 h6 v5 h-6 z"
+    >
+      <animateTransform
+        attributeName="transform"
+        type="translate"
+        from="-50 -120"
+        to="-20 50"
+        begin="1s"
+        dur="2.5s"
+        repeatCount="indefinite"
+      />
+      <animate
+        attributeName="opacity"
+        values="1;1;1;0"
+        keyTimes="0;0.7;0.8;1"
+        dur="2.5s"
+        begin="1s"
+        repeatCount="indefinite"
+      />
+    </path>
+
+    <!-- 背包 -->
+    <path
+      fill="#666"
+      d="M-6,-4 C-8,-10 8,-10 6,-4 v4 h-12 v-4 z"
+    >
+      <animateTransform
+        attributeName="transform"
+        type="translate"
+        from="40 -120"
+        to="15 50"
+        begin="2s"
+        dur="2.5s"
+        repeatCount="indefinite"
+      />
+      <animate
+        attributeName="opacity"
+        values="1;1;1;0"
+        keyTimes="0;0.7;0.8;1"
+        dur="2.5s"
+        begin="2s"
+        repeatCount="indefinite"
+      />
+    </path>
+
+    <!-- 场景旋转动画：以黑色窟窿为轴心旋转 -->
+    <animateTransform
+      attributeName="transform"
+      attributeType="XML"
+      type="rotate"
+      from="0 0 0"
+      to="360 0 0"
+      dur="10s"
+      repeatCount="indefinite"
+    />
+  </g>
+</svg>
+
+<svg
+  width="80"
+  height="30"
+  viewBox="0 0 80 30"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <!-- 第一个圆点 -->
+  <circle cx="10" cy="15" r="5" fill="#333">
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 0,-8; 0,0"
+      begin="0s"
+      dur="0.6s"
+      repeatCount="indefinite"
+    />
+  </circle>
+
+  <!-- 第二个圆点 -->
+  <circle cx="30" cy="15" r="5" fill="#333">
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 0,-8; 0,0"
+      begin="0.2s"
+      dur="0.6s"
+      repeatCount="indefinite"
+    />
+  </circle>
+
+  <!-- 第三个圆点 -->
+  <circle cx="50" cy="15" r="5" fill="#333">
+    <animateTransform
+      attributeName="transform"
+      type="translate"
+      values="0,0; 0,-8; 0,0"
+      begin="0.4s"
+      dur="0.6s"
+      repeatCount="indefinite"
+    />
+  </circle>
+</svg>
+
+<p class="loading-text" id="descText">
+  启动中...
+</p>
+
+<script>
+  // 获取 URL 中的 query 参数 "desc"，如果有则更新提示文字
+  const params = new URLSearchParams(window.location.search);
+  const desc = params.get('desc');
+  if (desc) {
+    document.getElementById('descText').innerText = desc;
+  }
+</script>
+</body>
+</html>
