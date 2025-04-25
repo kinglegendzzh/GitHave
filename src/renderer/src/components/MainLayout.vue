@@ -22,7 +22,12 @@
             :class="{ 'text-white': isDark, 'text-black': !isDark }"
             style="font-size: 1rem; user-select: none; pointer-events: none;"
           >
-            <v-img style="width: 110px; height: auto;" :src="titleSrc"></v-img>
+            <span v-if="!isDark">
+              <v-img style="width: 110px; height: auto;" :src="titleSrc"></v-img>
+            </span>
+            <span v-else>
+              <v-img style="width: 110px; height: auto;" :src="titleNSrc"></v-img>
+            </span>
           </v-list-item-title>
         </v-list-item>
 
@@ -173,6 +178,7 @@
 import _ from 'lodash';
 import bannerSrc from '../assets/banner.svg';
 import titleSrc from '../assets/title.svg';
+import titleNSrc from '../assets/title-night.svg';
 import { RouterView } from 'vue-router';
 
 export default {
@@ -187,6 +193,7 @@ export default {
       appHealthState: '已启动',
       bannerSrc,
       titleSrc,
+      titleNSrc,
       drawer: true,
       navItems: [
         { title: "快速开始", to: "/start", icon: "mdi-home" },

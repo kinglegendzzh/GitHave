@@ -16,7 +16,11 @@
               <v-card variant="flat" class="pa-2">
                 <v-card-title class="headline">
                   <span v-if="step.title === '是一个代码智能助理软件'"
-                    ><v-img style="user-select: none; pointer-events: none; width: 200px; height: auto;" :src="titleSrc"></v-img
+                    >
+                    <v-img 
+                      style="user-select: none; pointer-events: none; width: 200px; height: auto;" 
+                      :src="isDarkMode ? titleNSrc : titleSrc"
+                    ></v-img>
                   ></span>
                   {{ step.title }}
                 </v-card-title>
@@ -112,13 +116,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue'; // Import computed
 import { useRouter } from 'vue-router';
+import { useTheme } from 'vuetify'; // Import useTheme
 import dynamicLoadingSvg from '../assets/load.svg';
 import titleSrc from '../assets/title.svg';
+import titleNSrc from '../assets/title-night.svg'; // Import night mode title image (assuming path)
 
 // 通过 useRouter 获取 vue-router 实例用于页面跳转
 const router = useRouter();
+
+// Get theme instance
+const theme = useTheme();
+
+// Computed property to determine if it's dark mode
+const isDarkMode = computed(() => theme.global.name.value === 'dark');
 
 // 控制是否处于加载状态
 const loading = ref(true);
