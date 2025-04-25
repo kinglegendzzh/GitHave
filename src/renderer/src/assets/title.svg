@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 350 80">
+  <!-- 定义字体样式 -->
+  <style>
+    .logo-text {
+    font: bold 60px Arial, sans-serif;
+    fill: #000;
+    }
+  </style>
+
+  <!-- 绘制文字 -->
+  <text class="logo-text" x="0" y="60">GitHave</text>
+
+  <!-- 将 i 的点替换为 Git 分支图标 -->
+  <g transform="translate(32,14) rotate(45)">
+    <!-- 黑色菱形背景 -->
+    <rect x="-8" y="-8" width="16" height="16" fill="#000"/>
+    <!-- 分支节点 -->
+    <circle cx="-5" cy="0" r="2" fill="#fff"/>
+    <circle cx="5" cy="0" r="2" fill="#fff"/>
+    <circle cx="0" cy="5" r="2" fill="#fff"/>
+    <!-- 连接线 -->
+    <path d="M -5,0 L 0,5 L 5,0" stroke="#fff" stroke-width="2" fill="none"/>
+  </g>
+</svg>

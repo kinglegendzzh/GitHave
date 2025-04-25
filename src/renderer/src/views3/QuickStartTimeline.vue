@@ -15,6 +15,9 @@
             <v-timeline-item :dot-color="step.color" :icon="step.icon">
               <v-card variant="flat" class="pa-2">
                 <v-card-title class="headline">
+                  <span v-if="step.title === '是一个代码智能助理软件'"
+                    ><v-img style="user-select: none; pointer-events: none; width: 200px; height: auto;" :src="titleSrc"></v-img
+                  ></span>
                   {{ step.title }}
                 </v-card-title>
                 <v-card-text v-if="step.description">
@@ -112,6 +115,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import dynamicLoadingSvg from '../assets/load.svg';
+import titleSrc from '../assets/title.svg';
 
 // 通过 useRouter 获取 vue-router 实例用于页面跳转
 const router = useRouter();
@@ -126,7 +130,7 @@ const selectedBranch = ref(null);
 const steps = ref([
   {
     title:
-      'GitHave，是一个代码智能助理软件',
+      '是一个代码智能助理软件',
     description: '下面我们来进行快速使用流程👇',
     icon: 'mdi-play',
     color: 'primary',

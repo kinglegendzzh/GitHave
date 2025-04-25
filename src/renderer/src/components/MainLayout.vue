@@ -22,7 +22,7 @@
             :class="{ 'text-white': isDark, 'text-black': !isDark }"
             style="font-size: 1rem; user-select: none; pointer-events: none;"
           >
-            GitHave
+            <v-img style="width: 110px; height: auto;" :src="titleSrc"></v-img>
           </v-list-item-title>
         </v-list-item>
 
@@ -172,6 +172,7 @@
 <script>
 import _ from 'lodash';
 import bannerSrc from '../assets/banner.svg';
+import titleSrc from '../assets/title.svg';
 import { RouterView } from 'vue-router';
 
 export default {
@@ -185,6 +186,7 @@ export default {
       toggleAppTip: '关闭核心服务',
       appHealthState: '已启动',
       bannerSrc,
+      titleSrc,
       drawer: true,
       navItems: [
         { title: "快速开始", to: "/start", icon: "mdi-home" },
