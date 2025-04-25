@@ -43,12 +43,15 @@ const winstonLogger = winston.createLogger({
   format: format.printf(info => `${info.message}`), // 只输出消息内容，不添加时间戳和日志级别
   transports: [
     // 控制台日志
-    new transports.Console(),
+    new transports.Console({
+      format: format.simple() // 控制台输出格式，不添加换行
+    }),
     // 文件日志（可根据需要配置文件大小、轮转等）
     new transports.File({
       filename: logFilePath,
       options: { flags: 'a' },
-      maxsize: 10 * 1024 * 1024  // 例如：10MB 达到后会新生成日志文件（可结合 winston-daily-rotate-file 进行每日轮转）
+      maxsize: 10 * 1024 * 1024,  // 例如：10MB 达到后会新生成日志文件
+      format: format.printf(info => `${info.message}`)  // 文件日志不添加换行符
     })
   ]
 });
@@ -503,10 +506,22 @@ ipcMain.handle('open-path-with-bot', async (event, targetPath, botPath) => {
   }
 });
 
+// 获取跨平台的ollama可执行文件路径
+function getOllamaPath() {
+  // Windows上通常安装在Program Files目录下，但也可能在PATH中
+  // macOS和Linux上通常在/usr/local/bin/ollama
+  if (process.platform === 'win32') {
+    return 'ollama'; // Windows上使用命令名称，依赖PATH环境变量
+  } else {
+    return '/usr/local/bin/ollama'; // macOS和Linux上使用完整路径
+  }
+}
+
 ipcMain.handle('check-ollama', async () => {
   console.log('[IPC check-ollama] Invoked');
+  const ollamaPath = getOllamaPath();
   try {
-    const { stdout, stderr } = await execAsync('/usr/local/bin/ollama serve');
+    const { stdout, stderr } = await execAsync(`${ollamaPath} serve`);
     if (stderr.includes('address already in use')) {
       console.log('[IPC check-ollama] ollama is installed and running');
       return true;
@@ -525,8 +540,9 @@ ipcMain.handle('check-ollama', async () => {
 
 ipcMain.handle('check-model-deployment', async (event, requiredModelsList) => {
   console.log('[IPC check-model-deployment] Received models list:', requiredModelsList);
+  const ollamaPath = getOllamaPath();
   try {
-    const stdout = await runCommand('/usr/local/bin/ollama list');
+    const stdout = await runCommand(`${ollamaPath} list`);
     const deployed = requiredModelsList.every(modelName => stdout.toLowerCase().includes(modelName.toLowerCase()));
     console.log('[IPC check-model-deployment] Deployed:', deployed);
     return deployed;
@@ -550,7 +566,8 @@ ipcMain.handle('install-models', async (event, modelsToInstall) => {
       }
       const model = modelsToInstall[index];
       console.log(`[IPC install-models] Installing model: ${model}`);
-      const pullProcess = spawnAndTrack('/usr/local/bin/ollama', ['pull', model], { stdio: 'inherit' });
+      const ollamaPath = getOllamaPath();
+      const pullProcess = spawnAndTrack(ollamaPath, ['pull', model], { stdio: 'inherit' });
       let outputData = '';
       let lastModelProgress = 0;
       pullProcess.stdout.on('data', data => {

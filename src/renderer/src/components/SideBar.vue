@@ -2,7 +2,7 @@
   <div>
     <div class="logo-container">
       <img src="../assets/banner.svg" alt="Logo" class="logo-img" />
-      <span class="logo-text">GitGo</span>
+      <span class="logo-text">GitHave</span>
     </div>
     <ul class="nav-list">
       <li>

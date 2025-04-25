@@ -126,7 +126,7 @@ const selectedBranch = ref(null);
 const steps = ref([
   {
     title:
-      'GitGo，是一个代码智能助理软件',
+      'GitHave，是一个代码智能助理软件',
     description: '下面我们来进行快速使用流程👇',
     icon: 'mdi-play',
     color: 'primary',

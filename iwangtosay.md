@@ -1,6 +1,6 @@
-# gitgo
+# GitHave
 
-GitGo智能代码助理
+GitHave智能代码助理
 
 ## Project Setup
 

@@ -132,7 +132,7 @@ export default {
       steps: [
         {
           title:
-            'GitGo，是一个集AI大模型与多智能体协同编排的智能化代码助理软件',
+            'GitHave，是一个集AI大模型与多智能体协同编排的智能化代码助理软件',
           description: '下面我们来进行快速使用流程👇',
           icon: 'mdi-play',
           color: 'primary',

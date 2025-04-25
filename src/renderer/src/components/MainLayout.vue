@@ -22,7 +22,7 @@
             :class="{ 'text-white': isDark, 'text-black': !isDark }"
             style="font-size: 1rem; user-select: none; pointer-events: none;"
           >
-            GitGo
+            GitHave
           </v-list-item-title>
         </v-list-item>
 
@@ -233,7 +233,7 @@ export default {
   },
   computed: {
     currentTitle() {
-      return this.$route.meta.title || 'GitGo';
+      return this.$route.meta.title || 'GitHave';
     },
     chipColor() {
       if (this.appHealthState === '正在重启') return 'orange';

@@ -29,7 +29,7 @@ export function updateRepo(id, data) {
 
 // 删除仓库
 export function deleteRepo(id, params) {
-    return request.delete(`/repos/${id}`, params)
+  return instance.delete(`/repos/delete/${id}`, { params })
 }
 
 // 获取系统数据

@@ -330,21 +330,21 @@ const startProgressSimulation = () => {
   // 设置初始状态
   progress.value = 0
   progressTitle.value = selectedRepo.value ? '正在更新仓库' : '正在创建仓库'
-  progressMessage.value = '正在初始化...' 
+  progressMessage.value = '正在初始化...'
   progressDialog.value = true
-  
+
   // 清除可能存在的旧定时器
   if (progressTimer.value) {
     clearInterval(progressTimer.value)
   }
-  
+
   // 创建新的定时器，模拟进度增长
   progressTimer.value = setInterval(() => {
     if (progress.value < 90) {
       // 非线性增长，开始快，接近90%时变慢
       const increment = (90 - progress.value) / 10
       progress.value += Math.max(0.5, increment)
-      
+
       // 根据进度更新消息
       if (progress.value < 30) {
         progressMessage.value = '正在准备仓库数据...'
@@ -364,12 +364,12 @@ const completeProgress = (success = true) => {
     clearInterval(progressTimer.value)
     progressTimer.value = null
   }
-  
+
   if (success) {
     // 成功完成，直接设置为100%
     progress.value = 100
     progressMessage.value = selectedRepo.value ? '仓库更新成功！' : '仓库创建成功！'
-    
+
     // 短暂显示100%后关闭进度条
     setTimeout(() => {
       progressDialog.value = false
@@ -388,7 +388,7 @@ const completeProgress = (success = true) => {
 const saveRepo = async () => {
   // 启动进度条模拟
   startProgressSimulation()
-  
+
   try {
     if (selectedRepo.value) {
       // 更新操作：仅更新部分字段
@@ -413,12 +413,12 @@ const saveRepo = async () => {
         desc: repoForm.desc
       })
     }
-    
+
     // 操作成功，完成进度条
     completeProgress(true)
     dialog.value = false
     fetchRepos()
-    
+
     // 显示成功提示
     store.dispatch('snackbar/showSnackbar', {
       message: selectedRepo.value ? '仓库更新成功' : '仓库创建成功',
@@ -426,10 +426,10 @@ const saveRepo = async () => {
     })
   } catch (err) {
     console.error(selectedRepo.value ? '更新仓库错误:' : '新增仓库错误:', err)
-    
+
     // 操作失败，停止进度条
     completeProgress(false)
-    
+
     // 特殊处理超时错误
     if (err.code === 'ECONNABORTED' && err.message.includes('timeout')) {
       showErrorSnackbar('请求超时，服务器处理时间较长，请稍后刷新页面查看是否操作成功')
@@ -459,7 +459,7 @@ const confirmDeleteRepo = async () => {
 
   try {
     // 调用后端删除接口，并根据复选框状态传递 deleteLocal 参数
-    await deleteRepo(repoId, { params: { deleteLocal: shouldDeleteLocal } })
+    await deleteRepo(repoId, { deleteLocal: shouldDeleteLocal })  // 正确传递查询参数
     fetchRepos() // 重新获取列表
     store.dispatch('snackbar/showSnackbar', {
       message: `仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''),

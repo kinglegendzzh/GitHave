@@ -1,5 +1,5 @@
-appId: com.gitgo.app
-productName: GitGo
+appId: com.githave.app
+productName: GitHave
 directories:
   buildResources: build
 files:
@@ -17,7 +17,7 @@ asarUnpack:
   - 'public/**/*'
 #  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
 win:
-  executableName: GitGo
+  executableName: GitHave
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

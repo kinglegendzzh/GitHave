@@ -1,10 +1,10 @@
 {
-  "name": "gitgo",
+  "name": "GitHave",
   "version": "1.0.0",
-  "description": "An Electron application with Vue",
+  "description": "一个智能代码助理",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "zhanghao",
+  "homepage": "https://github.com/kinglegendzzh",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
