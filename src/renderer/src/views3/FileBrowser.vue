@@ -32,15 +32,30 @@
               style="min-width: 400px; max-width: 400px; height: auto;"
               @update:menu="resetRoot"
             ></v-autocomplete>
-            <v-btn title="从本地目录打开" @click="openOutside(breadcrumbs, true)" outlined plain class="mr-2">
-              <v-icon>mdi-folder-eye</v-icon>
-            </v-btn>
-            <v-btn title="从本地应用程序打开" @click="openOutside(breadcrumbs, false)" outlined plain class="mr-2">
-              <v-icon>mdi-file-search-outline</v-icon>
-            </v-btn>
-            <v-btn title="更多操作" outlined plain class="mr-2">
-              <v-icon>mdi-dots-vertical</v-icon>
-            </v-btn>
+            <v-tooltip text="更新代码">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" title="更新代码" @click="pull()" outlined plain class="mr-2">
+                  <v-icon>mdi-git</v-icon>
+                  更新代码
+                </v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip text="从本地目录打开">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" title="从本地目录打开" @click="openOutside(breadcrumbs, true)" outlined plain class="mr-2">
+                  <v-icon>mdi-folder-eye</v-icon>
+                  从本地目录打开
+                </v-btn>
+              </template>
+            </v-tooltip>
+            <v-tooltip text="从本地应用程序打开">
+              <template #activator="{ props }">
+                <v-btn v-bind="props" title="从本地应用程序打开" @click="openOutside(breadcrumbs, false)" outlined plain class="mr-2">
+                  <v-icon>mdi-file-search-outline</v-icon>
+                  从本地应用程序打开
+                </v-btn>
+              </template>
+            </v-tooltip>
           </div>
         </v-toolbar>
       </v-row>
@@ -136,6 +151,25 @@
         {{ snackbar.message }}
       </v-snackbar>
     </div>
+    <!-- 进度条弹窗 -->
+    <v-dialog v-model="progressDialog" persistent max-width="400">
+      <v-card>
+        <v-card-title class="text-center">{{ progressTitle }}</v-card-title>
+        <v-card-text>
+          <v-progress-linear
+            :model-value="progress"
+            color="primary"
+            height="25"
+            striped
+          >
+            <template v-slot:default="{ value }">
+              <strong>{{ Math.ceil(value) }}%</strong>
+            </template>
+          </v-progress-linear>
+          <div class="text-center mt-2">{{ progressMessage }}</div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -152,7 +186,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-dark.css';
 import * as XLSX from 'xlsx';
 import codeSVG from "../assets/code.svg";
-import { listRepos } from '../service/api.js';
+import { listRepos, pullRepo } from '../service/api.js';
 import dynamicLoadingSvg from '../assets/load.svg'
 // Vuex store（假定已配置）
 const store = useStore();
@@ -177,6 +211,13 @@ const props = defineProps({
 });
 
 // 响应式数据
+const progressDialog = ref(false)
+const progress = ref(0)
+const progressTitle = ref('')
+const progressMessage = ref('')
+let   progressTimer = null
+
+
 // 控制是否处于加载状态
 const loading = ref(true);
 const treeselectValue = ref(null);
@@ -298,6 +339,7 @@ async function initialize(initialPath) {
 
 function resetRoot() {
   if (!newRootPath.value) return;
+  loadPathSuggestions();
   resetTree(newRootPath.value).then(() => {
     handleNodeSelection([newRootPath.value]);
     tabs.value = [];
@@ -713,12 +755,84 @@ async function loadPathSuggestions() {
     }
     pathSuggestions.value = response.data.map(repo => ({
       value: repo.local_path,
-      title: `${repo.desc}(${repo.name})`
+      title: `${repo.desc}(${repo.name})`,
+      repo_url: repo.local_path,
+      branch: repo.branch,
+      local_path: repo.local_path,
+      username: repo.username,
+      password: repo.password,
+      name: repo.name,
+      desc: repo.desc
     }));
   }).catch(err => {
     console.error("获取仓库数据失败:", err);
   });
 }
+
+// ---------- 仓库拉取进度条 ----------
+function startProgressSimulation(title = '正在拉取代码') {
+  progress.value       = 0
+  progressTitle.value  = title
+  progressMessage.value= '正在初始化…'
+  progressDialog.value = true
+
+  if (progressTimer) clearInterval(progressTimer)
+  progressTimer = setInterval(() => {
+    if (progress.value < 90) {
+      const inc = (90 - progress.value) / 10
+      progress.value += Math.max(0.5, inc)
+      progressMessage.value =
+        progress.value < 30 ? '准备数据…'
+          : progress.value < 60 ? '同步文件…'
+            :                      '即将完成，请稍候…'
+    }
+  }, 200)
+}
+
+function completeProgress(success = true) {
+  if (progressTimer) { clearInterval(progressTimer); progressTimer = null }
+  if (success) {
+    progress.value      = 100
+    progressMessage.value = '拉取完成！'
+    setTimeout(() => { progressDialog.value = false; progress.value = 0 }, 800)
+  } else {
+    progressDialog.value = false
+    progress.value       = 0
+  }
+}
+
+async function pull() {
+  if (!pathSuggestions.value.length) return
+
+  // ① 启动进度模拟
+  startProgressSimulation()
+
+  // ② 真正执行 pullRepo
+  try {
+    var repos = pathSuggestions.value
+    for (const repo of repos) {
+      if (newRootPath.value === repo.value) {
+        console.log('拉取仓库：', repo);
+        await pullRepo(repo)
+      }
+    }
+
+    // ③ 成功：收尾
+    completeProgress(true)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '代码拉取成功',
+      type: 'success'
+    })
+  } catch (err) {
+    console.error('拉取失败:', err)
+    completeProgress(false)
+    store.dispatch('snackbar/showSnackbar', {
+      message: `拉取失败：${err.message || err}`,
+      type: 'error'
+    })
+  }
+}
+
 
 // 监听 props 和响应式数据变化
 watch(() => props.localPath, (newPath) => {

@@ -6,28 +6,38 @@
         <v-icon>mdi-github</v-icon>
       </v-toolbar-title>
       <v-spacer></v-spacer>
+      <!-- 快速导入 -->
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" @click="fetchRepos" class="mr-2" variant="outlined">
-            <v-icon>mdi-refresh</v-icon>
+          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="openImportDialog">
+            <v-icon>mdi-download</v-icon>
+            <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
           </v-btn>
         </template>
-        <span>刷新卡片列表</span>
+        <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
       </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" @click="openNewRepoDialog" class="mr-2" variant="outlined">
+          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="fetchRepos">
+            <v-icon>mdi-refresh</v-icon>
+          </v-btn>
+        </template>
+        <span>刷新列表</span>
+      </v-tooltip>
+      <v-tooltip bottom>
+        <template #activator="{ props }">
+          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="openNewRepoDialog">
             <v-icon>mdi-plus</v-icon>
           </v-btn>
         </template>
-        <span>新增仓库ID卡</span>
+        <span>新增仓库卡</span>
       </v-tooltip>
     </v-toolbar>
 
     <!-- 卡片式仓库列表 -->
     <v-row class="mt-4 mr-4" justify="center">
-      <v-col cols="6" v-for="repo in repos" :key="repo.id">
-        <v-card class="id-card" elevation="2" style="display: block; width: 550px;height: 380px">
+      <v-col v-for="repo in repos" :key="repo.id" cols="6">
+        <v-card class="id-card" elevation="2" style="display: block; width: 550px; height: 380px">
           <div class="id-card-header">
             <span class="id-card-title">代码仓库身份证</span>
             <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
@@ -55,24 +65,45 @@
           <div class="id-card-footer">
             <div class="id-number">仓库ID: {{ repo.id }}</div>
             <div class="action-buttons">
-              <v-tooltip text="仓库详情">
+              <v-tooltip text="编辑仓库">
                 <template #activator="{ props }">
-                  <v-btn v-bind="props" small class="detail-btn mr-2" color="primary" @click="viewRepo(repo)">
+                  <v-btn
+                    v-bind="props"
+                    small
+                    class="detail-btn mr-2"
+                    color="primary"
+                    @click="viewRepo(repo)"
+                  >
                     <v-icon>mdi-pencil</v-icon>
+                    编辑仓库
                   </v-btn>
                 </template>
               </v-tooltip>
-              <v-tooltip text="预览仓库内容">
+              <v-tooltip text="预览代码">
                 <template #activator="{ props }">
-                  <v-btn v-bind="props" small class="preview-btn mr-2" color="warning" @click="previewRepo(repo)">
+                  <v-btn
+                    v-bind="props"
+                    small
+                    class="preview-btn mr-2"
+                    color="warning"
+                    @click="previewRepo(repo)"
+                  >
                     <v-icon>mdi-eye</v-icon>
+                    预览代码
                   </v-btn>
                 </template>
               </v-tooltip>
               <v-tooltip text="删除仓库">
                 <template #activator="{ props }">
-                  <v-btn v-bind="props" small class="delete-btn mr-2" color="error" @click="deleteRepoo(repo)">
+                  <v-btn
+                    v-bind="props"
+                    small
+                    class="delete-btn mr-2"
+                    color="error"
+                    @click="deleteRepoo(repo)"
+                  >
                     <v-icon>mdi-delete</v-icon>
+                    删除
                   </v-btn>
                 </template>
               </v-tooltip>
@@ -90,39 +121,102 @@
           <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
         </div>
         <div class="id-card-content">
-            <div class="id-card-left">
-              <div class="avatar-icon" v-html="getAvatarIcon(selectedRepo ? selectedRepo.id : 'new')"></div>
-              <div class="repo-name">{{ repoForm.name || '新仓库' }}</div>
-            </div>
-            <div class="id-card-right edit-form-content">
-              <v-form ref="form" v-model="formValid" class="edit-form">
+          <div class="id-card-left">
+            <div
+              class="avatar-icon"
+              v-html="getAvatarIcon(selectedRepo ? selectedRepo.id : 'new')"
+            ></div>
+            <div class="repo-name">{{ repoForm.name || '新仓库' }}</div>
+          </div>
+          <div class="id-card-right edit-form-content">
+            <v-form ref="form" v-model="formValid" class="edit-form">
               <div class="info-item">
                 <span class="label">名称 / Name</span>
-                <v-text-field v-model="repoForm.name" required :disabled="selectedRepo !== null" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+                <v-text-field
+                  v-model="repoForm.name"
+                  required
+                  :disabled="selectedRepo !== null"
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  class="custom-field"
+                />
               </div>
               <div class="info-item">
                 <span class="label">仓库地址 / URL</span>
-                <v-text-field v-model="repoForm.repo_url" required :disabled="selectedRepo !== null" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+                <v-text-field
+                  v-model="repoForm.repo_url"
+                  required
+                  :disabled="selectedRepo !== null"
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  class="custom-field"
+                />
               </div>
               <div class="info-item">
                 <span class="label">分支 / Branch</span>
-                <v-text-field v-model="repoForm.branch" required density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+                <v-text-field
+                  v-model="repoForm.branch"
+                  required
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  class="custom-field"
+                />
               </div>
               <div class="info-item">
                 <span class="label">本地路径 / Local Path</span>
-                <v-text-field v-model="repoForm.local_path" required :disabled="selectedRepo !== null" readonly @click="handleLocalPathClick" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+                <v-text-field
+                  v-model="repoForm.local_path"
+                  required
+                  :disabled="selectedRepo !== null"
+                  readonly
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  class="custom-field"
+                  @click="handleLocalPathClick"
+                />
               </div>
               <div class="info-item">
                 <span class="label">用户名 / Username (私有仓库需要填写)</span>
-                <v-text-field v-model="repoForm.username" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+                <v-text-field
+                  v-model="repoForm.username"
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  class="custom-field"
+                />
               </div>
               <div class="info-item">
                 <span class="label">密码 / Password (私有仓库需要填写)</span>
-                <v-text-field v-model="repoForm.password" type="password" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details class="custom-field" />
+                <v-text-field
+                  v-model="repoForm.password"
+                  type="password"
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  class="custom-field"
+                />
               </div>
               <div class="info-item">
                 <span class="label">描述 / Description</span>
-                <v-textarea v-model="repoForm.desc" density="compact" variant="outlined" bg-color="rgba(255,255,255,0.7)" hide-details rows="2" class="custom-field" />
+                <v-textarea
+                  v-model="repoForm.desc"
+                  density="compact"
+                  variant="outlined"
+                  bg-color="rgba(255,255,255,0.7)"
+                  hide-details
+                  rows="2"
+                  class="custom-field"
+                />
               </div>
             </v-form>
           </div>
@@ -132,20 +226,68 @@
           <div class="action-buttons">
             <v-tooltip text="取消">
               <template #activator="{ props }">
-                <v-btn v-bind="props" small class="cancel-btn mr-2" color="error" @click="closeDialog">
+                <v-btn
+                  v-bind="props"
+                  small
+                  class="cancel-btn mr-2"
+                  color="error"
+                  @click="closeDialog"
+                >
                   <v-icon>mdi-close</v-icon>
+                  取消
                 </v-btn>
               </template>
             </v-tooltip>
             <v-tooltip text="保存">
               <template #activator="{ props }">
-                <v-btn v-bind="props" small class="save-btn" color="primary" @click="saveRepo" :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)">
+                <v-btn
+                  v-bind="props"
+                  small
+                  class="save-btn"
+                  color="primary"
+                  :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)"
+                  @click="saveRepo"
+                >
                   <v-icon>mdi-content-save</v-icon>
+                  {{ selectedRepo ? '保存仓库' : '创建仓库' }}
                 </v-btn>
               </template>
             </v-tooltip>
           </div>
         </div>
+      </v-card>
+    </v-dialog>
+
+    <!-- ========= 快速导入对话框 ========= -->
+    <v-dialog v-model="importDialog" max-width="500" persistent>
+      <v-card>
+        <v-card-title class="text-h6">快速导入 GitHub 仓库</v-card-title>
+        <v-card-text>
+          <v-form ref="importFormRef" v-model="importFormValid">
+            <v-text-field
+              v-model="importForm.repo_url"
+              label="GitHub 链接 (HTTPS)"
+              placeholder="https://github.com/username/project"
+              prepend-inner-icon="mdi-link"
+              required
+            />
+            <v-text-field
+              v-model="importForm.local_path"
+              label="本地路径"
+              placeholder="选择或输入本地目录"
+              prepend-inner-icon="mdi-folder"
+              @click="selectImportLocalPath"
+              readonly
+              required
+            />
+          </v-form>
+        </v-card-text>
+        <v-card-actions class="justify-end">
+          <v-btn text @click="closeImportDialog">取消</v-btn>
+          <v-btn color="primary" :disabled="!importFormValid" @click="importRepo">
+            导入
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -158,13 +300,8 @@
       <v-card>
         <v-card-title class="text-center">{{ progressTitle }}</v-card-title>
         <v-card-text>
-          <v-progress-linear
-            :model-value="progress"
-            color="primary"
-            height="25"
-            striped
-          >
-            <template v-slot:default="{ value }">
+          <v-progress-linear :model-value="progress" color="primary" height="25" striped>
+            <template #default="{ value }">
               <strong>{{ Math.ceil(value) }}%</strong>
             </template>
           </v-progress-linear>
@@ -185,10 +322,16 @@
             color="error"
             class="mt-2"
           ></v-checkbox>
-          <div v-if="deleteLocalDirectory && repoToDelete?.local_path" class="text-caption text-error">
+          <div
+            v-if="deleteLocalDirectory && repoToDelete?.local_path"
+            class="text-caption text-error"
+          >
             本地目录: {{ repoToDelete.local_path }}
           </div>
-           <div v-else-if="deleteLocalDirectory && !repoToDelete?.local_path" class="text-caption text-warning">
+          <div
+            v-else-if="deleteLocalDirectory && !repoToDelete?.local_path"
+            class="text-caption text-warning"
+          >
             警告：未找到本地路径信息，无法删除本地目录。
           </div>
         </v-card-text>
@@ -199,7 +342,6 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
   </v-container>
 </template>
 
@@ -399,7 +541,8 @@ const saveRepo = async () => {
         username: repoForm.username,
         password: repoForm.password,
         name: repoForm.name,
-        desc: repoForm.desc
+        desc: repoForm.desc,
+        pull: true
       })
     } else {
       // 新增操作：发送完整数据
@@ -410,7 +553,8 @@ const saveRepo = async () => {
         username: repoForm.username,
         password: repoForm.password,
         name: repoForm.name,
-        desc: repoForm.desc
+        desc: repoForm.desc,
+        pull: true
       })
     }
 
@@ -434,7 +578,8 @@ const saveRepo = async () => {
     if (err.code === 'ECONNABORTED' && err.message.includes('timeout')) {
       showErrorSnackbar('请求超时，服务器处理时间较长，请稍后刷新页面查看是否操作成功')
     } else {
-      const errorMsg = err.response?.data || err.message || (selectedRepo.value ? '更新仓库失败' : '新增仓库失败')
+      const errorMsg =
+        err.response?.data || err.message || (selectedRepo.value ? '更新仓库失败' : '新增仓库失败')
       showErrorSnackbar(errorMsg)
     }
   }
@@ -459,7 +604,7 @@ const confirmDeleteRepo = async () => {
 
   try {
     // 调用后端删除接口，并根据复选框状态传递 deleteLocal 参数
-    await deleteRepo(repoId, { deleteLocal: shouldDeleteLocal })  // 正确传递查询参数
+    await deleteRepo(repoId, { deleteLocal: shouldDeleteLocal }) // 正确传递查询参数
     fetchRepos() // 重新获取列表
     store.dispatch('snackbar/showSnackbar', {
       message: `仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''),
@@ -486,15 +631,14 @@ const closeDialog = () => {
 // 获取头像图标（利用外部生成函数）
 const getAvatarIcon = (repoId) => {
   if (!repoId) {
-    return '';  // 如果 repoId 无效，则返回空字符串
+    return '' // 如果 repoId 无效，则返回空字符串
   }
   // 当repoId为'new'或非数字时，使用固定的数值作为种子
   if (repoId === 'new' || isNaN(Number(repoId))) {
-    return generateAvatar(12345); // 使用固定数值作为种子
+    return generateAvatar(12345) // 使用固定数值作为种子
   }
-  return generateAvatar(repoId);
+  return generateAvatar(repoId)
 }
-
 
 // 处理本地路径选择（使用 Electron 的 IPC 调用）
 const handleLocalPathClick = async () => {
@@ -525,7 +669,7 @@ const handleLocalPathClick = async () => {
       if (folderContent.length === 0) {
         repoForm.local_path = selectedPath
         store.dispatch('snackbar/showSnackbar', {
-          message: "选中的文件夹为空，直接使用该目录。",
+          message: '选中的文件夹为空，直接使用该目录。',
           type: 'info'
         })
       } else {
@@ -534,7 +678,7 @@ const handleLocalPathClick = async () => {
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
           store.dispatch('snackbar/showSnackbar', {
-            message: "已自动创建 " + newFolderPath + " 文件夹",
+            message: '已自动创建 ' + newFolderPath + ' 文件夹',
             type: 'info'
           })
         }
@@ -544,6 +688,109 @@ const handleLocalPathClick = async () => {
     }
   } catch (err) {
     console.error(err)
+  }
+}
+// 选择本地路径（沿用原有的 Electron 目录选择逻辑）
+const selectImportLocalPath = async () => {
+  try {
+    const result = await window.electron.invoke('dialog:openDirectory', {
+      defaultPath: importForm.local_path,
+      properties: ['openDirectory']
+    })
+    if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+      const selectedPath = result.filePaths[0]
+      const fs = await window.electron.fs
+      const path = await window.electron.path
+      if (!fs || !path) {
+        console.error('无法加载 fs 或 path 模块')
+        return
+      }
+      // 判断选中文件夹是否为空
+      const folderContent = fs.readdirSync(selectedPath)
+      if (folderContent.length === 0) {
+        importForm.local_path = selectedPath
+        store.dispatch('snackbar/showSnackbar', {
+          message: '选中的文件夹为空，直接使用该目录。',
+          type: 'info'
+        })
+      } else {
+        // 文件夹不为空，自动创建子文件夹
+        const repoName = extractNameFromUrl(importForm.repo_url)
+        const newFolderPath = path.join(selectedPath, repoName)
+        if (!fs.existsSync(newFolderPath)) {
+          fs.mkdirSync(newFolderPath)
+          store.dispatch('snackbar/showSnackbar', {
+            message: '已自动创建 ' + newFolderPath + ' 文件夹',
+            type: 'info'
+          })
+        }
+        importForm.local_path = newFolderPath
+      }
+      localFolderValid.value = true
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+// ================= 快速导入 =================
+const importDialog = ref(false)
+const importFormValid = ref(false)
+const importFormRef = ref(null)
+const importForm = reactive({
+  repo_url: '',
+  local_path: ''
+})
+
+const openImportDialog = () => {
+  importForm.repo_url = ''
+  importForm.local_path = ''
+  importDialog.value = true
+}
+
+const closeImportDialog = () => {
+  importDialog.value = false
+}
+
+
+// 工具：从 git URL 提取仓库名作为默认名称
+const extractNameFromUrl = (url) => {
+  if (!url) return 'unknown'
+  const match = url.match(/([^/]+)(?:\.git)?$/)
+  return match ? match[1] : 'unknown'
+}
+
+const importRepo = async () => {
+  if (!importFormValid.value) return
+
+  // 显示进度条复用现有逻辑
+  startProgressSimulation()
+  const repoName = extractNameFromUrl(importForm.repo_url)
+
+  try {
+    await createRepo({
+      name: repoName,
+      repo_url: importForm.repo_url,
+      branch: 'main', // 默认分支，可根据需要调整或让后端自动识别
+      local_path: importForm.local_path,
+      username: '',
+      password: '',
+      desc: '',
+      pull: true   // 克隆后立即拉取/校验
+    })
+
+    completeProgress(true)
+    closeImportDialog()
+    fetchRepos()
+    store.dispatch('snackbar/showSnackbar', {
+      message: '仓库导入成功',
+      type: 'success'
+    })
+  } catch (err) {
+    console.error('导入仓库失败:', err)
+    completeProgress(false)
+    const errorMsg = err.response?.data || err.message || '导入仓库失败'
+    showErrorSnackbar(errorMsg)
   }
 }
 
@@ -572,7 +819,8 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E") repeat;
+  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")
+    repeat;
   opacity: 0.3;
   z-index: 0;
 }
@@ -705,7 +953,8 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E") repeat;
+  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")
+    repeat;
   opacity: 0.3;
   z-index: 0;
 }

@@ -17,11 +17,11 @@
                 <v-card-title class="headline">
                   <span v-if="step.title === '是一个代码智能助理软件'"
                     >
-                    <v-img 
-                      style="user-select: none; pointer-events: none; width: 200px; height: auto;" 
+                    <v-img
+                      style="user-select: none; pointer-events: none; width: 200px; height: auto;"
                       :src="isDarkMode ? titleNSrc : titleSrc"
                     ></v-img>
-                  ></span>
+                  </span>
                   {{ step.title }}
                 </v-card-title>
                 <v-card-text v-if="step.description">

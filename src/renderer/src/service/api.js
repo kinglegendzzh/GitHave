@@ -7,6 +7,10 @@ const instance = axios.create({
     timeout: 30000 // 增加超时时间到30秒，解决长时间处理的请求问题
 })
 
+export function pullRepo(data) {
+  return instance.post('/repos/pull', data)
+}
+
 // 获取仓库列表
 export function listRepos() {
     return instance.get('/repos/list')
