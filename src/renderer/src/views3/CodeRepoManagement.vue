@@ -37,7 +37,7 @@
     <!-- 卡片式仓库列表 -->
     <v-row class="mt-4 mr-4" justify="center">
       <v-col v-for="repo in repos" :key="repo.id" cols="6">
-        <v-card class="id-card" elevation="2" style="display: block; width: 550px; height: 380px">
+        <v-card class="id-card" elevation="2" style="display: block; width: 520px; height: 350px">
           <div class="id-card-header">
             <span class="id-card-title">代码仓库身份证</span>
             <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
@@ -53,12 +53,12 @@
                 <span class="value">{{ repo.repo_url }}</span>
               </div>
               <div class="info-item">
-                <span class="label">分支 / Branch</span>
-                <span class="value">{{ repo.branch }}</span>
-              </div>
-              <div class="info-item">
                 <span class="label">本地路径 / Local Path</span>
                 <span class="value">{{ repo.local_path }}</span>
+              </div>
+              <div class="info-item">
+                <span class="label">描述 / Desc</span>
+                <span class="value ellipsis">{{ repo.desc }}</span>
               </div>
             </div>
           </div>
@@ -249,7 +249,7 @@
                   @click="saveRepo"
                 >
                   <v-icon>mdi-content-save</v-icon>
-                  {{ selectedRepo ? '保存仓库' : '创建仓库' }}
+                  {{ selectedRepo ? '保存并更新仓库' : '创建仓库' }}
                 </v-btn>
               </template>
             </v-tooltip>
@@ -996,4 +996,14 @@ onMounted(() => {
   min-width: 36px;
   height: 36px;
 }
+
+/* 单行、超出 20 个字符时显示省略号 */
+.ellipsis {
+  display: inline-block;
+  max-width: 80ch;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 </style>
