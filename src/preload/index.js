@@ -145,6 +145,10 @@ const api = {
 
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
   openNewWindow: (url) => ipcRenderer.send('open-new-window', url),
+
+  /* ─── 窗口缩放 ─── */
+  setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
+  getZoomFactor: () => ipcRenderer.invoke('get-zoom-factor'),
 };
 
 // 使用 contextBridge 向渲染进程暴露安全 API，对外命名为 electron

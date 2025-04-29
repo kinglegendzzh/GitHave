@@ -62,6 +62,9 @@ import {
   VCardSubtitle,
   VCheckbox,
   VChip,
+  VListItemSubtitle,
+  VRadio,
+  VRadioGroup,
 } from 'vuetify/components'
 import { Ripple } from 'vuetify/directives'
 import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
@@ -130,6 +133,9 @@ const vuetify = createVuetify({
     VCardSubtitle,
     VCheckbox,
     VChip,
+    VListItemSubtitle,
+    VRadio,
+    VRadioGroup,
   },
   directives: {
     Ripple

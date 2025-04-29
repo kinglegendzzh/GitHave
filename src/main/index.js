@@ -635,6 +635,21 @@ ipcMain.handle('get-user-data-path', async () => {
   return app.getPath('userData');
 });
 
+// ─── 窗口缩放接口 ──────────────────────────────────────────────────────────
+ipcMain.handle('set-zoom-factor', (event, factor) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && win.webContents) {
+    win.webContents.setZoomFactor(factor);
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle('get-zoom-factor', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return win && win.webContents ? win.webContents.getZoomFactor() : 1;
+});
+
 /* 主窗口创建与页面加载 */
 
 async function createSkeletonWindow() {
