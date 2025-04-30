@@ -6,26 +6,34 @@
     </v-overlay>
 
     <v-container fluid class="cover-fill" style="height: 80vh">
-      <v-row style="display: flex;">
-        <v-col cols="12" style="display: flex;">
-          <v-autocomplete
-            v-model="lensPath"
-            :items="pathSuggestions"
-            label="选择透镜路径..."
-            outlined
-            dense
-            clearable
-            item-title="title"
-            item-value="value"
-            @focus="loadPathSuggestions"
-            style="width: 80%"
-            color="purple"
-          />
-          <v-btn color="purple" @click="applyLensPath">
+      <v-row style="display: flex">
+        <v-autocomplete
+          v-model="lensPath"
+          :items="pathSuggestions"
+          label="选择透镜路径..."
+          outlined
+          dense
+          clearable
+          item-title="title"
+          item-value="value"
+          style="width: 55%"
+          color="purple"
+          @focus="loadPathSuggestions"
+        />
+        <div style="width: 45%; height: 55px; font-size: 18px; display: block; margin-top: 10px">
+          <v-btn color="purple" class="mr-2" @click="applyLensPath">
             <v-icon color="white">mdi-line-scan</v-icon>
             <span style="color: white">深度扫描</span>
           </v-btn>
-        </v-col>
+          <v-btn ref="analysisBtn" color="indigo" class="mr-2" @click="toggleAnalysisDrawer">
+            <v-icon color="white">mdi-file-document-outline</v-icon>
+            <span style="color: white">生成代码分析报告</span>
+          </v-btn>
+          <v-btn ref="architectureBtn" color="teal" @click="toggleArchitectureDrawer">
+            <v-icon color="white">mdi-sitemap</v-icon>
+            <span style="color: white">生成架构流程图</span>
+          </v-btn>
+        </div>
       </v-row>
 
       <!-- 顶部工具栏：面包屑导航 -->
@@ -48,15 +56,22 @@
       <v-row>
         <!-- 图表区域 -->
         <v-col cols="8">
-          <div ref="chart" class="chart" :key="chartKey" style="position: relative;">
-            <div v-if="initialLoad" style="text-align: center;">
+          <div ref="chart" :key="chartKey" class="chart" style="position: relative">
+            <div v-if="initialLoad" style="text-align: center">
               <img
                 :src="grassSVG"
                 alt="Chart Placeholder"
                 draggable="false"
-                style="max-width: 100%; max-height: 100%; display: block; margin: auto; user-select: none; pointer-events: none;"
+                style="
+                  max-width: 100%;
+                  max-height: 100%;
+                  display: block;
+                  margin: auto;
+                  user-select: none;
+                  pointer-events: none;
+                "
               />
-              <h1 style="margin-top: 16px; user-select: none; pointer-events: none;">空间透镜</h1>
+              <h1 style="margin-top: 16px; user-select: none; pointer-events: none">空间透镜</h1>
             </div>
             <v-overlay v-else :value="chartLoading">
               <v-progress-circular indeterminate size="64" />
@@ -67,15 +82,15 @@
         <!-- 右侧目录列表 -->
         <v-col cols="4">
           <div class="text-center">
-            <div class="bg-surface-variant rounded-lg mx-auto">
-              <v-skeleton-loader v-if="legendLoading" type="table" />
-              <v-list dense class="pa-0" v-else>
+            <v-skeleton-loader v-if="legendLoading" type="table" />
+            <div v-else class="bg-surface-variant rounded-lg mx-auto directory-list-container">
+              <v-list dense class="pa-0 directory-list">
                 <v-list-item
                   v-for="item in legendItems"
                   :key="item.name"
+                  style="cursor: pointer"
                   @click="onLegendItemClick($event, item)"
                   @contextmenu="showContextMenu($event, item)"
-                  style="cursor: pointer;"
                 >
                   <template #prepend>
                     <v-avatar size="32">
@@ -96,22 +111,60 @@
       <div
         v-if="tooltipVisible"
         :style="{
-      position: 'absolute',
-      left: tooltipX + 'px',
-      top: tooltipY + 'px',
-      pointerEvents: 'none',
-      zIndex: 1000
-    }"
+          position: 'absolute',
+          left: tooltipX + 'px',
+          top: tooltipY + 'px',
+          pointerEvents: 'none',
+          zIndex: 1000
+        }"
       >
         <!-- 此处没有明确设置背景颜色，由 v-card 全局主题决定 -->
         <v-card class="tooltip-card theme--light" outlined>
           <v-icon left>mdi-comment</v-icon>
-          <span style="font-size: 18px; margin-left: 4px;">{{ tooltipContent }}</span>
+          <span style="font-size: 18px; margin-left: 4px">{{ tooltipContent }}</span>
         </v-card>
       </div>
     </v-container>
 
     <FileContextMenu ref="contextMenu" :menu-items="menuItems" />
+
+    <!-- 代码分析报告抽屉 -->
+    <div v-if="analysisDrawerVisible" class="analysis-drawer" :style="analysisDrawerStyle">
+      <v-card class="drawer-card" elevation="4">
+        <v-card-text>
+          <div class="drawer-title">选择分析范围</div>
+          <v-radio-group v-model="analysisScope" column dense>
+            <v-radio value="current" label="当前层级" color="indigo"></v-radio>
+            <v-radio value="all" label="整个仓库" color="indigo"></v-radio>
+          </v-radio-group>
+          <div class="drawer-actions">
+            <v-btn color="indigo" small @click="generateAnalysisReport">确认</v-btn>
+            <v-btn text small @click="analysisDrawerVisible = false">取消</v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+    </div>
+
+    <!-- 架构流程图抽屉 -->
+    <div
+      v-if="architectureDrawerVisible"
+      class="architecture-drawer"
+      :style="architectureDrawerStyle"
+    >
+      <v-card class="drawer-card" elevation="4">
+        <v-card-text>
+          <div class="drawer-title">选择架构图范围</div>
+          <v-radio-group v-model="architectureScope" column dense>
+            <v-radio value="current" label="当前层级" color="teal"></v-radio>
+            <v-radio value="all" label="整个仓库" color="teal"></v-radio>
+          </v-radio-group>
+          <div class="drawer-actions">
+            <v-btn color="teal" small @click="generateArchitectureMap">确认</v-btn>
+            <v-btn text small @click="architectureDrawerVisible = false">取消</v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+    </div>
 
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
       {{ snackbar.message }}
@@ -127,8 +180,8 @@ import { listRepos } from '../service/api'
 import grassSVG from '../assets/透镜.svg'
 
 // Electron 内置模块（使用 top-level await）
-const fs =  window.electron.fs
-const path =  window.electron.path
+const fs = window.electron.fs
+const path = window.electron.path
 
 // 状态管理
 const isProcessing = ref(false)
@@ -145,13 +198,46 @@ const tooltipVisible = ref(false)
 const tooltipContent = ref('')
 const tooltipX = ref(0)
 const tooltipY = ref(0)
-const lensPath = ref("")
+const lensPath = ref('')
 const pathSuggestions = ref([])
 const depth = ref(3)
 const initialLoad = ref(true)
 const chartKey = ref(0)
 // 用于保存 d3 sunburst 更新函数（将在绘图函数中设置）
 const updateSunburst = ref(null)
+
+// 抽屉状态管理
+const analysisScope = ref('current')
+const architectureScope = ref('current')
+const analysisDrawerVisible = ref(false)
+const architectureDrawerVisible = ref(false)
+const analysisBtn = ref(null)
+const architectureBtn = ref(null)
+
+// 抽屉位置计算
+const analysisDrawerStyle = computed(() => {
+  if (!analysisBtn.value) return {}
+  const rect = analysisBtn.value.$el.getBoundingClientRect()
+  return {
+    position: 'absolute',
+    top: `${rect.bottom + 5}px`,
+    left: `${rect.left}px`,
+    zIndex: 100,
+    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1)'
+  }
+})
+
+const architectureDrawerStyle = computed(() => {
+  if (!architectureBtn.value) return {}
+  const rect = architectureBtn.value.$el.getBoundingClientRect()
+  return {
+    position: 'absolute',
+    top: `${rect.bottom + 5}px`,
+    left: `${rect.left}px`,
+    zIndex: 100,
+    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1)'
+  }
+})
 
 // FileContextMenu 引用
 const contextMenu = ref(null)
@@ -192,11 +278,88 @@ const openInFinder = async () => {
     await window.electron.shell.openPath(path.dirname(selectedFile.value.fullPath))
   }
 }
-const menuItems = ref([
-  { title: '查看详情', icon: 'mdi-information', action: viewFileDetails },
-  { title: '复制路径', icon: 'mdi-content-copy', action: copyFilePath },
-  { title: '在本地目录中显示', icon: 'mdi-folder', action: openInFinder }
-])
+// 为文件夹生成代码分析报告
+const generateFileAnalysisReport = async () => {
+  if (selectedFile.value && selectedFile.value.fullPath) {
+    analysisDrawerVisible.value = false
+    isProcessing.value = true
+    try {
+      const targetPath = selectedFile.value.fullPath
+      console.log(`生成文件代码分析报告，路径：${targetPath}`)
+
+      // 这里可以调用后端API生成报告
+      // 示例：await window.electron.ipcRenderer.invoke('generate-analysis-report', targetPath)
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: `正在为文件生成代码分析报告，请稍候...`,
+        color: 'info'
+      })
+    } catch (error) {
+      console.error('生成代码分析报告失败:', error)
+      store.dispatch('snackbar/showSnackbar', {
+        message: '生成代码分析报告失败',
+        color: 'error'
+      })
+    } finally {
+      isProcessing.value = false
+    }
+  }
+}
+
+// 为文件夹生成架构流程图
+const generateFolderArchitectureMap = async () => {
+  if (selectedFile.value && selectedFile.value.fullPath && selectedFile.value.isDirectory) {
+    architectureDrawerVisible.value = false
+    isProcessing.value = true
+    try {
+      const targetPath = selectedFile.value.fullPath
+      console.log(`生成文件夹架构流程图，路径：${targetPath}`)
+
+      // 这里可以调用后端API生成架构图
+      // 示例：await window.electron.ipcRenderer.invoke('generate-architecture-map', targetPath)
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: `正在为文件夹梳理架构流程图，请稍候...`,
+        color: 'info'
+      })
+    } catch (error) {
+      console.error('生成架构流程图失败:', error)
+      store.dispatch('snackbar/showSnackbar', {
+        message: '生成架构流程图失败',
+        color: 'error'
+      })
+    } finally {
+      isProcessing.value = false
+    }
+  }
+}
+
+// 动态菜单项，根据选中项是文件还是文件夹显示不同的菜单
+const menuItems = computed(() => {
+  const baseItems = [
+    { title: '查看详情', icon: 'mdi-information', action: viewFileDetails },
+    { title: '复制路径', icon: 'mdi-content-copy', action: copyFilePath },
+    { title: '在本地目录中显示', icon: 'mdi-folder', action: openInFinder }
+  ]
+
+  // 添加生成代码分析报告选项（对文件和文件夹都可用）
+  baseItems.push({
+    title: '生成代码分析报告',
+    icon: 'mdi-file-document-outline',
+    action: generateFileAnalysisReport
+  })
+
+  // 如果是文件夹，添加生成架构流程图选项
+  if (selectedFile.value && selectedFile.value.isDirectory) {
+    baseItems.push({
+      title: '生成架构流程图',
+      icon: 'mdi-sitemap',
+      action: generateFolderArchitectureMap
+    })
+  }
+
+  return baseItems
+})
 
 // 面包屑计算（使用 currentFocus 构建）
 const breadcrumbs = computed(() => {
@@ -213,15 +376,109 @@ const breadcrumbs = computed(() => {
 
 const showContextMenu = (event, item) => {
   console.log('右键菜单点击事件', event, item)
-  contextMenu.value?.show(event)
+  // 先设置选中的文件，这样computed的menuItems才能根据文件类型显示正确的菜单项
   selectedFile.value = item
+  // 然后显示上下文菜单
+  contextMenu.value?.show(event)
 }
 
 const navigateToBreadcrumb = (item) => {
-  const target = root.value.descendants().find(n => n.data.fullPath === item.path)
+  const target = root.value.descendants().find((n) => n.data.fullPath === item.path)
   if (target && updateSunburst.value) {
     currentFocus.value = target
     updateSunburst.value(currentFocus.value)
+  }
+}
+
+// 切换代码分析报告抽屉
+const toggleAnalysisDrawer = () => {
+  if (!rootPath.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先选择一个目录并进行扫描',
+      color: 'warning'
+    })
+    return
+  }
+  // 关闭另一个抽屉
+  architectureDrawerVisible.value = false
+  // 切换当前抽屉
+  analysisDrawerVisible.value = !analysisDrawerVisible.value
+}
+
+// 切换架构流程图抽屉
+const toggleArchitectureDrawer = () => {
+  if (!rootPath.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先选择一个目录并进行扫描',
+      color: 'warning'
+    })
+    return
+  }
+  // 关闭另一个抽屉
+  analysisDrawerVisible.value = false
+  // 切换当前抽屉
+  architectureDrawerVisible.value = !architectureDrawerVisible.value
+}
+
+// 生成代码分析报告
+const generateAnalysisReport = async () => {
+  analysisDrawerVisible.value = false
+  isProcessing.value = true
+  try {
+    const targetPath =
+      analysisScope.value === 'current' && currentFocus.value
+        ? currentFocus.value.data.fullPath
+        : rootPath.value
+    const scopeText = analysisScope.value === 'current' ? '当前层级' : '整个仓库'
+
+    console.log(`生成代码分析报告，范围：${scopeText}，路径：${targetPath}`)
+
+    // 这里可以调用后端API生成报告
+    // 示例：await window.electron.ipcRenderer.invoke('generate-analysis-report', targetPath)
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: `正在为${scopeText}生成代码分析报告，请稍候...`,
+      color: 'info'
+    })
+  } catch (error) {
+    console.error('生成代码分析报告失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '生成代码分析报告失败',
+      color: 'error'
+    })
+  } finally {
+    isProcessing.value = false
+  }
+}
+
+// 生成架构流程图
+const generateArchitectureMap = async () => {
+  architectureDrawerVisible.value = false
+  isProcessing.value = true
+  try {
+    const targetPath =
+      architectureScope.value === 'current' && currentFocus.value
+        ? currentFocus.value.data.fullPath
+        : rootPath.value
+    const scopeText = architectureScope.value === 'current' ? '当前层级' : '整个仓库'
+
+    console.log(`生成架构流程图，范围：${scopeText}，路径：${targetPath}`)
+
+    // 这里可以调用后端API生成架构图
+    // 示例：await window.electron.ipcRenderer.invoke('generate-architecture-map', targetPath)
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: `正在为${scopeText}梳理架构流程图，请稍候...`,
+      color: 'info'
+    })
+  } catch (error) {
+    console.error('生成架构流程图失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '生成架构流程图失败',
+      color: 'error'
+    })
+  } finally {
+    isProcessing.value = false
   }
 }
 
@@ -231,11 +488,14 @@ const applyLensPath = async () => {
     isProcessing.value = true
     try {
       // 规范路径格式
-      lensPath.value = lensPath.value.replace(/\\/g, '/')
-      const pathDepth = lensPath.value.split('/').filter(Boolean).length
+      lensPath.value = window.electron.normalize(lensPath.value)
+      const parts = lensPath.value.split(window.electron.sep).filter(Boolean)
+      const pathDepth = parts.length
       const adaptiveDepth = Math.floor((pathDepth - 3) / 0.3) + 3
       const scanDepth = Math.min(Math.max(adaptiveDepth, 3), 14)
-      console.log(`路径深度: ${pathDepth}, 自适应扫描深度: ${adaptiveDepth}, 最终扫描深度: ${scanDepth}`)
+      console.log(
+        `路径深度: ${pathDepth}, 自适应扫描深度: ${adaptiveDepth}, 最终扫描深度: ${scanDepth}`
+      )
       depth.value = adaptiveDepth
       rootPath.value = lensPath.value
       chartLoading.value = true
@@ -243,7 +503,7 @@ const applyLensPath = async () => {
       fileTree.value = await buildFileTreeAsync(rootPath.value, '', 0, scanDepth)
       drawChartWithAnimation()
     } catch (error) {
-      console.error("扫描失败：", error)
+      console.error('扫描失败：', error)
       store.dispatch('snackbar/showSnackbar', {
         message: '扫描目录失败，请检查输入路径',
         color: 'error'
@@ -265,29 +525,31 @@ const applyLensPath = async () => {
     currentFocus.value = null
     chartKey.value++
     initialLoad.value = true
-    d3.select(chart.value).selectAll("*").remove()
+    d3.select(chart.value).selectAll('*').remove()
     initialLoad.value = true
   }
 }
 
 const onLegendItemClick = async (event, item) => {
   if (currentFocus.value && currentFocus.value.children) {
-    const childNode = currentFocus.value.children.find(child => child.data.name === item.name)
+    const childNode = currentFocus.value.children.find((child) => child.data.name === item.name)
     if (childNode) {
       if (childNode.data.isDirectory) {
-        console.log("目录扫描不完整，准备重新扫描：", childNode.data.fullPath)
+        console.log('目录扫描不完整，准备重新扫描：', childNode.data.fullPath)
         isProcessing.value = true
         try {
           let additionalDepth = await rescanNode(childNode.data)
           fileTree.value = await buildFileTreeAsync(rootPath.value, '', 0, additionalDepth)
-          root.value = d3.hierarchy(fileTree.value).sum(d => d.size)
-          const newTarget = root.value.descendants().find(node => node.data.fullPath === childNode.data.fullPath)
+          root.value = d3.hierarchy(fileTree.value).sum((d) => d.size)
+          const newTarget = root.value
+            .descendants()
+            .find((node) => node.data.fullPath === childNode.data.fullPath)
           if (newTarget) {
             currentFocus.value = newTarget
           }
           updateSunburst.value && updateSunburst.value(currentFocus.value)
         } catch (error) {
-          console.error("右侧目录扫描失败：", error)
+          console.error('右侧目录扫描失败：', error)
           store.dispatch('snackbar/showSnackbar', {
             message: '扫描目录失败，请检查输入路径',
             color: 'error'
@@ -308,12 +570,12 @@ const buildFileTree = (dirPath, parentName = '') => {
   let children = []
   let files
   try {
-    files = fs.readdirSync(dirPath).filter(file => !file.startsWith('.'))
+    files = fs.readdirSync(dirPath).filter((file) => !file.startsWith('.'))
   } catch (err) {
-    console.error("读取目录失败：", err)
+    console.error('读取目录失败：', err)
     return { name, size: 0, group: parentName, children: [] }
   }
-  files.forEach(file => {
+  files.forEach((file) => {
     const fullPath = path.join(dirPath, file)
     try {
       const stats = fs.statSync(fullPath)
@@ -334,7 +596,7 @@ const buildFileTree = (dirPath, parentName = '') => {
         totalSize += fileSizeMB
       }
     } catch (err) {
-      console.error("处理文件失败：", fullPath, err)
+      console.error('处理文件失败：', fullPath, err)
     }
   })
   return {
@@ -352,18 +614,25 @@ const rescanNode = async (nodeData) => {
   const targetDepth = lensPath.value.split(path.sep).filter(Boolean).length
   let additionalDepth = depth.value
   if (targetDepth < currentDepth) {
-    additionalDepth += (currentDepth - targetDepth)
+    additionalDepth += currentDepth - targetDepth
   }
-  console.log(`重新扫描目录 ${nodeData.fullPath}，当前层级 ${currentDepth}，目标层级 ${targetDepth}，额外扩展深度 ${additionalDepth}`)
+  console.log(
+    `重新扫描目录 ${nodeData.fullPath}，当前层级 ${currentDepth}，目标层级 ${targetDepth}，额外扩展深度 ${additionalDepth}`
+  )
   try {
-    const newSubtree = await buildFileTreeAsync(nodeData.fullPath, nodeData.group || nodeData.name, 0, additionalDepth)
+    const newSubtree = await buildFileTreeAsync(
+      nodeData.fullPath,
+      nodeData.group || nodeData.name,
+      0,
+      additionalDepth
+    )
     nodeData.children = newSubtree.children
     nodeData.size = newSubtree.size
     nodeData.incomplete = newSubtree.incomplete
     console.log(`节点 ${nodeData.fullPath} 已更新扫描数据`)
     return additionalDepth
   } catch (error) {
-    console.error("重新扫描节点失败：", nodeData.fullPath, error)
+    console.error('重新扫描节点失败：', nodeData.fullPath, error)
   }
 }
 
@@ -373,7 +642,7 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
   let children = []
   let files
   try {
-    files = (await fs.promises.readdir(dirPath)).filter(file => !file.startsWith('.'))
+    files = (await fs.promises.readdir(dirPath)).filter((file) => !file.startsWith('.'))
   } catch (err) {
     if (err.code === 'EPERM') {
       console.warn(`权限不足，跳过目录：${dirPath}`)
@@ -414,39 +683,41 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
       incomplete: true
     }
   }
-  const results = await Promise.all(files.map(async file => {
-    const fullPath = path.join(dirPath, file)
-    try {
-      await fs.promises.access(fullPath, fs.constants.F_OK)
-      const statData = await window.electron.getFileStats(fullPath)
-      if (statData.isDirectory) {
-        const subtree = await buildFileTreeAsync(fullPath, name, d + 1, maxDepth)
-        totalSize += subtree.size
-        return subtree
-      } else if (statData.isFile) {
-        const fileSizeKB = Math.ceil(statData.size / 1024)
-        totalSize += fileSizeKB
-        return {
-          name: file,
-          size: fileSizeKB,
-          group: name,
-          fullPath,
-          isDirectory: false,
-          children: [],
-          incomplete: false
+  const results = await Promise.all(
+    files.map(async (file) => {
+      const fullPath = path.join(dirPath, file)
+      try {
+        await fs.promises.access(fullPath, fs.constants.F_OK)
+        const statData = await window.electron.getFileStats(fullPath)
+        if (statData.isDirectory) {
+          const subtree = await buildFileTreeAsync(fullPath, name, d + 1, maxDepth)
+          totalSize += subtree.size
+          return subtree
+        } else if (statData.isFile) {
+          const fileSizeKB = Math.ceil(statData.size / 1024)
+          totalSize += fileSizeKB
+          return {
+            name: file,
+            size: fileSizeKB,
+            group: name,
+            fullPath,
+            isDirectory: false,
+            children: [],
+            incomplete: false
+          }
+        }
+      } catch (err) {
+        if (err.code === 'ENOENT' || err.code === 'EACCES') {
+          console.warn(`跳过文件：${fullPath}`)
+          return null
+        } else {
+          console.error('处理文件失败：', fullPath, err)
+          return null
         }
       }
-    } catch (err) {
-      if (err.code === 'ENOENT' || err.code === 'EACCES') {
-        console.warn(`跳过文件：${fullPath}`)
-        return null
-      } else {
-        console.error("处理文件失败：", fullPath, err)
-        return null
-      }
-    }
-  }))
-  children = results.filter(item => item !== null)
+    })
+  )
+  children = results.filter((item) => item !== null)
   return {
     name,
     size: totalSize,
@@ -463,12 +734,12 @@ const loadPathSuggestions = async () => {
     const response = await listRepos()
     console.log('loadPathSuggestions', JSON.stringify(response.data))
     if (!response.data || !Array.isArray(response.data)) return
-    pathSuggestions.value = response.data.map(repo => ({
+    pathSuggestions.value = response.data.map((repo) => ({
       value: repo.local_path,
       title: `${repo.desc}(${repo.name})`
     }))
   } catch (err) {
-    console.error("获取仓库数据失败:", err)
+    console.error('获取仓库数据失败:', err)
   }
 }
 
@@ -477,41 +748,41 @@ const chart = ref(null)
 const drawChartWithAnimation = () => {
   if (!fileTree.value) return
   initialLoad.value = false
-  d3.select(chart.value).selectAll("*").remove()
-  const width = 600, height = 600
+  d3.select(chart.value).selectAll('*').remove()
+  const width = 600,
+    height = 600
   const radius = Math.min(width, height) / 2
   const innerRadius = 60
-  const topLevelNames = fileTree.value.children ? fileTree.value.children.map(d => d.name) : []
+  const topLevelNames = fileTree.value.children ? fileTree.value.children.map((d) => d.name) : []
   colorScale.value = d3.scaleOrdinal().domain(topLevelNames).range(d3.schemeCategory10)
-  legendItems.value = topLevelNames.map(name => {
-    const child = fileTree.value.children.find(child => child.name === name)
+  legendItems.value = topLevelNames.map((name) => {
+    const child = fileTree.value.children.find((child) => child.name === name)
     return {
       name,
       color: colorScale.value(name),
       fullPath: child?.fullPath || ''
     }
   })
-  const svg = d3.select(chart.value)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-  const g = svg.append('g')
-    .attr('transform', `translate(${width / 2}, ${height / 2})`)
+  const svg = d3.select(chart.value).append('svg').attr('width', width).attr('height', height)
+  const g = svg.append('g').attr('transform', `translate(${width / 2}, ${height / 2})`)
   const diameter = innerRadius * 2.5
-  const defs = svg.append("defs")
-  const pattern = defs.append("pattern")
-    .attr("id", "minecraftGlassPattern")
-    .attr("width", diameter)
-    .attr("height", diameter)
-    .attr("x", innerRadius * 1.25)
-    .attr("y", innerRadius * 1.25)
-    .attr("patternUnits", "userSpaceOnUse")
-    .attr("patternRepeat", "no-repeat")
-  pattern.append("image")
-    .attr("xlink:href", grassSVG)
-    .attr("width", diameter)
-    .attr("height", diameter)
-  const lensCircle = g.append('circle')
+  const defs = svg.append('defs')
+  const pattern = defs
+    .append('pattern')
+    .attr('id', 'minecraftGlassPattern')
+    .attr('width', diameter)
+    .attr('height', diameter)
+    .attr('x', innerRadius * 1.25)
+    .attr('y', innerRadius * 1.25)
+    .attr('patternUnits', 'userSpaceOnUse')
+    .attr('patternRepeat', 'no-repeat')
+  pattern
+    .append('image')
+    .attr('xlink:href', grassSVG)
+    .attr('width', diameter)
+    .attr('height', diameter)
+  const lensCircle = g
+    .append('circle')
     .attr('r', innerRadius)
     .attr('fill', 'url(#minecraftGlassPattern)')
     .style('cursor', 'pointer')
@@ -523,14 +794,14 @@ const drawChartWithAnimation = () => {
         }
       }
     })
-    .on('mousemove', event => {
+    .on('mousemove', (event) => {
       const [mx, my] = d3.pointer(event, lensCircle.node())
       const shiftX = mx * 0.3
       const shiftY = my * 0.3
-      pattern.attr("patternTransform", `translate(${shiftX}, ${shiftY})`)
+      pattern.attr('patternTransform', `translate(${shiftX}, ${shiftY})`)
     })
     .on('mouseout', () => {
-      pattern.attr("patternTransform", null)
+      pattern.attr('patternTransform', null)
     })
   g.append('text')
     .attr('text-anchor', 'middle')
@@ -541,7 +812,7 @@ const drawChartWithAnimation = () => {
     .style('fill', '#3B00EB')
     .style('text-shadow', '2px 2px 4px rgba(0, 0, 0, 0.5)')
   root.value = d3.hierarchy(fileTree.value)
-  root.value.each(node => {
+  root.value.each((node) => {
     if (node.data.isDirectory) {
       node.value = node.data.children ? node.data.children.length : 0
     } else {
@@ -560,57 +831,60 @@ const drawChartWithAnimation = () => {
     }
     showContextMenu(event, selectedFile.value)
   }
-  const getArcData = d => ({ x0: d.x0, x1: d.x1, y0: d.y0, y1: d.y1 })
+  const getArcData = (d) => ({ x0: d.x0, x1: d.x1, y0: d.y0, y1: d.y1 })
 
-  const updateSunburstFunc = focusNode => {
+  const updateSunburstFunc = (focusNode) => {
     if (!focusNode) return
     updateSunburst.value = updateSunburstFunc
-    const rootHierarchy = d3.hierarchy(focusNode.data).sum(d => d.size)
+    const rootHierarchy = d3.hierarchy(focusNode.data).sum((d) => d.size)
     d3.partition().size([2 * Math.PI, rootHierarchy.height + 1])(rootHierarchy)
     const focusDepth = focusNode.height
     const ringThickness = (radius - innerRadius) / (focusDepth > 0 ? focusDepth : 1)
-    const arcGen = d3.arc()
-      .startAngle(d => d.x0)
-      .endAngle(d => d.x1)
-      .innerRadius(d => innerRadius + (d.y0 - 1) * ringThickness)
-      .outerRadius(d => innerRadius + (d.y1 - 1) * ringThickness)
+    const arcGen = d3
+      .arc()
+      .startAngle((d) => d.x0)
+      .endAngle((d) => d.x1)
+      .innerRadius((d) => innerRadius + (d.y0 - 1) * ringThickness)
+      .outerRadius((d) => innerRadius + (d.y1 - 1) * ringThickness)
     const arcs = g.selectAll('path').data(
-      rootHierarchy.descendants().filter(d => d.depth > 0),
-      d => d.data.name + '-' + d.depth
+      rootHierarchy.descendants().filter((d) => d.depth > 0),
+      (d) => d.data.name + '-' + d.depth
     )
-    arcs.exit()
+    arcs
+      .exit()
       .transition()
       .duration(750)
-      .attrTween("d", function(d) {
+      .attrTween('d', function (d) {
         const current = this._current ? getArcData(this._current) : getArcData(d)
         const target = { x0: d.x0, x1: d.x0, y0: d.y0, y1: d.y1 }
         const i = d3.interpolate(current, target)
-        return t => arcGen(i(t))
+        return (t) => arcGen(i(t))
       })
       .remove()
-    arcs.transition()
+    arcs
+      .transition()
       .duration(750)
-      .attrTween("d", function(d) {
+      .attrTween('d', function (d) {
         const current = this._current ? getArcData(this._current) : getArcData(d)
         const target = getArcData(d)
         const i = d3.interpolate(current, target)
         this._current = i(0)
-        return t => arcGen(i(t))
+        return (t) => arcGen(i(t))
       })
     if (focusNode.children && focusNode.children.length > 0) {
-      const childrenNames = focusNode.children.map(child => child.data.name)
+      const childrenNames = focusNode.children.map((child) => child.data.name)
       colorScale.value = d3.scaleOrdinal().domain(childrenNames).range(d3.schemeCategory10)
-      const directories = focusNode.children.filter(child => child.data.isDirectory)
-      const files = focusNode.children.filter(child => !child.data.isDirectory)
+      const directories = focusNode.children.filter((child) => child.data.isDirectory)
+      const files = focusNode.children.filter((child) => !child.data.isDirectory)
       legendItems.value = [
-        ...directories.map(dir => ({
+        ...directories.map((dir) => ({
           name: dir.data.name,
           color: colorScale.value(dir.data.name),
           fullPath: dir.data.fullPath,
           isDirectory: true,
           icon: 'mdi-folder'
         })),
-        ...files.map(file => ({
+        ...files.map((file) => ({
           name: file.data.name,
           color: colorScale.value(file.data.name),
           fullPath: file.data.fullPath,
@@ -621,9 +895,12 @@ const drawChartWithAnimation = () => {
       legendItems.value = []
     }
     legendLoading.value = false
-    const formatSize = value => value >= 1024 ? (value / 1024).toFixed(1) + ' MB' : value + ' KB'
-    const newArcs = arcs.enter().append('path')
-      .attr('fill', d => {
+    const formatSize = (value) =>
+      value >= 1024 ? (value / 1024).toFixed(1) + ' MB' : value + ' KB'
+    const newArcs = arcs
+      .enter()
+      .append('path')
+      .attr('fill', (d) => {
         if (d.depth === 1) {
           return colorScale.value(d.data.name)
         } else {
@@ -638,14 +915,18 @@ const drawChartWithAnimation = () => {
       })
       .attr('stroke', '#fff')
       .attr('stroke-width', 1)
-      .each(function(d) { this._current = getArcData(d) })
+      .each(function (d) {
+        this._current = getArcData(d)
+      })
       .on('click', async (event, d) => {
         if (d.data.isDirectory) {
-          console.log("目录扫描不完整，准备重新扫描：", d.data.fullPath)
+          console.log('目录扫描不完整，准备重新扫描：', d.data.fullPath)
           let additionalDepth = await rescanNode(d.data)
           fileTree.value = await buildFileTreeAsync(rootPath.value, '', 0, additionalDepth)
-          root.value = d3.hierarchy(fileTree.value).sum(d => d.size)
-          const newTarget = root.value.descendants().find(node => node.data.fullPath === d.data.fullPath)
+          root.value = d3.hierarchy(fileTree.value).sum((d) => d.size)
+          const newTarget = root.value
+            .descendants()
+            .find((node) => node.data.fullPath === d.data.fullPath)
           if (newTarget) {
             currentFocus.value = newTarget
           }
@@ -662,22 +943,23 @@ const drawChartWithAnimation = () => {
         }
         tooltipVisible.value = true
       })
-      .on('mousemove', event => {
+      .on('mousemove', (event) => {
         tooltipX.value = event.pageX + 10
         tooltipY.value = event.pageY + 10
       })
       .on('mouseout', () => {
         tooltipVisible.value = false
       })
-    newArcs.append('title').text(d => `${d.data.name}: ${d.value}`)
-    newArcs.transition()
+    newArcs.append('title').text((d) => `${d.data.name}: ${d.value}`)
+    newArcs
+      .transition()
       .duration(750)
-      .attrTween("d", function(d) {
+      .attrTween('d', function (d) {
         const current = this._current
         const target = getArcData(d)
         const i = d3.interpolate(current, target)
         this._current = i(0)
-        return t => arcGen(i(t))
+        return (t) => arcGen(i(t))
       })
     legendLoading.value = false
     chartLoading.value = false
@@ -689,6 +971,65 @@ onMounted(() => {
   // 如有需要，可在 mounted 时做额外初始化（例如自动加载默认数据）
 })
 </script>
+
+<style scoped>
+.drawer-card {
+  width: 220px;
+  overflow: hidden;
+  animation: slide-in 0.3s cubic-bezier(0.25, 0.8, 0.5, 1);
+}
+
+.drawer-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: #424242;
+}
+
+.drawer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+  gap: 8px;
+}
+
+.directory-list-container {
+  height: 60vh;
+  overflow: hidden;
+  background-color: #eeefef;
+  border-radius: 8px;
+}
+
+.directory-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: #eeefef;
+  color: #333;
+}
+
+.directory-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.directory-list::-webkit-scrollbar-thumb {
+  background-color: #eeefef;
+  border-radius: 4px;
+}
+@keyframes slide-in {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+:deep(.bg-surface-variant) {
+  background-color: rgb(var(--v-theme-on-surface-variant)) !important;
+}
+</style>
 
 <style scoped>
 .space-lens-container {

@@ -16,6 +16,16 @@
         </template>
         <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
       </v-tooltip>
+      <!-- 本地导入 -->
+      <v-tooltip bottom>
+        <template #activator="{ props }">
+          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="openLocalImportDialog">
+            <v-icon>mdi-folder-open</v-icon>
+            <span>本地导入</span>
+          </v-btn>
+        </template>
+        <span>从本地已有目录导入仓库</span>
+      </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ props }">
           <v-btn v-bind="props" class="mr-2" variant="outlined" @click="fetchRepos">
@@ -30,7 +40,7 @@
             <v-icon>mdi-plus</v-icon>
           </v-btn>
         </template>
-        <span>新增仓库卡</span>
+        <span>新增仓库</span>
       </v-tooltip>
     </v-toolbar>
 
@@ -117,7 +127,7 @@
     <v-dialog v-model="dialog" max-width="550" scrollable persistent>
       <v-card class="id-card-edit" elevation="2">
         <div class="id-card-header">
-          <span class="id-card-title">{{ selectedRepo ? '编辑ID卡' : '新增仓库ID卡' }}</span>
+          <span class="id-card-title">{{ selectedRepo ? '编辑仓库' : '新增仓库' }}</span>
           <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
         </div>
         <div class="id-card-content">
@@ -258,6 +268,48 @@
       </v-card>
     </v-dialog>
 
+    <!-- ========= 本地导入对话框 ========= -->
+    <v-dialog v-model="localImportDialog" max-width="500" persistent>
+      <v-card>
+        <v-card-title class="text-h6">从本地导入已有仓库</v-card-title>
+        <v-card-text>
+          <v-form ref="localImportRef" v-model="localImportValid">
+            <v-text-field
+              v-model="localImportForm.local_path"
+              label="本地仓库根目录"
+              prepend-inner-icon="mdi-folder"
+              placeholder="选择本地仓库路径"
+              readonly
+              @click="selectLocalRepoPath"
+              required
+            />
+            <v-text-field
+              v-model="localImportForm.name"
+              label="仓库名称"
+              prepend-inner-icon="mdi-tag"
+              required
+            />
+            <v-text-field
+              v-model="localImportForm.branch"
+              label="默认分支"
+              prepend-inner-icon="mdi-source-branch"
+              required
+            />
+            <v-textarea
+              v-model="localImportForm.desc"
+              label="描述"
+              rows="2"
+              prepend-inner-icon="mdi-text"
+            />
+          </v-form>
+        </v-card-text>
+        <v-card-actions class="justify-end">
+          <v-btn text @click="closeLocalImportDialog">取消</v-btn>
+          <v-btn color="primary" :disabled="!localImportValid" @click="importLocalRepo">导入</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- ========= 快速导入对话框 ========= -->
     <v-dialog v-model="importDialog" max-width="500" persistent>
       <v-card>
@@ -388,6 +440,48 @@ const repoForm = reactive({
   password: '',
   desc: ''
 })
+
+/* ───── 本地导入 ───── */
+const localImportDialog = ref(false)
+const localImportValid  = ref(false)
+const localImportRef    = ref(null)
+const localImportForm   = reactive({
+  local_path: '', name: '', branch: 'main', desc: ''
+})
+
+const openLocalImportDialog = () => {
+  Object.assign(localImportForm, {
+    local_path: '',
+    name: '',
+    branch: 'main',
+    desc: ''
+  })
+  localImportDialog.value = true
+}
+
+const closeLocalImportDialog = () => {
+  localImportDialog.value = false
+}
+
+
+const selectLocalRepoPath = async () => {
+  try {
+    const result = await window.electron.invoke('dialog:openDirectory', {
+      defaultPath: localImportForm.local_path,
+      properties: ['openDirectory']
+    })
+    if (!result.canceled && result.filePaths?.length > 0) {
+      localImportForm.local_path = result.filePaths[0]
+      // 默认仓库名取文件夹名
+      const path = await window.electron.path
+      localImportForm.name = path.basename(localImportForm.local_path)
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+
 
 // 显示错误提示信息
 const showErrorSnackbar = (message) => {
@@ -793,6 +887,38 @@ const importRepo = async () => {
     showErrorSnackbar(errorMsg)
   }
 }
+
+const importLocalRepo = async () => {
+  if (!localImportValid.value) return
+
+  startProgressSimulation()
+  try {
+    await createRepo({
+      name:       localImportForm.name,
+      repo_url:   '',                 // 本地仓库无需远程 URL
+      branch:     localImportForm.branch,
+      local_path: localImportForm.local_path,
+      username:   '',
+      password:   '',
+      desc:       localImportForm.desc,
+      pull:       false               // 不执行克隆
+    })
+
+    completeProgress(true)
+    closeLocalImportDialog()
+    fetchRepos()
+    store.dispatch('snackbar/showSnackbar', {
+      message: '本地仓库导入成功',
+      type: 'success'
+    })
+  } catch (err) {
+    console.error('本地导入失败:', err)
+    completeProgress(false)
+    const errorMsg = err.response?.data || err.message || '本地导入失败'
+    showErrorSnackbar(errorMsg)
+  }
+}
+
 
 onMounted(() => {
   fetchRepos()

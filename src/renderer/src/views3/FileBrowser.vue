@@ -88,7 +88,7 @@
         </v-col>
 
         <!-- 右侧文件预览和标签 -->
-        <v-col cols="12" md="8" lg="9" style="width: 800px; max-width: 800px;" class="mb-4 d-flex flex-column h-100">
+        <v-col cols="12" md="8" lg="9" style="width: 72%; max-width: 72%;" class="mb-4 d-flex flex-column h-100">
           <div class="flex-shrink-0">
             <!-- 顶部标签页 -->
             <v-tabs v-model="activeTab" class="mb-4">
@@ -668,7 +668,11 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   let url = breadcrumbsArray[breadcrumbsArray.length - 1].path;
   if (url !== null) {
     const isFile = isFilePath(url);
-    url = '/' + url;
+       // 只有在非 Windows 上才加 “/”
+    const platform = await window.electron.platform;
+    if (platform !== 'win32') {
+      url = '/' + url;
+    }
     const targetPath = shouldFile ? (isFile ? path.dirname(url) : url) : url;
     await window.electron.checkPathExists(targetPath).then(async exists => {
       if (exists) {
