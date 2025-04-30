@@ -576,13 +576,6 @@ async function handleNodeSelection(activeItems) {
       await fetchChildren(node)
     }
   } else {
-    if (!allowedExtensions.includes(path.extname(node.name).toLowerCase())) {
-      store.dispatch('snackbar/showSnackbar', {
-        message: '不支持的文件类型：' + node.name,
-        type: 'error'
-      })
-      return
-    }
     await loadFileByType(node.path)
     const breadcrumbPath = buildBreadcrumb(node.path)
     addOrSwitchTab({
@@ -644,23 +637,23 @@ async function fetchChildren(item) {
   try {
     const children = await window.electron.readDirectory(item.path)
     children.sort((a, b) => b.mtime - a.mtime)
-    let map = children
-      .map((child) => ({
+    // 构造节点并去除隐藏文件
+    const map = children
+      .map(child => ({
         name: child.name,
         path: child.fullPath,
         isDirectory: child.isDirectory,
         children: child.isDirectory ? null : undefined
       }))
-      .filter((child) => !child.name.startsWith('.'))
-    return map.filter(
-      (child) =>
-        child.isDirectory || allowedExtensions.includes(path.extname(child.path).toLowerCase())
-    )
+      .filter(child => !child.name.startsWith('.'))
+    // 不再根据 allowedExtensions 过滤，所有文件和文件夹都展示
+    return map
   } catch (err) {
     console.error('加载子目录失败：', item.path, err)
     return []
   }
 }
+
 
 function convertBuffer(buffer) {
   if (buffer instanceof ArrayBuffer) return buffer
