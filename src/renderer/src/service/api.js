@@ -50,3 +50,33 @@ export function getConfig() {
 export function updateConfig(data) {
     return instance.put('/config', data)
 }
+
+/**
+ * 获取某仓库的所有分支列表
+ * GET /commits/branches?repoID=123
+ */
+export function listBranches(repoID) {
+  return instance.get('/commits/branches', {
+    params: { repoID }
+  })
+}
+
+/**
+ * 切换仓库分支
+ * POST /commits/switch-branch
+ * body: { repoID, branch }
+ */
+export async function switchBranch(repoID, branch) {
+  const data = new URLSearchParams()
+  data.append('repoID', repoID)
+  data.append('branch', branch)
+  return instance.post('/commits/switch-branch', data)
+}
+
+/**
+ * 获取提交记录（带筛选和分页）
+ * GET /commits/filter?repoID=…&branch=…&start=…&end=…&author=…&page=…&size=…
+ */
+export function filterCommits(params) {
+  return instance.get('/commits/filter', { params })
+}

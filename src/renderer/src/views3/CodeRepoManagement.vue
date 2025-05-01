@@ -55,20 +55,20 @@
           <div class="id-card-content">
             <div class="id-card-left">
               <div class="avatar-icon" v-html="getAvatarIcon(repo.id)"></div>
-              <div class="repo-name">{{ repo.name }}</div>
+              <div class="repo-name">{{ omit(repo.name, 20) }}</div>
             </div>
             <div class="id-card-right">
               <div class="info-item">
                 <span class="label">仓库地址 / URL</span>
-                <span class="value">{{ repo.repo_url }}</span>
+                <span class="value">{{ omit(repo.repo_url, 20) }}</span>
               </div>
               <div class="info-item">
                 <span class="label">本地路径 / Local Path</span>
-                <span class="value">{{ repo.local_path }}</span>
+                <span class="value">{{ omit(repo.local_path, 20) }}</span>
               </div>
               <div class="info-item">
                 <span class="label">描述 / Desc</span>
-                <span class="value ellipsis">{{ repo.desc }}</span>
+                <span class="value ellipsis">{{ omit(repo.desc, 40) }}</span>
               </div>
             </div>
           </div>
@@ -82,6 +82,7 @@
                     small
                     class="detail-btn mr-2"
                     color="primary"
+                    variant="outlined"
                     @click="viewRepo(repo)"
                   >
                     <v-icon>mdi-pencil</v-icon>
@@ -96,6 +97,7 @@
                     small
                     class="preview-btn mr-2"
                     color="warning"
+                    variant="outlined"
                     @click="previewRepo(repo)"
                   >
                     <v-icon>mdi-eye</v-icon>
@@ -110,6 +112,7 @@
                     small
                     class="delete-btn mr-2"
                     color="error"
+                    variant="outlined"
                     @click="deleteRepoo(repo)"
                   >
                     <v-icon>mdi-delete</v-icon>
@@ -158,7 +161,6 @@
                 <v-text-field
                   v-model="repoForm.repo_url"
                   required
-                  :disabled="selectedRepo !== null"
                   density="compact"
                   variant="outlined"
                   bg-color="rgba(255,255,255,0.7)"
@@ -280,8 +282,8 @@
               prepend-inner-icon="mdi-folder"
               placeholder="选择本地仓库路径"
               readonly
-              @click="selectLocalRepoPath"
               required
+              @click="selectLocalRepoPath"
             />
             <v-text-field
               v-model="localImportForm.name"
@@ -328,17 +330,15 @@
               label="本地路径"
               placeholder="选择或输入本地目录"
               prepend-inner-icon="mdi-folder"
-              @click="selectImportLocalPath"
               readonly
               required
+              @click="selectImportLocalPath"
             />
           </v-form>
         </v-card-text>
         <v-card-actions class="justify-end">
           <v-btn text @click="closeImportDialog">取消</v-btn>
-          <v-btn color="primary" :disabled="!importFormValid" @click="importRepo">
-            导入
-          </v-btn>
+          <v-btn color="primary" :disabled="!importFormValid" @click="importRepo"> 导入 </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -443,11 +443,21 @@ const repoForm = reactive({
 
 /* ───── 本地导入 ───── */
 const localImportDialog = ref(false)
-const localImportValid  = ref(false)
-const localImportRef    = ref(null)
-const localImportForm   = reactive({
-  local_path: '', name: '', branch: 'main', desc: ''
+const localImportValid = ref(false)
+const localImportRef = ref(null)
+const localImportForm = reactive({
+  local_path: '',
+  name: '',
+  branch: 'main',
+  desc: ''
 })
+
+function omit(str, limit) {
+  if (str.length > limit) {
+    return `${str.substring(0, limit)}...`
+  }
+  return str
+}
 
 const openLocalImportDialog = () => {
   Object.assign(localImportForm, {
@@ -462,7 +472,6 @@ const openLocalImportDialog = () => {
 const closeLocalImportDialog = () => {
   localImportDialog.value = false
 }
-
 
 const selectLocalRepoPath = async () => {
   try {
@@ -480,8 +489,6 @@ const selectLocalRepoPath = async () => {
     console.error(e)
   }
 }
-
-
 
 // 显示错误提示信息
 const showErrorSnackbar = (message) => {
@@ -743,7 +750,6 @@ const handleLocalPathClick = async () => {
     alert('请先填写名称和仓库 URL')
     return
   }
-  console.log('Local Path Clicked')
 
   try {
     const result = await window.electron.invoke('dialog:openDirectory', {
@@ -754,10 +760,6 @@ const handleLocalPathClick = async () => {
       const selectedPath = result.filePaths[0]
       const fs = await window.electron.fs
       const path = await window.electron.path
-      if (!fs || !path) {
-        console.error('无法加载 fs 或 path 模块')
-        return
-      }
       // 判断选中文件夹是否为空
       const folderContent = fs.readdirSync(selectedPath)
       if (folderContent.length === 0) {
@@ -767,12 +769,14 @@ const handleLocalPathClick = async () => {
           type: 'info'
         })
       } else {
-        // 文件夹不为空，自动创建子文件夹
-        const newFolderPath = path.join(selectedPath, repoForm.name)
+        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点
+        const rawName = repoForm.name
+        const safeName = rawName.replace(/\./g, '')
+        const newFolderPath = path.join(selectedPath, safeName)
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
           store.dispatch('snackbar/showSnackbar', {
-            message: '已自动创建 ' + newFolderPath + ' 文件夹',
+            message: `已自动创建 ${newFolderPath} 文件夹`,
             type: 'info'
           })
         }
@@ -784,7 +788,7 @@ const handleLocalPathClick = async () => {
     console.error(err)
   }
 }
-// 选择本地路径（沿用原有的 Electron 目录选择逻辑）
+// 选择本地路径（快速导入对话框中使用）
 const selectImportLocalPath = async () => {
   try {
     const result = await window.electron.invoke('dialog:openDirectory', {
@@ -795,10 +799,6 @@ const selectImportLocalPath = async () => {
       const selectedPath = result.filePaths[0]
       const fs = await window.electron.fs
       const path = await window.electron.path
-      if (!fs || !path) {
-        console.error('无法加载 fs 或 path 模块')
-        return
-      }
       // 判断选中文件夹是否为空
       const folderContent = fs.readdirSync(selectedPath)
       if (folderContent.length === 0) {
@@ -808,13 +808,14 @@ const selectImportLocalPath = async () => {
           type: 'info'
         })
       } else {
-        // 文件夹不为空，自动创建子文件夹
-        const repoName = extractNameFromUrl(importForm.repo_url)
-        const newFolderPath = path.join(selectedPath, repoName)
+        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点
+        const rawRepoName = extractNameFromUrl(importForm.repo_url)
+        const safeRepoName = rawRepoName.replace(/\./g, '')
+        const newFolderPath = path.join(selectedPath, safeRepoName)
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
           store.dispatch('snackbar/showSnackbar', {
-            message: '已自动创建 ' + newFolderPath + ' 文件夹',
+            message: `已自动创建 ${newFolderPath} 文件夹`,
             type: 'info'
           })
         }
@@ -846,7 +847,6 @@ const closeImportDialog = () => {
   importDialog.value = false
 }
 
-
 // 工具：从 git URL 提取仓库名作为默认名称
 const extractNameFromUrl = (url) => {
   if (!url) return 'unknown'
@@ -870,7 +870,7 @@ const importRepo = async () => {
       username: '',
       password: '',
       desc: '',
-      pull: true   // 克隆后立即拉取/校验
+      pull: true // 克隆后立即拉取/校验
     })
 
     completeProgress(true)
@@ -894,14 +894,14 @@ const importLocalRepo = async () => {
   startProgressSimulation()
   try {
     await createRepo({
-      name:       localImportForm.name,
-      repo_url:   '',                 // 本地仓库无需远程 URL
-      branch:     localImportForm.branch,
+      name: localImportForm.name,
+      repo_url: '', // 本地仓库无需远程 URL
+      branch: localImportForm.branch,
       local_path: localImportForm.local_path,
-      username:   '',
-      password:   '',
-      desc:       localImportForm.desc,
-      pull:       false               // 不执行克隆
+      username: '',
+      password: '',
+      desc: localImportForm.desc,
+      pull: false // 不执行克隆
     })
 
     completeProgress(true)
@@ -918,7 +918,6 @@ const importLocalRepo = async () => {
     showErrorSnackbar(errorMsg)
   }
 }
-
 
 onMounted(() => {
   fetchRepos()
@@ -1131,5 +1130,4 @@ onMounted(() => {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-
 </style>
