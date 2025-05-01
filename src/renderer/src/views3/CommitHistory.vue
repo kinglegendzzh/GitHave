@@ -1,238 +1,341 @@
-<!-- CommitHistory.vue -->
 <template>
-  <div class="commit-history">
+  <v-card class="pa-2">
     <!-- 过滤表单 -->
-    <form @submit.prevent="onSearch" class="filter-form">
-      <label>
-        仓库：
-        <select v-model="filter.repoID">
-          <option value="">请选择仓库</option>
-          <option v-for="r in repos" :key="r.id" :value="r.id">
-            {{ r.name }}
-          </option>
-        </select>
-      </label>
-      <label>
-        分支：
-        <input v-model="filter.branch" placeholder="branch 名称" />
-      </label>
-      <label>
-        开始时间：
-        <input type="datetime-local" v-model="filter.start" />
-      </label>
-      <label>
-        结束时间：
-        <input type="datetime-local" v-model="filter.end" />
-      </label>
-      <label>
-        作者：
-        <input v-model="filter.author" placeholder="author 名称" />
-      </label>
-      <button type="submit">搜索</button>
-    </form>
+    <v-form @submit.prevent="onSearch" class="mb-4">
+      <v-row dense align="center" gutter="8">
+        <v-col cols="12" sm="6" md="3">
+          <v-select
+            v-model="filter.repoID"
+            :items="repos"
+            :item-title="formatRepoTitle"
+            item-value="id"
+            label="仓库"
+            :disabled="repos.length === 0"
+            density="compact"
+            hide-details
+          />
+        </v-col>
+
+        <v-col cols="12" sm="6" md="3">
+          <v-text-field
+            v-model="filter.branch"
+            label="分支"
+            placeholder="branch 名称"
+            density="compact"
+            hide-details
+          />
+        </v-col>
+
+        <v-col cols="12" sm="6" md="3">
+          <v-text-field
+            v-model="filter.start"
+            label="开始时间"
+            type="datetime-local"
+            density="compact"
+            hide-details
+          />
+        </v-col>
+
+        <v-col cols="12" sm="6" md="3">
+          <v-text-field
+            v-model="filter.end"
+            label="结束时间"
+            type="datetime-local"
+            density="compact"
+            hide-details
+          />
+        </v-col>
+
+        <v-col cols="12" sm="6" md="3">
+          <v-text-field
+            v-model="filter.author"
+            label="作者"
+            placeholder="author 名称"
+            density="compact"
+            hide-details
+          />
+        </v-col>
+
+        <v-col cols="12" sm="6" md="3">
+          <v-btn
+            class="mr-4"
+            type="submit"
+            :disabled="filter.repoID == null"
+            color="primary"
+          >
+            搜索
+          </v-btn>
+          <v-btn
+            class="mr-4"
+            color="grey"
+            @click="resetFilter"
+          >
+            重置
+          </v-btn>
+        </v-col>
+      </v-row>
+    </v-form>
 
     <!-- 提交列表 -->
-    <table class="commit-table">
-      <thead>
-      <tr>
-        <th>哈希</th>
-        <th>作者</th>
-        <th>邮箱</th>
-        <th>信息</th>
-        <th>时间</th>
-      </tr>
-      </thead>
-      <tbody>
-      <tr v-for="c in commits" :key="c.hash">
-        <td>{{ c.hash }}</td>
-        <td>{{ c.authorName }}</td>
-        <td>{{ c.authorEmail }}</td>
-        <td>{{ c.message }}</td>
-        <td>{{ formatTime(c.time) }}</td>
-      </tr>
-      <tr v-if="!commits.length">
-        <td colspan="5" class="no-data">暂无数据</td>
-      </tr>
-      </tbody>
-    </table>
+    <v-data-table
+      :headers="headers"
+      :items="commits"
+      :items-per-page="filter.pageSize"
+      items-per-page-text="每页显示行数"
+      :items-per-page-options="[10, 20, 50, 100]"
+      disable-items-per-page="false"
+      class="elevation-1"
+      density="compact"
+    >
+      <!-- Hash 列 -->
+      <template #item.hash="{ item }">
+        <v-tooltip interactive>
+          <template #activator="{ props }">
+            <span v-bind="props" class="text-truncate" style="max-width: 5%;">{{ omit(item.hash, 6) }}</span>
+          </template>
+          <span>{{ item.hash }}</span>
+        </v-tooltip>
+      </template>
 
-    <!-- 分页 -->
-    <div class="pagination">
-      <button :disabled="filter.page === 1" @click="changePage(filter.page - 1)">
-        上一页
-      </button>
-      <span>第 {{ filter.page }} 页 / 共 {{ totalPages }} 页</span>
-      <button
-        :disabled="filter.page === totalPages"
-        @click="changePage(filter.page + 1)"
-      >
-        下一页
-      </button>
-    </div>
-  </div>
+      <!-- 时间 列 -->
+      <template #item.time="{ item }">
+        <v-tooltip interactive>
+          <template #activator="{ props }">
+            <span v-bind="props" class="text-truncate" style="max-width: 25%;">{{ formatTime(item.time) }}</span>
+          </template>
+          <span>{{ formatTime(item.time) }}</span>
+        </v-tooltip>
+      </template>
+
+      <!-- 作者 列 -->
+      <template #item.authorName="{ item }">
+        <v-tooltip interactive>
+          <template #activator="{ props }">
+            <span v-bind="props" class="text-truncate" style="max-width: 15%;">{{ item.authorName }}</span>
+          </template>
+          <span>{{ item.authorName }}</span>
+        </v-tooltip>
+      </template>
+
+      <!-- 邮箱 列 -->
+      <template #item.authorEmail="{ item }">
+        <v-tooltip interactive>
+          <template #activator="{ props }">
+            <span v-bind="props" class="text-truncate" style="max-width: 15%;">{{ omit(item.authorEmail, 25) }}</span>
+          </template>
+          <span>{{ item.authorEmail }}</span>
+        </v-tooltip>
+      </template>
+
+      <!-- 信息 列 -->
+      <template #item.message="{ item }">
+        <v-tooltip interactive>
+          <template #activator="{ props }">
+            <span v-bind="props" class="text-truncate" style="max-width: 40%;">{{ omit(item.message,100) }}</span>
+          </template>
+          <span>{{ item.message }}</span>
+        </v-tooltip>
+      </template>
+
+      <!-- 无数据/加载骨架 -->
+      <template #no-data>
+        <div v-if="isLoading">
+          <v-row class="mt-4" justify="center" style="display: block">
+            <span class="text-grey text-h6">正在加载</span>
+            <v-skeleton-loader
+              type="list-item-three-line, list-item-three-line, list-item-three-line"
+              style="width: 80%"
+            />
+          </v-row>
+        </div>
+        <div v-else>
+          <v-row class="mt-4" justify="center" style="display: block">
+            <span class="text-grey text-h6">暂无数据</span>
+            <v-skeleton-loader
+              type="list-item-two-line"
+              style="width: 60%"
+            />
+          </v-row>
+        </div>
+      </template>
+    </v-data-table>
+     <!-- 全局错误提示 -->
+     <v-snackbar
+       v-model="snackbar.show"
+       :timeout="snackbar.timeout"
+       color="error"
+       top
+     >
+       {{ snackbar.message }}
+     </v-snackbar>
+  </v-card>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import axios from 'axios'
+import { listRepos, filterCommits } from '../service/api.js'
+import {
+  VCard,
+  VForm,
+  VRow,
+  VCol,
+  VSelect,
+  VTextField,
+  VBtn,
+  VDataTable,
+  VPagination,
+  VSkeletonLoader,
+  VTooltip,
+} from 'vuetify/components'
 
-/**
- * 如果后台接口尚未就绪，可以将 useMock 开为 true
- * 以便前端使用假数据模拟分页和过滤效果
- */
-const useMock = true
 
-// 仓库列表
-const repos = ref([])
-// 当前页提交记录
-const commits = ref([])
-// 总记录数，用于分页
-const total = ref(0)
+ // 用来控制错误提示
+ const snackbar = reactive({
+   show: false as boolean,
+   message: '' as string,
+   timeout: 3000 as number,
+ })
 
-// 过滤器状态
+const repos = ref<Array<{ id: number; name: string }>>([])
+const commits = ref<Array<{ hash: string; authorName: string; authorEmail: string; message: string; time: string }>>([])
+const total = ref<number>(0)
+const isLoading = ref(false)
+
 const filter = reactive({
-  repoID: '',        // 仓库 ID
-  branch: '',        // 分支
-  start: '',         // 开始时间 (ISO 字符串)
-  end: '',           // 结束时间 (ISO 字符串)
-  author: '',        // 作者名
-  page: 1,           // 当前页
-  pageSize: 10,      // 每页记录数
+  repoID: null as number | null,
+  branch: '' as string,
+  start: '' as string,
+  end: '' as string,
+  author: '' as string,
+  page: 1 as number,
+  pageSize: 10 as number,
 })
 
-// 计算总页数
-const totalPages = computed(() =>
-  Math.ceil(total.value / filter.pageSize)
-)
+const totalPages = computed(() => Math.ceil(total.value / filter.pageSize))
 
-// 格式化 ISO 时间戳为本地可读字符串
-function formatTime(iso) {
+const headers = [
+  { title: '哈希', key: 'hash', width: '7%' },
+  { title: '时间', key: 'time', width: '13%' },
+  { title: '作者', key: 'authorName', width: '10%' },
+  { title: '邮箱', key: 'authorEmail', width: '15%' },
+  { title: '信息', key: 'message', width: '55%' },
+]
+
+function resetFilter() {
+  filter.branch = ''
+  filter.start = ''
+  filter.end = ''
+  filter.author = ''
+  filter.page = 1
+  filter.pageSize = 10
+  total.value = 0
+  commits.value = []
+  isLoading.value = false
+  fetchCommits()
+}
+
+function omit(str, limit) {
+  if (str.length > limit) {
+    return `${str.substring(0, limit)}...`
+  }
+  return str
+}
+
+function formatTime(iso: string) {
   return new Date(iso).toLocaleString()
 }
 
-// 模拟获取仓库列表
-async function fetchRepos() {
-  if (useMock) {
-    repos.value = [
-      { id: 1, name: 'Repo-A' },
-      { id: 2, name: 'Repo-B' },
-      { id: 3, name: 'Example-Project' },
-    ]
+function formatRepoTitle(item) {
+  if (!item.desc) {
+    return item.name;
   } else {
-    const res = await axios.get('/api/repos')
-    repos.value = res.data
+    return `${item.desc}（${item.name}）`;
   }
 }
 
-// 模拟后端分页 & 过滤返回假数据
-function fetchMockCommits({ page, pageSize }) {
-  const mock: any[] = []
-  const startIdx = (page - 1) * pageSize + 1
-  for (let i = 0; i < pageSize; i++) {
-    const idx = startIdx + i
-    mock.push({
-      hash: `abcdef${idx.toString().padStart(4, '0')}`,
-      authorName: `Author${(idx % 5) + 1}`,
-      authorEmail: `author${(idx % 5) + 1}@example.com`,
-      message: `模拟提交信息 #${idx}`,
-      time: new Date(
-        Date.now() - Math.random() * 1000 * 60 * 60 * 24 * 7
-      ).toISOString(),
-    })
+async function fetchRepos() {
+  try {
+    const res = await listRepos()
+    const list = Array.isArray(res.data) ? res.data : res.data.data
+    repos.value = list.map(repo => ({
+      id: repo.id,
+      name: repo.name,
+      branch: repo.branch,
+      local_path: repo.local_path,
+      username: repo.username,
+      password: repo.password,
+      desc: repo.desc,
+      repo_url: repo.repo_url,
+    }))
+    if (repos.value.length > 0 && filter.repoID == null) {
+      filter.repoID = repos.value[0].id
+    }
+  } catch (err: any) {
+    // 捕获接口错误并弹出提示
+    snackbar.message = `加载仓库列表失败：${err.response.data || err}`
+    snackbar.show = true
   }
-  // 假设总共有 47 条记录
-  return Promise.resolve({ data: mock, total: 47 })
 }
 
-// 真正调用接口或 Mock
 async function fetchCommits() {
+  if (filter.repoID == null) {
+    commits.value = []
+    total.value = 0
+    return
+  }
+  isLoading.value = true
+  const startISO = filter.start ? new Date(filter.start).toISOString() : undefined
+  const endISO = filter.end ? new Date(filter.end).toISOString() : undefined
   const params = {
-    repoID: filter.repoID,
-    branch: filter.branch,
-    start: filter.start,
-    end: filter.end,
-    author: filter.author,
+    repoID: String(filter.repoID),
+    branch: filter.branch || undefined,
+    start: startISO,
+    end: endISO,
+    author: filter.author || undefined,
     page: filter.page,
     size: filter.pageSize,
   }
-  if (useMock) {
-    const res = await fetchMockCommits(params)
-    commits.value = res.data
-    total.value = res.total
-  } else {
-    const res = await axios.get('/api/commits/filter', { params })
-    // 假设后端返回 { data: CommitRecord[], total: number }
-    commits.value = res.data.data
+  try {
+    const res = await filterCommits(params)
+    const raw = res.data.data
     total.value = res.data.total
+    commits.value = Array.isArray(raw)
+      ? raw.map(item => ({
+        hash: item.Hash,
+        authorName: item.AuthorName,
+        authorEmail: item.AuthorEmail,
+        message: item.Message,
+        time: item.Time,
+      }))
+      : []
+  } catch (err: any) {
+    // 捕获 500 / 其他错误
+    snackbar.message = `加载提交记录失败：${err.response?.status || ''} ${err.response.data || err}`
+    snackbar.show = true
+  } finally {
+    isLoading.value = false
   }
 }
 
-// 切换页码
 function changePage(p: number) {
   filter.page = p
   fetchCommits()
 }
 
-// 点击“搜索”重置到第 1 页并拉数据
 function onSearch() {
+  console.log('onSearch');
   filter.page = 1
+  total.value = 0
+  commits.value = []
+  isLoading.value = false
   fetchCommits()
 }
 
-// 初始加载
-onMounted(() => {
-  fetchRepos()
+onMounted(async () => {
+  await fetchRepos()
   fetchCommits()
 })
 </script>
 
 <style scoped>
-.commit-history {
-  padding: 16px;
-}
-.filter-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.filter-form label {
-  display: flex;
-  flex-direction: column;
-  font-size: 14px;
-}
-.filter-form input,
-.filter-form select {
-  margin-top: 4px;
-  padding: 4px 8px;
-  font-size: 14px;
-}
-.filter-form button {
-  align-self: flex-end;
-  padding: 6px 12px;
-}
-.commit-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.commit-table th,
-.commit-table td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  font-size: 13px;
-}
-.no-data {
-  text-align: center;
-  color: #888;
-}
-.pagination {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.pagination button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 </style>
