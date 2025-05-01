@@ -169,10 +169,10 @@
                 />
               </div>
               <div class="info-item">
-                <span class="label">分支 / Branch</span>
-                <v-text-field
+                <v-select
                   v-model="repoForm.branch"
-                  required
+                  :items="branchOptions"
+                  label="分支 / Branch"
                   density="compact"
                   variant="outlined"
                   bg-color="rgba(255,255,255,0.7)"
@@ -395,21 +395,93 @@
       </v-card>
     </v-dialog>
   </v-container>
+  <!-- 简单 v-for 渲染，absolute 堆叠在右下角 -->
+  <v-snackbar
+    v-for="(t, i) in toasts"
+    :key="t.id"
+    v-model="t.visible"
+    :color="t.color"
+    timeout="-1"
+  absolute
+  bottom
+  right
+  :style="{ marginBottom: (i * 60) + 'px' }"
+  >
+  {{ t.message }}
+  </v-snackbar>
+
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
-import { listRepos, getRepo, createRepo, updateRepo, deleteRepo } from '../service/api'
+import { listRepos, getRepo, createRepo, updateRepo, deleteRepo, listBranches, switchBranch } from "../service/api";
 import { generateAvatar } from '../components/AvatarGenerator'
+import {
+  VSelect, VSnackbar
+} from "vuetify/components";
 
 // 获取 Vuex store 与 Vue Router 实例
 const store = useStore()
 const router = useRouter()
 
-// computed 用于展现 snackbar 数据（减少不必要的更新）
-const snackbar = computed(() => store.state.snackbar)
+// 新写法：简易 toast 列表
+const toasts = ref([]) // [{ id, message, color, timeout, visible }]
+
+function toast (message, color = 'info', timeout = 3000) {
+  const id = Date.now() + Math.random()        // 简单唯一 id
+  toasts.value.push({ id, message, color, timeout, visible: true })
+  setTimeout(() => {
+    const item = toasts.value.find(t => t.id === id)
+    if (item) item.visible = false             // 触发 v-snackbar 关闭
+    // 再延迟一点点把对象从数组删掉
+    setTimeout(() => {
+      const idx = toasts.value.findIndex(t => t.id === id)
+      if (idx > -1) toasts.value.splice(idx, 1)
+    }, 400)
+  }, timeout)
+}
+
+// 方便调用
+const toastError   = msg => toast(msg, 'error')
+const toastSuccess = msg => toast(msg, 'success')
+const toastInfo    = msg => toast(msg, 'info')
+const toastWarning = msg => toast(msg, 'warning')
+
+
+// 用来控制错误提示
+const snackbar = reactive({
+  show: false,
+  message: '',
+  timeout: 3000,
+  color: 'info',
+})
+/** 队列：按先进先出依次展示 snackbar */
+const snackbarQueue = ref([])
+
+/** 入队并在空闲时立即播放 */
+function enqueueSnackbar (msg, color = 'info', timeout = 3000) {
+  snackbarQueue.value.push({ msg, color, timeout })
+  if (!snackbar.show) playNextSnackbar()
+}
+
+/** 将队首元素赋给 snackbar，触发显示 */
+function playNextSnackbar () {
+  if (snackbarQueue.value.length === 0) return
+  const { msg, color, timeout } = snackbarQueue.value.shift()
+  Object.assign(snackbar, { message: msg, color, timeout, show: true })
+}
+
+/** snackbar 消失以后（show=false）继续下一条 */
+watch(
+  () => snackbar.show,
+  (val) => {
+    if (!val) playNextSnackbar()
+  }
+)
+
+const branchOptions = ref([])
 
 // 组件状态
 const repos = ref([])
@@ -452,6 +524,51 @@ const localImportForm = reactive({
   desc: ''
 })
 
+
+const showLocalSnackbar = (message, color) => toast(message, color)
+
+const showErrorSnackbar = (message) => toastError(message)
+
+/**
+ * 拉取分支列表并写入 branchOptions。
+ * 若当前 repoForm.branch 不在列表中则自动设为第一个分支。
+ * @param {number} repoID
+ */
+async function ensureBranch(repoID) {
+  try {
+    const res = await listBranches(repoID)
+    if (res.status === 200 && Array.isArray(res.data.data)) {
+      branchOptions.value = res.data.data
+      if (!branchOptions.value.includes(repoForm.branch)) {
+        repoForm.branch = branchOptions.value[0] || ''
+      }
+    }
+  } catch (e) {
+    console.error('获取分支列表失败', e.response.data)
+    showErrorSnackbar((e.response.data || e))
+  }
+}
+
+/**
+ * 尝试切换到 repoForm.branch。
+ * 成功返回 true，失败返回 false（同时弹出错误提示），
+ * 不向上传递异常，避免影响后续保存 / 创建逻辑。
+ * @param {number} repoID
+ * @returns {boolean}
+ */
+async function applyBranch(repoID) {
+  if (!repoForm.branch) return true   // 没选分支，直接视为成功
+  try {
+    await switchBranch(repoID, repoForm.branch)
+    return true
+  } catch (e) {
+    console.error('切换分支失败', e.response.data)
+    showErrorSnackbar((e.response.data || e))
+    return false
+  }
+}
+
+
 function omit(str, limit) {
   if (str.length > limit) {
     return `${str.substring(0, limit)}...`
@@ -490,13 +607,6 @@ const selectLocalRepoPath = async () => {
   }
 }
 
-// 显示错误提示信息
-const showErrorSnackbar = (message) => {
-  store.dispatch('snackbar/showSnackbar', {
-    message: message,
-    type: 'error'
-  })
-}
 
 // 获取仓库列表（尽量用 async/await，提高可读性和错误处理能力）
 const fetchRepos = async () => {
@@ -560,6 +670,7 @@ const viewRepo = async (item) => {
       password: response.data.password,
       desc: response.data.desc
     })
+    await ensureBranch(response.data.id) // ⭐️ 这里拉取分支列表
     dialog.value = true
   } catch (err) {
     console.error('获取仓库详情错误:', err)
@@ -631,10 +742,11 @@ const completeProgress = (success = true) => {
 const saveRepo = async () => {
   // 启动进度条模拟
   startProgressSimulation()
-
   try {
     if (selectedRepo.value) {
-      // 更新操作：仅更新部分字段
+      console.log("now branch", repoForm.branch);
+      const repo = await getRepo(selectedRepo.value.id);
+      console.log('old branch', repo.data.branch);
       await updateRepo(selectedRepo.value.id, {
         repo_url: repoForm.repo_url,
         branch: repoForm.branch,
@@ -643,8 +755,13 @@ const saveRepo = async () => {
         password: repoForm.password,
         name: repoForm.name,
         desc: repoForm.desc,
-        pull: true
+        pull: false
       })
+      // ② 只有分支真的改动才切换
+      if (repo.data.branch !== repoForm.branch) {
+        console.log('yes!');
+        await applyBranch(selectedRepo.value.id)
+      }
     } else {
       // 新增操作：发送完整数据
       await createRepo({
@@ -658,17 +775,13 @@ const saveRepo = async () => {
         pull: true
       })
     }
-
     // 操作成功，完成进度条
     completeProgress(true)
     dialog.value = false
-    fetchRepos()
+    await fetchRepos()
 
     // 显示成功提示
-    store.dispatch('snackbar/showSnackbar', {
-      message: selectedRepo.value ? '仓库更新成功' : '仓库创建成功',
-      type: 'success'
-    })
+    showLocalSnackbar(selectedRepo.value ? '仓库更新成功' : '仓库创建成功', 'success')
   } catch (err) {
     console.error(selectedRepo.value ? '更新仓库错误:' : '新增仓库错误:', err)
 
@@ -707,10 +820,7 @@ const confirmDeleteRepo = async () => {
     // 调用后端删除接口，并根据复选框状态传递 deleteLocal 参数
     await deleteRepo(repoId, { deleteLocal: shouldDeleteLocal }) // 正确传递查询参数
     fetchRepos() // 重新获取列表
-    store.dispatch('snackbar/showSnackbar', {
-      message: `仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''),
-      type: 'success'
-    })
+    showLocalSnackbar(`仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''), 'error')
   } catch (err) {
     console.error('删除仓库错误:', err)
     const errorMsg = err.response?.data || err.message || '删除仓库失败'
@@ -764,10 +874,7 @@ const handleLocalPathClick = async () => {
       const folderContent = fs.readdirSync(selectedPath)
       if (folderContent.length === 0) {
         repoForm.local_path = selectedPath
-        store.dispatch('snackbar/showSnackbar', {
-          message: '选中的文件夹为空，直接使用该目录。',
-          type: 'info'
-        })
+        showLocalSnackbar('选中的文件夹为空，直接使用该目录。', 'info')
       } else {
         // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点
         const rawName = repoForm.name
@@ -775,10 +882,7 @@ const handleLocalPathClick = async () => {
         const newFolderPath = path.join(selectedPath, safeName)
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
-          store.dispatch('snackbar/showSnackbar', {
-            message: `已自动创建 ${newFolderPath} 文件夹`,
-            type: 'info'
-          })
+          showLocalSnackbar(`已自动创建 ${newFolderPath} 文件夹`, 'info')
         }
         repoForm.local_path = newFolderPath
       }
@@ -803,10 +907,7 @@ const selectImportLocalPath = async () => {
       const folderContent = fs.readdirSync(selectedPath)
       if (folderContent.length === 0) {
         importForm.local_path = selectedPath
-        store.dispatch('snackbar/showSnackbar', {
-          message: '选中的文件夹为空，直接使用该目录。',
-          type: 'info'
-        })
+        showLocalSnackbar('选中的文件夹为空，直接使用该目录。', 'info')
       } else {
         // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点
         const rawRepoName = extractNameFromUrl(importForm.repo_url)
@@ -814,10 +915,7 @@ const selectImportLocalPath = async () => {
         const newFolderPath = path.join(selectedPath, safeRepoName)
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
-          store.dispatch('snackbar/showSnackbar', {
-            message: `已自动创建 ${newFolderPath} 文件夹`,
-            type: 'info'
-          })
+          showLocalSnackbar(`已自动创建 ${newFolderPath} 文件夹`, 'info')
         }
         importForm.local_path = newFolderPath
       }
@@ -876,10 +974,7 @@ const importRepo = async () => {
     completeProgress(true)
     closeImportDialog()
     fetchRepos()
-    store.dispatch('snackbar/showSnackbar', {
-      message: '仓库导入成功',
-      type: 'success'
-    })
+    showLocalSnackbar('仓库导入成功', 'success')
   } catch (err) {
     console.error('导入仓库失败:', err)
     completeProgress(false)
@@ -907,10 +1002,7 @@ const importLocalRepo = async () => {
     completeProgress(true)
     closeLocalImportDialog()
     fetchRepos()
-    store.dispatch('snackbar/showSnackbar', {
-      message: '本地仓库导入成功',
-      type: 'success'
-    })
+    showLocalSnackbar('本地仓库导入成功', 'success')
   } catch (err) {
     console.error('本地导入失败:', err)
     completeProgress(false)
