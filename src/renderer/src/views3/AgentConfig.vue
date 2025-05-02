@@ -1,6 +1,9 @@
 <template>
   <v-container>
-    <v-container>
+    <div v-if="messages.length > 0">
+      <v-badge class="mt-4 mr-4" :content="messages.length" color="error" offset-x="-10">
+        <h5 class="headline text-h5">公告</h5>
+      </v-badge>
       <div class="news-tips">
         <tip-banner
           v-for="(item, idx) in messages"
@@ -11,14 +14,15 @@
           :href="item.href"
         />
       </div>
-    </v-container>
+    </div>
     <!-- 智能体卡片列表 -->
+    <h5 class="headline text-h5 mt-4 mr-4">系统内置智能体</h5>
     <v-row class="mt-4 mr-4" justify="center">
       <!-- 企微提交记录推送智能体 -->
       <v-col cols="12" md="4">
         <v-card
           outlined
-          class="agent-card mb-4"
+          class="agent-card mb-4 radio"
           :elevation="hoveredCard === 'wechat' ? 8 : 2"
           @click="openAgentDialog('wechat')"
           @mouseover="hoveredCard = 'wechat'"
@@ -26,9 +30,10 @@
         >
           <v-card-title class="d-flex align-center">
             <v-icon large color="amber" class="mr-2">mdi-bell-ring</v-icon>
-            <span class="headline">📳 企微提交记录推送智能体</span>
+            <span class="text-grey mr-2 ml-2">[内置]</span>
+            <span class="headline"> 企业微信推送 </span>
           </v-card-title>
-          <v-card-subtitle>实时推送提交记录到企业微信群</v-card-subtitle>
+          <v-card-subtitle>将代码提交记录实时推送提交记录到企业微信群</v-card-subtitle>
           <v-card-text class="text-body-2">
             <div><strong>Webhook URL:</strong> {{ config.webhook_url ? '已配置' : '未配置' }}</div>
             <div><strong>仓库数量:</strong> {{ config.repos.length }}</div>
@@ -49,7 +54,8 @@
         >
           <v-card-title class="d-flex align-center">
             <v-icon large color="grey" class="mr-2">mdi-file-document</v-icon>
-            <span class="headline">📃 提交记录分析智能体</span>
+            <span class="text-grey mr-2 ml-2">[内置]</span>
+            <span class="headline">提交记录分析</span>
           </v-card-title>
           <v-card-subtitle>对提交记录生成分析报告</v-card-subtitle>
           <v-card-text class="text-body-2">
@@ -74,7 +80,8 @@
         >
           <v-card-title class="d-flex align-center">
             <v-icon large color="pink lighten-2" class="mr-2">mdi-calendar-text</v-icon>
-            <span class="headline">📆 仓库周刊智能体</span>
+            <span class="text-grey mr-2 ml-2">[内置]</span>
+            <span class="headline">仓库周刊</span>
           </v-card-title>
           <v-card-subtitle>生成仓库周报/周刊</v-card-subtitle>
           <v-card-text class="text-body-2">
@@ -85,9 +92,14 @@
         </v-card>
       </v-col>
     </v-row>
+    <h5 class="headline text-h5 mt-4 mr-4">来自社区的智能体</h5>
+    <v-row class="mt-4 mr-4" justify="center" style="display: block">
+      <span class="text-grey text-h6 ml-4">敬请期待</span>
+      <v-skeleton-loader type="card-avatar, article, actions" style="width: auto" />
+    </v-row>
 
     <!-- 智能体配置对话框 -->
-    <v-dialog v-model="agentDialog" max-width="900px" scrollable persistent>
+    <v-dialog v-model="agentDialog" max-width="900px" class="mt-10" scrollable persistent>
       <v-card>
         <v-card-title class="d-flex align-center justify-space-between">
           <span class="headline">{{ currentAgentTitle }}</span>
@@ -188,7 +200,7 @@
                             />
                             <v-switch
                               v-model="config.files.save.heatmap"
-                              label="保存备份到'研究报告'"
+                              label="保存备份到'枢纽'"
                             />
                           </v-card>
                         </v-menu>
@@ -226,7 +238,7 @@
                             />
                             <v-switch
                               v-model="config.files.save.research"
-                              label="保存备份到'研究报告'"
+                              label="保存备份到'枢纽'"
                             />
                           </v-card>
                         </v-menu>
@@ -262,7 +274,7 @@
                             />
                             <v-switch
                               v-model="config.files.save.csv"
-                              label="保存备份到'研究报告'"
+                              label="保存备份到'枢纽'"
                             />
                           </v-card>
                         </v-menu>
