@@ -1,21 +1,21 @@
-const { contextBridge, ipcRenderer, shell } = require('electron');
-const os = require('os');
-const fs = require('fs');
-const path = require('path');
-const installProgressCallbacks = new Set();
+const { contextBridge, ipcRenderer, shell } = require('electron')
+const os = require('os')
+const fs = require('fs')
+const path = require('path')
+const installProgressCallbacks = new Set()
 
 async function getFileStats(filePath) {
   try {
-    const stats = await fs.promises.stat(filePath);
+    const stats = await fs.promises.stat(filePath)
     // 返回一个 plain object，用于在渲染进程中直接使用
     return {
       isDirectory: stats.isDirectory(),
       isFile: stats.isFile(),
-      size: stats.size,
+      size: stats.size
       // 可根据需要添加其他属性
-    };
+    }
   } catch (error) {
-    throw error;
+    throw error
   }
 }
 
@@ -25,25 +25,25 @@ function onInstallProgress(callback) {
     // 第一次注册时，监听 install-progress 事件
     ipcRenderer.on('install-progress', (event, data) => {
       // 调用所有注册的回调函数
-      installProgressCallbacks.forEach(cb => cb(data));
-    });
+      installProgressCallbacks.forEach((cb) => cb(data))
+    })
   }
-  installProgressCallbacks.add(callback);
+  installProgressCallbacks.add(callback)
 }
 
 // 封装移除特定的监听器函数
 function removeInstallProgressListener(callback) {
-  installProgressCallbacks.delete(callback);
+  installProgressCallbacks.delete(callback)
   // 如果没有剩余监听器，则移除 ipcRenderer 上的事件监听
   if (installProgressCallbacks.size === 0) {
-    ipcRenderer.removeAllListeners('install-progress');
+    ipcRenderer.removeAllListeners('install-progress')
   }
 }
 
 // 封装移除所有 install-progress 监听器的函数
 function clearInstallProgressListeners() {
-  installProgressCallbacks.clear();
-  ipcRenderer.removeAllListeners('install-progress');
+  installProgressCallbacks.clear()
+  ipcRenderer.removeAllListeners('install-progress')
 }
 
 const api = {
@@ -64,54 +64,55 @@ const api = {
 
   // 配置文件操作
   readConfig: async (configPath) => await ipcRenderer.invoke('read-config', configPath),
-  writeConfig: async (configPath, data) => await ipcRenderer.invoke('write-config', configPath, data),
+  writeConfig: async (configPath, data) =>
+    await ipcRenderer.invoke('write-config', configPath, data),
 
   // 启动外部进程
   // 停止 app 进程
   stopApp: async () => {
     try {
-      const result = await ipcRenderer.invoke('stop-app');
-      console.log('[preload.js] stop-app result:', result);
-      return result;
+      const result = await ipcRenderer.invoke('stop-app')
+      console.log('[preload.js] stop-app result:', result)
+      return result
     } catch (error) {
-      console.error('[preload.js] stop-app error:', error);
-      throw error;
+      console.error('[preload.js] stop-app error:', error)
+      throw error
     }
   },
 
   // 启动 app 进程，configPath 为启动参数之一
   startApp: async (configPath) => {
     try {
-      const result = await ipcRenderer.invoke('start-app', configPath);
-      console.log('[preload.js] start-app result:', result);
-      return result;
+      const result = await ipcRenderer.invoke('start-app', configPath)
+      console.log('[preload.js] start-app result:', result)
+      return result
     } catch (error) {
-      console.error('[preload.js] start-app error:', error);
-      throw error;
+      console.error('[preload.js] start-app error:', error)
+      throw error
     }
   },
 
   // 停止 bot 进程
   stopBot: async () => {
     try {
-      const result = await ipcRenderer.invoke('stop-bot');
-      console.log('[preload.js] stop-bot result:', result);
-      return result;
+      const result = await ipcRenderer.invoke('stop-bot')
+      console.log('[preload.js] stop-bot result:', result)
+      return result
     } catch (error) {
-      console.error('[preload.js] stop-bot error:', error);
-      throw error;
+      console.error('[preload.js] stop-bot error:', error)
+      throw error
     }
   },
 
   // 启动 bot 进程，configPath 为启动参数之一
   startBot: async (configPath) => {
     try {
-      const result = await ipcRenderer.invoke('start-bot', configPath);
-      console.log('[preload.js] start-bot result:', result);
-      return result;
+      const result = await ipcRenderer.invoke('start-bot', configPath)
+      console.log('[preload.js] start-bot result:', result)
+      return result
     } catch (error) {
-      console.error('[preload.js] start-bot error:', error);
-      throw error;
+      console.error('[preload.js] start-bot error:', error)
+      throw error
     }
   },
 
@@ -127,8 +128,10 @@ const api = {
 
   // 其他系统检测与模型管理
   checkOllamaIPC: async () => await ipcRenderer.invoke('check-ollama'),
-  checkModelDeployment: async (models) => await ipcRenderer.invoke('check-model-deployment', models),
-  installModels: async (modelsToInstall) => await ipcRenderer.invoke('install-models', modelsToInstall),
+  checkModelDeployment: async (models) =>
+    await ipcRenderer.invoke('check-model-deployment', models),
+  installModels: async (modelsToInstall) =>
+    await ipcRenderer.invoke('install-models', modelsToInstall),
   fs: {
     ...fs,
     promises: fs.promises
@@ -151,10 +154,12 @@ const api = {
   getZoomFactor: () => ipcRenderer.invoke('get-zoom-factor'),
 
   normalize: (p) => path.normalize(p),
-  sep: path.sep
-};
+  sep: path.sep,
+
+  checkPythonIPC: async () => await ipcRenderer.invoke('check-python')
+}
 
 // 使用 contextBridge 向渲染进程暴露安全 API，对外命名为 electron
-contextBridge.exposeInMainWorld('electron', api);
+contextBridge.exposeInMainWorld('electron', api)
 
-console.log('loaded preload/main.js!');
+console.log('loaded preload/main.js!')
