@@ -6,7 +6,7 @@
         <v-form ref="form" v-model="valid">
           <v-expansion-panels v-model="expandedPanels" multiple variant="popout">
             <v-expansion-panel>
-              <v-expansion-panel-title id="offline-panel-header">📴 离线智能</v-expansion-panel-title>
+              <v-expansion-panel-title id="offline-panel-header">📴 ollama离线模型</v-expansion-panel-title>
               <v-expansion-panel-text>
                 <v-row>
                   <v-col
@@ -142,7 +142,7 @@
               </v-expansion-panel-text>
             </v-expansion-panel>
             <v-expansion-panel>
-              <v-expansion-panel-title id="cloud-panel-header">☁️ 云端智能</v-expansion-panel-title>
+              <v-expansion-panel-title id="cloud-panel-header">☁️ 云端在线模型</v-expansion-panel-title>
               <v-expansion-panel-text>
                 <div v-for="(modelConfig, modelKey) in config.custom" :key="modelKey">
                   <v-card flat class="mb-4 pa-2">
