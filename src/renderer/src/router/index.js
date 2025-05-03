@@ -20,31 +20,31 @@ const router = createRouter({
     {
       path: '/model',
       name: 'model',
-      meta: { title: '模型管理' },
+      meta: { title: '模型与角色' },
       component: () => import('../views3/ModelConfig.vue')
     },
     {
       path: '/agent',
       name: 'agent',
-      meta: { title: '智能体管理' },
+      meta: { title: '智能体' },
       component: () => import('../views3/AgentConfig.vue')
     },
     {
       path: '/commits',
       name: 'commits',
-      meta: { title: '智能审查' },
+      meta: { title: '代码审查' },
       component: () => import('../views/DiffViewer.vue')
     },
     {
       path: '/sender',
       name: 'sender',
-      meta: { title: '智能推送（企微｜邮件）' },
+      meta: { title: '推送机器人（企微｜邮件）' },
       component: () => import('../views/MsgSender.vue')
     },
     {
       path: '/scan',
       name: 'scan',
-      meta: { title: '数据记忆卡' },
+      meta: { title: '仓库记忆闪存' },
       component: () => import('../views/MemoryCard.vue')
     },
     {
@@ -56,14 +56,24 @@ const router = createRouter({
     {
       path: '/report',
       name: 'report',
-      meta: { title: '分析报告' },
+      meta: { title: '枢纽' },
       component: () => import('../views/GitResearch.vue')
     },
     {
       path: '/finder/:localPath?',
       name: 'finder',
-      meta: { title: '代码详情' },
+      meta: { title: '代码预览' },
       component: () => import('../views3/FileBrowser.vue'),
+      props: route => ({
+        localPath: route.params.localPath,
+        forceReplace: route.params.forceReplace === 'true',
+      })
+    },
+    {
+      path: '/ide/:localPath?',
+      name: 'ide',
+      meta: { title: 'IDE' },
+      component: () => import('../views3/IDE.vue'),
       props: route => ({
         localPath: route.params.localPath,
         forceReplace: route.params.forceReplace === 'true',
@@ -74,6 +84,15 @@ const router = createRouter({
       name: 'space',
       meta: { title: '空间透镜' },
       component: () => import('../views3/SpaceLens.vue'),
+      props: route => ({
+        localPath: route.params.localPath,
+      })
+    },
+    {
+      path: '/commits/history',
+      name: 'commitsHistory',
+      meta: { title: '提交审查' },
+      component: () => import('../views3/CommitHistory.vue'),
       props: route => ({
         localPath: route.params.localPath,
       })
