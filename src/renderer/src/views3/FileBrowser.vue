@@ -91,7 +91,7 @@
               :options="treeData"
               :normalizer="nodeNormalizer"
               placeholder="选择目录树..."
-              :item="['123', '321']"
+              :item="[]"
               item-key="path"
               :load-options="loadDirectoryOptions"
               :multiple="false"
