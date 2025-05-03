@@ -1,22 +1,22 @@
 <template>
   <v-container fluid class="cover-fill" style="height: 90vh">
-    <!-- 当 loading 为 true 时显示加载动画，反之显示主体页面 -->
+    <!-- Loading Spinner -->
     <v-row v-if="loading" align="center" justify="center" style="height: 100vh">
-      <v-col cols="12" class="text-center" style="display: block">
-        <!--        <img :src="dynamicLoadingSvg" alt="加载动画" class="loading-svg" />-->
+      <v-col cols="12" class="text-center">
         <v-progress-circular indeterminate color="primary" size="70" />
-        <!--        <div class="mt-4" style="font-size: 1.0rem;">加载中...</div>-->
       </v-col>
     </v-row>
 
+    <!-- Main Content -->
     <div v-else style="height: 100%">
-      <!-- 主内容区 -->
+      <!-- Toolbar -->
       <v-row>
         <v-toolbar class="mb-1">
           <v-toolbar-title>
             <v-icon>mdi-code-block-tags</v-icon>
           </v-toolbar-title>
           <div class="d-flex align-center ml-auto">
+            <!-- path selector & repo buttons (原逻辑保持不变) -->
             <v-autocomplete
               v-model="newRootPath"
               :items="pathSuggestions"
@@ -28,23 +28,23 @@
               item-value="value"
               color="success"
               class="mr-2"
-              style="width: 400px; height: auto"
+              style="width: 400px"
               @focus="loadPathSuggestions"
               @update:menu="resetRoot"
-            ></v-autocomplete>
+            />
             <v-tooltip text="更新代码">
               <template #activator="{ props }">
-                <v-btn v-bind="props" title="更新代码" outlined plain class="mr-2" @click="pull()">
+                <v-btn v-bind="props" outlined plain class="mr-2" @click="pull()">
                   <v-icon>mdi-git</v-icon>
                   更新代码
                 </v-btn>
               </template>
             </v-tooltip>
+            <!-- 其余按钮保持 -->
             <v-tooltip text="从本地目录打开">
               <template #activator="{ props }">
                 <v-btn
                   v-bind="props"
-                  title="从本地目录打开"
                   outlined
                   plain
                   class="mr-2"
@@ -59,7 +59,6 @@
               <template #activator="{ props }">
                 <v-btn
                   v-bind="props"
-                  title="从本地应用程序打开"
                   outlined
                   plain
                   class="mr-2"
@@ -75,15 +74,9 @@
       </v-row>
 
       <v-row style="display: flex; height: calc(100% - 10px)">
-        <!-- 左侧目录树 -->
-        <v-col
-          cols="12"
-          md="4"
-          lg="3"
-          class="mb-4"
-          style="width: 300px; max-width: 300px; position: relative"
-        >
-          <v-card outlined class="pa-2 h-100" style="height: 100vh; overflow: auto">
+        <!-- Left Tree -->
+        <v-col cols="12" md="4" lg="3" style="width: 300px; max-width: 300px; position: relative">
+          <v-card outlined class="pa-2 h-100">
             <v-card-title class="subtitle-1">访达目录树</v-card-title>
             <v-divider></v-divider>
             <Treeselect
@@ -91,7 +84,6 @@
               :options="treeData"
               :normalizer="nodeNormalizer"
               placeholder="选择目录树..."
-              :item="['123', '321']"
               item-key="path"
               :load-options="loadDirectoryOptions"
               :multiple="false"
@@ -103,11 +95,11 @@
               style="min-width: 800px"
               :menu-height="1000"
               @click="handleOptionClick"
-            ></Treeselect>
+            />
           </v-card>
         </v-col>
 
-        <!-- 右侧文件预览和标签 -->
+        <!-- Right Preview & Tabs -->
         <v-col
           cols="12"
           md="8"
@@ -115,26 +107,25 @@
           style="width: 72%; max-width: 72%"
           class="mb-4 d-flex flex-column h-100"
         >
+          <!-- Tabs & Breadcrumb -->
           <div class="flex-shrink-0">
-            <!-- 顶部标签页 -->
             <v-tabs v-model="activeTab" class="mb-4">
               <v-tab v-for="(tab, index) in tabs" :key="tab.path" class="d-flex align-center">
                 <v-icon
                   class="ml-2"
-                  style="cursor: pointer"
                   color="error"
+                  style="cursor: pointer"
                   @click.stop="removeTab(index)"
                   >mdi-close</v-icon
                 >
                 <span
-                  style="cursor: pointer"
                   class="text-blue-grey-darken-4"
+                  style="cursor: pointer"
                   @click="selectTab(tab)"
                   >{{ tab.name }}</span
                 >
               </v-tab>
             </v-tabs>
-            <!-- 面包屑导航 -->
             <div class="breadcrumb-container">
               <v-breadcrumbs :items="breadcrumbs" class="pa-0">
                 <template #item="{ item }">
@@ -146,67 +137,75 @@
             </div>
           </div>
           <v-divider></v-divider>
+
+          <!-- Preview Card -->
           <v-card tonal class="flex-grow-1" style="height: 100%; overflow-y: auto">
-            <v-card-text>
-              <div v-if="selectedFileName" class="preview-content">
-                <!-- PDF 预览 -->
-                <div v-if="isPDF(selectedFileName)">
-                  <iframe
-                    :src="getPDFUrl()"
-                    style="width: 100%; height: 100%"
-                    frameborder="0"
-                  ></iframe>
-                </div>
-                <!-- DOCX 预览 -->
+            <v-card-text style="height: 100%">
+              <div v-if="selectedFileName" class="preview-content" style="height: 100%">
+                <!-- PDF -->
+                <iframe
+                  v-if="isPDF(selectedFileName)"
+                  :src="getPDFUrl()"
+                  style="width: 100%; height: 100%"
+                  frameborder="0"
+                />
+
+                <!-- DOCX -->
                 <div v-else-if="isDocx(selectedFileName)">
-                  <div v-if="renderedDocx" v-html="renderedDocx"></div>
+                  <div v-if="renderedDocx" v-html="renderedDocx" />
                   <div v-else>加载 DOCX 中...</div>
                 </div>
-                <!-- XLSX 预览 -->
+
+                <!-- XLSX -->
                 <div v-else-if="isXlsx(selectedFileName)">
-                  <div v-if="renderedXlsx" v-html="renderedXlsx"></div>
+                  <div v-if="renderedXlsx" v-html="renderedXlsx" />
                   <div v-else>加载 XLSX 中...</div>
                 </div>
-                <!-- Markdown 预览 -->
+
+                <!-- Markdown -->
                 <div
                   v-else-if="isMarkdown(selectedFileName)"
                   @click="handleLinkClick"
                   v-html="renderMarkdown(fileContent)"
-                ></div>
-                <!-- 代码文件预览 -->
-                <pre v-else-if="isCodeFile">
-                  <code
-:class="`hljs ${path.extname(selectedFileName).slice(1)}`"
-                        v-html="highlightCode(fileContent, path.extname(selectedFileName))"></code>
-                </pre>
-                <!-- 其他文本文件预览 -->
+                />
+
+                <!-- Code Preview with Monaco -->
+                <div v-else-if="isCodeFileName(selectedFileName)" class="h-100">
+                  <MonacoEditor
+                    v-model:value="fileContent"
+                    :language="detectedLanguage"
+                    :theme="currentTheme"
+                    :diff-editor="diffMode"
+                    v-bind="diffMode ? { original: originalContent } : {}"
+                    :options="monacoOptions"
+                  />
+                </div>
+
+                <!-- Plain Text -->
                 <pre v-else>{{ fileContent }}</pre>
               </div>
-              <div v-else style="text-align: center">
+
+              <!-- Placeholder -->
+              <div v-else class="text-center">
                 <img
                   :src="placeholderImage"
                   alt="Chart Placeholder"
                   draggable="false"
-                  style="
-                    max-width: 100%;
-                    max-height: 100%;
-                    display: block;
-                    margin: auto;
-                    user-select: none;
-                    pointer-events: none;
-                  "
+                  style="max-width: 100%; max-height: 100%; user-select: none; pointer-events: none"
                 />
-                <h1 style="margin-top: 16px; user-select: none; pointer-events: none">代码预览</h1>
               </div>
             </v-card-text>
           </v-card>
         </v-col>
       </v-row>
-      <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
-        {{ snackbar.message }}
-      </v-snackbar>
+
+      <!-- Snackbar -->
+      <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">{{
+        snackbar.message
+      }}</v-snackbar>
     </div>
-    <!-- 进度条弹窗 -->
+
+    <!-- Progress Dialog -->
     <v-dialog v-model="progressDialog" persistent max-width="400">
       <v-card>
         <v-card-title class="text-center">{{ progressTitle }}</v-card-title>
@@ -224,6 +223,9 @@
 </template>
 
 <script setup>
+import 'vue3-treeselect/dist/vue3-treeselect.css'
+import 'highlight.js/styles/atom-one-dark.css'
+import MonacoEditor from 'monaco-editor-vue3'
 import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
 import { useStore } from 'vuex'
 import mammoth from 'mammoth'
@@ -242,6 +244,55 @@ import dynamicLoadingSvg from '../assets/load.svg'
 const store = useStore()
 // computed 用于展现 snackbar 数据（减少不必要的更新）
 const snackbar = computed(() => store.state.snackbar)
+
+/* ----------------------------------------------------------
+   Monaco Editor State & Utils
+---------------------------------------------------------- */
+const currentTheme = ref('vs-dark')
+/**
+ * 通过文件扩展名推断 Monaco 语言
+ */
+const languageMap = {
+  js: 'javascript',
+  ts: 'typescript',
+  vue: 'vue',
+  java: 'java',
+  go: 'go',
+  py: 'python',
+  rb: 'ruby',
+  c: 'c',
+  cpp: 'cpp',
+  html: 'html',
+  css: 'css',
+  json: 'json',
+  xml: 'xml',
+  sh: 'shell',
+  php: 'php',
+  sql: 'sql',
+  md: 'markdown',
+  yaml: 'yaml',
+  yml: 'yaml',
+  jsx: 'javascript',
+  tsx: 'typescript'
+}
+const detectedLanguage = computed(() => {
+  const ext = path.extname(selectedFileName.value).slice(1).toLowerCase()
+  return languageMap[ext] || 'plaintext'
+})
+
+// 用户可切换 diff/普通模式
+const diffMode = ref(false)
+const originalContent = ref('') // 若 diffMode 为 true，则展示对比内容
+
+const monacoOptions = reactive({
+  readOnly: true,
+  automaticLayout: true,
+  wordWrap: 'on',
+  minimap: { enabled: true },
+  scrollBeyondLastLine: false,
+  quickSuggestions: true,
+  fontSize: 14
+})
 
 // 定义 props（支持传入本地路径及一些控制参数）
 const props = defineProps({
@@ -319,9 +370,7 @@ const allowedExtensions = [
   '.docx',
   '.sql'
 ]
-const blacklistedExtensions = [
-  '.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk'
-]
+const blacklistedExtensions = ['.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk']
 const customAppMapping = {
   '.txt': { win32: 'notepad', linux: 'gedit' },
   '.java': { darwin: 'code', win32: 'code', linux: 'code' },
@@ -345,12 +394,6 @@ const md = new MarkdownIt({
     const validLang = hljs.getLanguage(lang) ? lang : 'plaintext'
     return hljs.highlight(str, { language: validLang }).value
   }
-})
-
-// 计算属性：是否为代码文件（非 Markdown）
-const isCodeFile = computed(() => {
-  const ext = path.extname(selectedFileName.value).toLowerCase()
-  return allowedExtensions.includes(ext) && !isMarkdown(selectedFileName.value)
 })
 
 // 以下为各个辅助方法，均使用 Composition API 写法
@@ -492,10 +535,24 @@ async function loadFileByType(selectedPath) {
       const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' })
       updateFileState(selectedPath, { fileContent: content })
     }
+
+    /* 1️⃣ 读取代码文件时，先把当前内容存入 original，再读取新内容 */
+    if (isFilePath(selectedPath)) {
+      const prev = fileContent.value
+      const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' })
+      if (diffMode.value) originalContent.value = prev // 仅 diffMode 时备份
+      fileContent.value = content
+    }
   } catch (err) {
     console.error('加载文件失败：', err)
     updateFileState(selectedPath, { fileContent: `读取文件失败：${err.message}` })
   }
+}
+
+/* 2️⃣ 判断代码文件的通用函数（路径或文件名都能用）*/
+function isCodeFileName(name) {
+  const ext = path.extname(name).toLowerCase()
+  return allowedExtensions.includes(ext) && !['.md', '.markdown'].includes(ext)
 }
 
 function updateFileState(selectedPath, updates) {
@@ -673,15 +730,16 @@ async function fetchChildren(item) {
     children.sort((a, b) => b.mtime - a.mtime)
     // 构造节点并去除隐藏文件
     const map = children
-      .map(child => ({
+      .map((child) => ({
         name: child.name,
         path: child.fullPath,
         isDirectory: child.isDirectory,
         children: child.isDirectory ? null : undefined
       }))
-      .filter(child => !child.name.startsWith('.'))
+      .filter((child) => !child.name.startsWith('.'))
     // 目录一律展示；文件只要不在黑名单中就展示
-    return map.filter(child =>
+    return map.filter(
+      (child) =>
         child.isDirectory || !blacklistedExtensions.includes(path.extname(child.path).toLowerCase())
     )
   } catch (err) {
@@ -689,7 +747,6 @@ async function fetchChildren(item) {
     return []
   }
 }
-
 
 function convertBuffer(buffer) {
   if (buffer instanceof ArrayBuffer) return buffer
@@ -1055,5 +1112,10 @@ body {
 .loading-svg {
   width: 80px;
   height: auto;
+}
+
+.monaco-container {
+  width: 100%;
+  height: 100%;
 }
 </style>
