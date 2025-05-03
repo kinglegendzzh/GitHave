@@ -12,11 +12,7 @@
       <!-- Toolbar -->
       <v-row>
         <!-- 替换原来的 v-toolbar -->
-        <v-toolbar
-          class="mac-toolbar"
-          flat
-          density="compact"
-        >
+        <v-toolbar class="mac-toolbar" flat density="compact">
           <div class="d-flex align-center ml-auto">
             <v-autocomplete
               v-model="newRootPath"
@@ -30,41 +26,37 @@
               item-title="title"
               item-value="value"
               color="success"
-              style="width: 400px;"
+              style="width: 400px"
               @focus="loadPathSuggestions"
               @update:menu="resetRoot"
             />
             <!-- NEW ─ 主题切换 -->
-            <v-select v-model="currentTheme"
-                      :items="themeOptions"
-                      label="高亮主题"
-                      dense
-                      clearable
-                      hide-details
-                      density="compact"
-                      style="width:200px">
-<!--              <template #prepend>🌗</template>-->
+            <v-select
+              v-model="currentTheme"
+              :items="themeOptions"
+              label="高亮主题"
+              dense
+              clearable
+              hide-details
+              density="compact"
+              style="width: 200px"
+            >
+              <!--              <template #prepend>🌗</template>-->
             </v-select>
 
-<!--            <v-switch-->
-<!--              v-model="diffMode"-->
-<!--              inset-->
-<!--              dense-->
-<!--              density="compact"-->
-<!--              class="small-switch"-->
-<!--              label="代码编辑模式"-->
-<!--            />-->
 
             <!-- NEW ─ 格式化按钮 -->
-            <v-btn icon="mdi-format-align-left"
-                   @click="formatDocument"
-                   :disabled="!isCodeFileName(selectedFileName)"
-                   title="格式化 (Shift+Alt+F)" />
+            <v-btn
+              icon="mdi-format-align-left"
+              :disabled="!isCodeFileName(selectedFileName)"
+              title="格式化 (Shift+Alt+F)"
+              @click="formatDocument"
+            />
             <v-btn
               icon
               :disabled="!isCodeFileName(selectedFileName)"
-              @click="saveDocument"
               title="保存 (Ctrl+S)"
+              @click="saveDocument"
             >
               <v-icon size="18">mdi-content-save</v-icon>
             </v-btn>
@@ -79,31 +71,20 @@
             <!-- 其余按钮保持 -->
             <v-tooltip text="从本地目录打开">
               <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  outlined
-                  plain
-                  @click="openOutside(breadcrumbs, true)"
-                >
+                <v-btn v-bind="props" outlined plain @click="openOutside(breadcrumbs, true)">
                   <v-icon>mdi-folder-eye</v-icon>
                 </v-btn>
               </template>
             </v-tooltip>
             <v-tooltip text="从本地应用程序打开">
               <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  outlined
-                  plain
-                  @click="openOutside(breadcrumbs, false)"
-                >
+                <v-btn v-bind="props" outlined plain @click="openOutside(breadcrumbs, false)">
                   <v-icon>mdi-file-search-outline</v-icon>
                 </v-btn>
               </template>
             </v-tooltip>
           </div>
         </v-toolbar>
-
       </v-row>
 
       <v-row style="display: flex; height: calc(100% - 10px)">
@@ -204,16 +185,13 @@
                 <div v-else-if="isCodeFileName(selectedFileName)" class="h-100">
                   <MonacoEditor
                     ref="editorRef"
-                    :key="selectedFileName + '-' + (diffMode ? 'diff' : 'plain')"
+                    :key="selectedFileName"
                     v-model:value="fileContent"
                     :language="detectedLanguage"
                     :theme="currentTheme"
-                    :diffEditor="diffMode"
-                    v-bind="diffMode ? { original: originalContent } : {}"
                     :options="monacoOptions"
                     @editorMounted="onEditorMounted"
                   />
-
                 </div>
 
                 <!-- Plain Text -->
@@ -258,26 +236,26 @@
 </template>
 
 <script setup>
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
-import JsonWorker   from 'monaco-editor/esm/vs/language/json/json.worker.js?worker';
-import TsWorker     from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker';
-self.MonacoEnvironment = {
-  getWorker(_moduleId, label) {
-    if (label === 'json') {
-      return new JsonWorker();
-    }
-    if (label === 'typescript' || label === 'javascript') {
-      return new TsWorker();
-    }
-    // 默认
-    return new EditorWorker();
-  }
-};
+// import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
+// import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker'
+// import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
+// import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
+// self.MonacoEnvironment = {
+//   getWorker(_moduleId, label) {
+//     if (label === 'json') {
+//       return new JsonWorker()
+//     }
+//     if (label === 'typescript' || label === 'javascript') {
+//       return new TsWorker()
+//     }
+//     // 默认
+//     return new EditorWorker()
+//   }
+// }
 import 'vue3-treeselect/dist/vue3-treeselect.css'
 import 'highlight.js/styles/atom-one-dark.css'
 import MonacoEditor from 'monaco-editor-vue3'
-import { ref, reactive, computed, watch, onMounted, nextTick, onUnmounted } from "vue";
+import { ref, reactive, computed, watch, onMounted, nextTick, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import mammoth from 'mammoth'
 import { LOAD_ROOT_OPTIONS, LOAD_CHILDREN_OPTIONS, ASYNC_SEARCH } from 'vue3-treeselect'
@@ -290,9 +268,7 @@ import 'highlight.js/styles/atom-one-dark.css'
 import * as XLSX from 'xlsx'
 import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo } from '../service/api.js'
-import {
-  VSelect,
-} from 'vuetify/components'
+import { VSelect } from 'vuetify/components'
 import dynamicLoadingSvg from '../assets/load.svg'
 // 让 Monaco 能正确加载 worker
 const store = useStore()
@@ -330,48 +306,55 @@ const languageMap = {
   jsx: 'javascript',
   tsx: 'typescript'
 }
-const selectedPath = ref('')  // 记录当前打开的文件完整路径
+const selectedPath = ref('') // 记录当前打开的文件完整路径
 // 保存逻辑
 async function saveDocument() {
-  if (!selectedPath.value) return;
+  if (!selectedPath.value) return
+
   try {
-    // fileContent 是双向绑定的编辑内容
-    console.log('saveDocument', selectedPath.value,  fileContent.value)
-    await window.electron.saveFile(selectedPath.value, fileContent.value, { encoding: 'utf-8' });
+    console.log('saveDocument', selectedPath.value, fileContent.value)
+    await window.electron.saveFile(selectedPath.value, fileContent.value, { encoding: 'utf-8' })
+    // 保存后重新读取并刷新当前 Tab
+    await loadFileByType(selectedPath.value);
+    if (currentTab.value && currentTab.value.path === selectedPath.value) {
+      currentTab.value.fileContent = fileContent.value;
+    }
     store.dispatch('snackbar/showSnackbar', {
       message: '文件已保存',
       type: 'success'
-    });
+    })
   } catch (err) {
     store.dispatch('snackbar/showSnackbar', {
       message: `保存失败：${err.message}`,
       type: 'error'
-    });
+    })
   }
 }
 // 可选：监听 Ctrl+S 快捷键
 onMounted(() => {
-  window.addEventListener('keydown', e => {
+  window.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      saveDocument();
+      e.preventDefault()
+      saveDocument()
     }
-  });
-});
+  })
+})
 onUnmounted(() => {
-  window.removeEventListener('keydown', /* … 同上 … */);
-});
+  window.removeEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault()
+      saveDocument()
+    }
+  })
+})
 const detectedLanguage = computed(() => {
   const ext = path.extname(selectedFileName.value).slice(1).toLowerCase()
   return languageMap[ext] || 'plaintext'
 })
 
-// 用户可切换 diff/普通模式
-const diffMode = ref(true)
-const originalContent = ref('') // 若 diffMode 为 true，则展示对比内容
 
 const monacoOptions = reactive({
-  readOnly: !diffMode.value,
+  readOnly: false,
   automaticLayout: true,
   wordWrap: 'on',
   minimap: { enabled: true },
@@ -379,9 +362,6 @@ const monacoOptions = reactive({
   quickSuggestions: true,
   fontSize: 14
 })
-watch(diffMode, val => {
-  monacoOptions.readOnly = !val;
-});
 
 /* NEW ─ 供按钮/快捷键调用的格式化函数 */
 function formatDocument() {
@@ -389,36 +369,41 @@ function formatDocument() {
   ed?.getAction('editor.action.formatDocument').run()
 }
 
+let monacoEditor
+
 /* NEW ─ onEditorMounted：注册快捷键、补全、装饰 */
 function onEditorMounted(editor) {
-  // eslint-disable-next-line no-import-assign
-  monaco = editor.$monaco
-  // 1. 自定义保存快捷键 Ctrl/Cmd+S → 格式化
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-    editor.getAction('editor.action.formatDocument').run()
-  })
+  // 拿到内部 monaco 对象
+  monacoEditor = editor.$monaco;
 
-  // 2. 通用代码片段补全示例
-  monaco.languages.registerCompletionItemProvider('*', {
+  // 1. 通用代码片段补全示例
+  monacoEditor.languages.registerCompletionItemProvider('*', {
     triggerCharacters: ['.'],
     provideCompletionItems() {
       return {
         suggestions: [{
           label: 'helloWorld',
-          insertText: 'console.log(\"Hello, Monaco!")',
-          kind: monaco.languages.CompletionItemKind.Snippet
+          insertText: 'console.log("Hello, Monaco!")',
+          kind: monacoEditor.languages.CompletionItemKind.Snippet
         }]
-      }
+      };
     }
-  })
+  });
+
+  // 2. 自定义保存快捷键 Ctrl/Cmd+S → 格式化当前文档
+  editor.addCommand(
+    monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KeyS,
+    () => editor.getAction('editor.action.formatDocument').run()
+  );
 
   // 3. 行高亮装饰示例
   const deco = editor.deltaDecorations([], [{
-    range: new monaco.Range(1,1,1,1),
-    options:{ isWholeLine:true, className:'myLineHighlight' }
-  }])
-  editor.onDidDispose(() => editor.deltaDecorations(deco, []))
+    range: new monacoEditor.Range(1, 1, 1, 1),
+    options: { isWholeLine: true, className: 'myLineHighlight' }
+  }]);
+  editor.onDidDispose(() => editor.deltaDecorations(deco, []));
 }
+
 
 // 监听系统暗色模式
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
@@ -439,7 +424,6 @@ onMounted(() => {
 onUnmounted(() => {
   prefersDark.removeEventListener('change', updateSystemTheme)
 })
-
 
 // 定义 props（支持传入本地路径及一些控制参数）
 const props = defineProps({
@@ -687,7 +671,6 @@ async function loadFileByType(selectedPath) {
     if (isFilePath(selectedPath)) {
       const prev = fileContent.value
       const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' })
-      if (diffMode.value) originalContent.value = prev // 仅 diffMode 时备份
       fileContent.value = content
     }
   } catch (err) {
@@ -1283,7 +1266,8 @@ body {
 .mac-menu-group {
   display: flex;
   align-items: center;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   color: #333;
 }
