@@ -20,6 +20,8 @@ remoteMain.initialize()
 const BOT_PORT = 19150
 const APP_PORT = 19151
 
+console.log('UserData 路径是：', app.getPath('userData'))
+
 // 全局变量，用于缓存正在进行的停止操作，防止重复请求
 let isStoppingBot = false
 let isStoppingApp = false
@@ -34,6 +36,7 @@ let timeout = 0
 
 /**
  * 日志系统
+ * TODO 看看为什么不tail打印了
  */
 // 日志文件路径
 const logFilePath = path.join(app.getPath('userData'), 'logs.log')
@@ -105,6 +108,7 @@ console.log('应用启动，使用 winston 日志记录器')
 console.error('模拟错误信息，用于测试日志输出')
 
 // GPU 和缓存优化命令行参数
+app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('ignore-gpu-blocklist')
 app.commandLine.appendSwitch('enable-gpu-rasterization')
 app.commandLine.appendSwitch('enable-zero-copy')
@@ -216,7 +220,7 @@ function spawnAndTrack(command, args, options = {}) {
 }
 
 function getExecutablePaths() {
-  const files = ['bot', 'app', 'flashmemory']
+  const files = ['bot', 'app', 'fm_http']
   return files.map((file) => ({ fileName: file, path: getExecutablePath(file) }))
 }
 
@@ -525,26 +529,75 @@ function getOllamaPath() {
   }
 }
 
+
 ipcMain.handle('check-ollama', async () => {
-  console.log('[IPC check-ollama] Invoked')
-  const ollamaPath = getOllamaPath()
+  const ollamaCmd = getOllamaPath();
+  // 第一步：确认 ollama 可执行文件存在（即是否安装）
   try {
-    const { stdout, stderr } = await execAsync(`${ollamaPath} serve`)
-    if (stderr.includes('address already in use')) {
-      console.log('[IPC check-ollama] ollama is installed and running')
-      return true
-    }
-    console.log('[IPC check-ollama] ollama not running')
-    return false
-  } catch (error) {
-    if (error.stderr && error.stderr.includes('address already in use')) {
-      console.log('[IPC check-ollama] ollama is installed and running')
-      return true
-    }
-    console.error('[IPC check-ollama] Error:', error)
-    return false
+    // 调用 --version，比 serve 安全，不会占端口
+    await execAsync(`${ollamaCmd} --version`);
+  } catch (err) {
+    console.error('[IPC check-ollama] ollama 未安装或无法执行:', err);
+    return { installed: false, running: false };
   }
-})
+
+  // 第二步：检查默认端口（11434）是否有 ollama 进程在监听
+  try {
+    const result = await checkProcessByPort(11434, 'ollama');
+    if (result.healthy) {
+      console.log('[IPC check-ollama] ollama 正在运行, pid=', result.pid);
+      return { installed: true, running: true, pid: result.pid };
+    } else {
+      console.log('[IPC check-ollama] ollama 已安装但未运行');
+      return { installed: true, running: false };
+    }
+  } catch (err) {
+    console.error('[IPC check-ollama] 检测端口时出错:', err);
+    // 安装了但检测失败，也当作已安装未运行
+    return { installed: true, running: false };
+  }
+});
+
+// 解析 Ollama 列表输出为对象数组
+async function parseOllamaList() {
+  const ollamaPath = getOllamaPath();
+  const { stdout, stderr } = await execAsync(`${ollamaPath} list`);
+  if (stderr) console.error('[parseOllamaList] stderr:', stderr);
+  const lines = stdout.trim().split('\n');
+  const dataLines = lines.slice(1).filter(line => line.trim());
+  return dataLines.map(line => {
+    const parts = line.split(/\s{2,}/);
+    return { name: parts[0], id: parts[1], size: parts[2], modified: parts[3] };
+  });
+}
+
+// IPC：获取 Ollama 模型列表
+ipcMain.handle('list-models', async () => {
+  try {
+    return await parseOllamaList();
+  } catch (err) {
+    console.error('[list-models] Error:', err);
+    throw err;
+  }
+});
+
+
+// IPC：检测指定模型是否已安装
+ipcMain.handle('check-model-installed', async (event, modelName) => {
+  try {
+    console.log('[IPC check-model-installed] Received model name:', modelName)
+    const list = await parseOllamaList();
+    if (list.some(item => item.name === modelName)) {
+      console.log('[IPC check-model-installed] Model is installed')
+      return true
+    }
+    console.log('[IPC check-model-installed] Model is not installed')
+    return false
+  } catch (err) {
+    console.error('[check-model-installed] Error:', err);
+    throw err;
+  }
+});
 
 ipcMain.handle('check-model-deployment', async (event, requiredModelsList) => {
   console.log('[IPC check-model-deployment] Received models list:', requiredModelsList)
@@ -665,6 +718,17 @@ ipcMain.handle('check-python', async () => {
     return false
   }
 })
+ipcMain.handle('save-file', async (event, filePath, data) => {
+  console.log(`[IPC save-file] 保存文件: ${filePath}`)
+  try {
+    await fs.promises.writeFile(filePath, data, 'utf-8')
+    return { success: true }
+  } catch (err) {
+    console.error(`[IPC save-file] 写入失败:`, err)
+    // 抛出错误会在渲染进程里以 rejected Promise 的形式出现
+    throw err
+  }
+})
 
 // ─── 窗口缩放接口 ──────────────────────────────────────────────────────────
 ipcMain.handle('set-zoom-factor', (event, factor) => {
@@ -691,7 +755,7 @@ async function createSkeletonWindow() {
     icon: path.join(__dirname, '../renderer/assets', 'banner.png'),
     frame: false,
     titleBarStyle: 'hidden',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     show: false,
     webPreferences: {
       preload: preload,
@@ -995,5 +1059,40 @@ async function checkPortAndStore(port, executableName) {
     return null
   }
 }
+
+// 打开新窗口
+ipcMain.on('open-new-window-ide', (event, url) => {
+  const win = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    frame: true,
+    autoHideMenuBar: false,
+    show: true,
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/index.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      enableRemoteModule: true,
+      nativeWindowOpen: true
+    }
+  })
+
+  // 允许在新窗口中使用 @electron/remote
+  remoteMain.enable(win.webContents)
+
+  // 加载带 hash 的 URL（例如 http://localhost:8080/#/ide）
+  if (isDevelopment && process.env['ELECTRON_RENDERER_URL']) {
+    win.loadURL(url)
+  } else {
+    // 生产环境：把 index.html 和 Hash 一起加载
+    const indexPath = path.join(__dirname, '../renderer/index.html')
+    // 取出 '#/ide/...'
+    const hash = url.includes('#') ? url.substring(url.indexOf('#')) : ''
+    // loadFile 支持第二个参数 { hash }
+    win.loadFile(indexPath, { hash })
+  }
+})
+
 
 console.log('main/index.js loaded!')
