@@ -19,6 +19,7 @@ const { format, transports } = winston
 remoteMain.initialize()
 const BOT_PORT = 19150
 const APP_PORT = 19151
+const FM_PORT = 5532
 
 console.log('UserData 路径是：', app.getPath('userData'))
 
@@ -259,6 +260,22 @@ async function clearOccupiedPorts() {
   } else {
     winstonLogger.log('info', `APP_PORT ${APP_PORT} 空闲，跳过清理`)
   }
+
+  // 检查 fm_http 端口是否被占用
+  const fmHttpOccupied = await checkPortAndStore(FM_PORT, 'fm_http');
+  if (fmHttpOccupied !== null) {
+    isClearingApp = true;
+    timeout += 5000;
+    const result = await killPort(FM_PORT);
+    if (result === 'timeout') {
+      winstonLogger.log('warn', `清理 fm_http 端口 ${FM_PORT} 超时，跳过等待`);
+    } else {
+      winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 已清理`);
+    }
+    isClearingApp = false;
+  } else {
+    winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 空闲，跳过清理`);
+  }
 }
 
 /* IPC 事件及处理 */
@@ -415,6 +432,66 @@ ipcMain.handle('check-app-health', async () => {
     return { state: '已关闭' }
   }
 })
+
+// 修改后的 start-fm_http IPC 处理函数
+ipcMain.handle('start-fm_http', async (event, configPath) => {
+  winstonLogger.log(
+    'info',
+    `[IPC start-fm_http] 启动外部程序的路径: ${getExecutablePaths()
+      .map((f) => f.path)
+      .join(', ')}`
+  );
+
+  // 检查是否已存在 tag 为 'fm_http' 的子进程
+  const existingFmHttp = childProcesses.find((proc) => proc.tag === 'fm_http');
+  if (existingFmHttp) {
+    console.log('[IPC start-fm_http] fm_http 已经在运行，无需重复启动');
+    return { started: true, message: 'fm_http already running', pid: existingFmHttp.pid };
+  }
+
+  const fmHttpPath = getExecutablePath('fm_http');
+  const newFmHttp = spawnAndTrack(fmHttpPath, ['-config', configPath], {
+    detached: true,
+    stdio: 'ignore'
+  });
+  newFmHttp.unref();
+  newFmHttp.tag = 'fm_http'; // 设置标记以便后续识别
+  winstonLogger.log('info', `[IPC start-fm_http] fm_http 启动成功，新的 pid: ${newFmHttp.pid}`);
+  return { started: true, pid: newFmHttp.pid };
+});
+
+// 修改后的 stop-fm_http IPC 处理函数
+ipcMain.handle('stop-fm_http', async (event) => {
+  // 从 childProcesses 中筛选出 tag 为 'fm_http' 的所有进程
+  const fmHttpProcesses = childProcesses.filter((proc) => proc.tag === 'fm_http');
+  if (fmHttpProcesses.length === 0) {
+    console.log('[IPC stop-fm_http] 没有发现正在运行的 fm_http 进程');
+    return { stopped: true, message: 'No fm_http process running' };
+  }
+  for (const proc of fmHttpProcesses) {
+    try {
+      proc.kill();
+      winstonLogger.log('info', `[IPC stop-fm_http] 杀死 fm_http 进程，pid: ${proc.pid}`);
+    } catch (err) {
+      console.error('[IPC stop-fm_http] 停止 fm_http 时出错:', err);
+      return { stopped: false, error: err.toString() };
+    }
+  }
+  return { stopped: true };
+});
+
+// 修改后的 check-fm_http-health IPC 处理函数
+ipcMain.handle('check-fm_http-health', async () => {
+  const fmHttpProc = childProcesses.find((proc) => proc.tag === 'fm_http');
+  if (fmHttpProc && !fmHttpProc.killed) {
+    console.log(`[IPC check-fm_http-health] fm_http 已启动, pid: ${fmHttpProc.pid}`);
+    return { state: '已启动', pid: fmHttpProc.pid };
+  } else {
+    console.log('[IPC check-fm_http-health] fm_http 已关闭');
+    return { state: '已关闭' };
+  }
+});
+
 
 ipcMain.handle('read-config', async (event, configPath = null) => {
   console.log('[IPC read-config] Received configPath:', configPath)
