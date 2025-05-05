@@ -22,7 +22,6 @@
           :items="repositories"
           item-key="id"
           class="elevation-1"
-          :loading="loading"
           loading-text="加载中..."
           items-per-page-text="每页显示行数"
           :items-per-page-options="[5, 10]"
@@ -49,15 +48,15 @@
 
           <!-- 操作按钮，包括“查看进度” -->
           <template #[`item.actions`]="{ item }">
-            <v-btn small @click="buildMemoryFlash(item)" v-if="!item.hasMemoryFlash">
+            <v-btn small @click="buildMemoryFlash(item)" v-if="!item.hasMemoryFlash" :loading="item.loading">
               <v-icon>mdi-memory</v-icon>
               构建索引
             </v-btn>
             <!-- 新增：查看进度 -->
-            <v-btn icon @click="viewProgress(item)">
+            <v-btn icon @click="viewProgress(item)" :loading="item.loading">
               <v-icon>mdi-refresh</v-icon>
             </v-btn>
-            <v-btn icon @click="exportMemoryFlash(item)" :disabled="!item.hasMemoryFlash">
+            <v-btn icon @click="exportMemoryFlash(item)" :disabled="!item.hasMemoryFlash" :loading="item.loading">
               <v-icon>mdi-export</v-icon>
             </v-btn>
           </template>
@@ -111,13 +110,20 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+      {{ snackbar.message }}
+    </v-snackbar>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from "vue";
 import { VDataTable } from 'vuetify/components';
 import { listRepos, listFunctions, buildIndex, deleteIndexApi, incrementalIndex } from "../service/api.js";
+import { useStore } from "vuex";
+const store = useStore()
+const snackbar = computed(() => store.state.snackbar)
+import { loadRepoProgress, RepoProgress } from '../storage/progress-storage';
 
 // 对话框相关状态
 const dialogVisible = ref(false);
@@ -145,6 +151,7 @@ interface Repository {
   functionsTotal: number;
   scannedCount: number;
   indexProgress: number; // 百分比
+  loading: boolean;
 }
 
 // 表头定义
@@ -177,13 +184,19 @@ const fetchRepositories = async () => {
     for (const repo of repos) {
       const hasMemoryFlash = await checkMemoryFlashStatus(repo.local_path);
       // 初始进度全设为 0，等点击“查看进度”时再加载
-      repositories.value.push({
-        ...repo,
-        hasMemoryFlash,
-        functionsTotal: 0,
-        scannedCount: 0,
-        indexProgress: 0,
-      });
+      repositories.value = await Promise.all(
+        repos.map(async (repo: any) => {
+          const hasMemoryFlash = await window.electron.checkMemoryFlashStatus(repo.local_path);
+          return {
+            ...repo,
+            hasMemoryFlash,
+            functionsTotal: 0,
+            scannedCount: 0,
+            indexProgress: 0,
+            loading: false,    // 新增初始化
+          } as Repository;
+        })
+      );
     }
   } catch (error) {
     console.error('获取仓库列表失败:', error);
@@ -195,11 +208,14 @@ const fetchRepositories = async () => {
 // 新增函数：只有点击“查看进度”时才调用
 const viewProgress = async (repo: Repository) => {
   try {
-    loading.value = true;
+    repo.loading = true;
+    await store.dispatch('snackbar/showSnackbar', {
+      message: `正在扫描索引完整度（较大的仓库可能会花费几分钟）...`,
+      color: 'purple'
+    })
     const fn = await listFunctions(repo.local_path)
     const fnRes = fn.data;
     let functionsList: any[] = [];
-
     if (Array.isArray(fnRes.data)) {
       functionsList = fnRes.data;
     } else if (fnRes.data && Array.isArray((fnRes.data as any).functions)) {
@@ -212,7 +228,7 @@ const viewProgress = async (repo: Repository) => {
     const scanned = functionsList.filter((f: any) => f.scan).length;
     const progress= total > 0 ? Math.floor((scanned / total) * 100) : 0;
     console.log('viewProgress', total, scanned, progress);
-
+    repo.loading = false;
     // 整行替换，并用 slice() 强制 Vue 侦测
     const idx = repositories.value.findIndex(r => r.id === repo.id);
     if (idx !== -1) {
@@ -225,10 +241,12 @@ const viewProgress = async (repo: Repository) => {
       repositories.value[idx] = updated;
       repositories.value = repositories.value.slice();
     }
+    await store.dispatch('snackbar/showSnackbar', {
+      message: `${repo.name}(${repo.desc}) 仓库已扫描完成`,
+      color: 'success'
+    })
   } catch (error) {
     console.error(`加载 ${repo.name} 进度失败:`, error);
-  } finally {
-    loading.value = false;
   }
 };
 
@@ -249,6 +267,7 @@ const checkMemoryFlashStatus = async (local_path: string): Promise<boolean> => {
 // 构建索引
 const buildMemoryFlash = async (repo: Repository) => {
   try {
+    repo.loading = true;
     // 1. 检查是否已构建索引
     const hasIndex = await checkMemoryFlashStatus(repo.local_path);
 
@@ -315,6 +334,8 @@ const buildMemoryFlash = async (repo: Repository) => {
     dialogVisible.value = true;
   } catch (error) {
     console.error(`构建索引失败:`, error);
+  } finally {
+    repo.loading = false;
   }
 };
 
@@ -336,14 +357,12 @@ const confirmBuildIndex = async () => {
   } finally {
     // 关闭对话框
     dialogVisible.value = false;
-    loading.value = false;
   }
 };
 
 // 取消构建索引
 const cancelBuildIndex = () => {
   dialogVisible.value = false;
-  loading.value = false;
 };
 
 // 方法
@@ -363,12 +382,12 @@ const importMemoryFlash = async () => {
 
 const exportMemoryFlash = async (repo: Repository) => {
   try {
-    loading.value = true;
+    repo.loading = true;
     // await window.electron.ipcRenderer.invoke('export-memory-flash', { repoId: repo.id });
   } catch (error) {
     console.error(`导出索引失败:`, error);
   } finally {
-    loading.value = false;
+    repo.loading = false;
   }
 };
 
