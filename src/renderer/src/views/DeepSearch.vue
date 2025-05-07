@@ -66,23 +66,46 @@
       </div>
 
       <!-- 搜索结果展示区域 -->
-      <div v-if="searchResults.length > 0" class="search-results-container">
+      <div v-if="searchResults.length" class="search-results-container">
         <div
           v-for="(result, index) in searchResults"
           :key="index"
           class="search-result-item"
           :style="{ animationDelay: index * 0.1 + 's' }"
+          @click="openDialog(result)"
         >
           <div class="result-header">
             <h3 class="result-name">{{ result.name }}</h3>
             <span class="result-score">{{ (result.score * 100).toFixed(1) }}%</span>
           </div>
           <p class="result-file">{{ result.package }} - {{ result.file }}</p>
-          <p class="result-description">{{ result.description }}</p>
+          <p class="result-description">{{ result.truncatedDescription }}</p>
         </div>
       </div>
-    </div>
 
+      <!-- 结果详情弹窗 -->
+      <v-dialog
+        v-model="dialog"
+        max-width="800"
+        transition="fade-transition"
+        overlay-color="rgba(0, 0, 0, 0.5)"
+      >
+        <v-card class="pa-4">
+          <v-card-title class="headline">
+            {{ selectedResult.name }} — {{ selectedResult.file }}
+          </v-card-title>
+          <v-card-text>
+            <div class="full-content-container">
+              <pre><code>{{ selectedResult.fullDescription }}</code></pre>
+            </div>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer></v-spacer>
+            <v-btn text @click="dialog = false">关闭</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+    </div>
   </v-container>
 </template>
 
@@ -103,7 +126,9 @@ export default {
       dropdownOpen: false, // 下拉列表状态
       selectedRepo: '', // 当前选中的仓库
       repositories: [],
-      searchResults: [] // 搜索结果
+      searchResults: [], // 搜索结果
+      dialog: false,                // 控制弹窗显示
+      selectedResult: {},           // 当前要回显的结果
     }
   },
   created() {
@@ -136,6 +161,11 @@ export default {
     })
   },
   methods: {
+    // 打开弹窗并设置当前选中项
+    openDialog(result) {
+      this.selectedResult = result
+      this.dialog = true
+    },
     // 处理搜索请求
     async handleSearch() {
       if (!this.searchQuery.trim()) return
@@ -144,30 +174,31 @@ export default {
       const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(
         this.selectedRepo.local_path
       )
-      console.log('checkMemoryFlashStatus:', indexing, hasDb)
       if (hasDb && !indexing) {
-        searchCode(this.selectedRepo.local_path, this.searchQuery, '', 10).then((res) => {
-          this.searchResults = [] // 清空旧结果
-          console.log('searchCode:', res.data)
-          if (res.status === 200 && res.data.code === 0 && res.data.data.length > 0) {
-            this.searchResults = res.data.data.map((item) => {
-              this.isSearching = false
-              return {
+        searchCode(this.selectedRepo.local_path, this.searchQuery, '', 10)
+          .then((res) => {
+            this.isSearching = false
+            if (res.status === 200 && res.data.code === 0 && res.data.data.length) {
+              // 这里把完整描述（fullDescription）和截断描述（truncatedDescription）都存下来
+              this.searchResults = res.data.data.map(item => ({
                 name: item.name,
                 package: item.package,
                 file: item.file,
                 score: item.score,
-                description: omit(item.description, 30)
-              }
-            })
-          }
-        })
-      } else if (indexing) {
-        window.confirm(`${this.selectedRepo.show}正在构建索引，请稍后再试`)
-        this.isSearching = false
+                fullDescription: item.description,
+                truncatedDescription: omit(item.description, 30)
+              }))
+            }
+          })
+          .catch(() => {
+            this.isSearching = false
+          })
       } else {
-        window.confirm(`无法使用${this.selectedRepo.show}的搜索功能，请先构建此仓库的AI索引`)
         this.isSearching = false
+        const msg = indexing
+          ? `${this.selectedRepo.show} 正在构建索引，请稍后再试。`
+          : `无法使用 ${this.selectedRepo.show} 的搜索功能，请先构建索引。`
+        window.confirm(msg)
       }
     },
 
@@ -596,5 +627,17 @@ export default {
 
 .v-theme--dark .result-description {
   color: rgba(255, 255, 255, 0.85);
+}
+
+.search-result-item {
+  cursor: pointer; /* 鼠标样式提示可点击 */
+}
+/* 弹窗中完整内容滚动 */
+.full-content-container {
+  max-height: 60vh;
+  overflow-y: auto;
+  background: #f5f5f5;
+  padding: 16px;
+  border-radius: 4px;
 }
 </style>
