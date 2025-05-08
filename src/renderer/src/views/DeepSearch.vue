@@ -1,14 +1,13 @@
 <template>
   <v-container
     class="mt-4"
-    style="display: flex; align-items: first baseline; justify-content: center;"
+    style="display: flex; align-items: first baseline; justify-content: center"
   >
     <div v-cloak class="search-container">
       <div class="search-header">
         <h2>
           搜索关于
-          <span class="repo-selector text-grey" @click="toggleRepoDropdown"
-            >
+          <span class="repo-selector text-grey" @click="toggleRepoDropdown">
             {{ selectedRepo.show }}
             <v-icon size="small" right>{{
               dropdownOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'
@@ -25,7 +24,7 @@
             @click="selectRepo(repo)"
           >
             <span :style="{ color: repo.color }" class="text-h7">
-              {{repo.tag_label}}
+              {{ repo.tag_label }}
             </span>
             {{ repo.show }}
           </div>
@@ -38,13 +37,18 @@
             v-model="searchQuery"
             type="text"
             class="search-input"
-            placeholder="你可以询问：寻找一段基于语义相似度搜索的方法，使用了Faiss库"
+            placeholder="寻找一段使用了Faiss库，基于语义相似度搜索的方法"
             @keyup.enter="handleSearch"
             @focus="handleFocus"
             @blur="handleBlur"
           />
           <div class="search-icon-container">
-            <v-icon v-if="!isSearching" icon="mdi-magnify" class="search-icon"></v-icon>
+            <v-icon
+              v-if="!isSearching"
+              icon="mdi-magnify"
+              class="search-icon"
+              @click="handleSearch"
+            ></v-icon>
             <v-progress-circular
               v-else
               indeterminate
@@ -61,7 +65,8 @@
           :class="{ pulse: isSearching }"
           @click="handleSearch"
         >
-          <v-icon>mdi-arrow-right</v-icon>
+          <v-icon>mdi-keyboard-return</v-icon>
+          {{ isSearching ? '正在搜索...' : 'Enter' }}
         </v-btn>
       </div>
 
@@ -83,7 +88,6 @@
         </div>
       </div>
 
-      <!-- 结果详情弹窗 -->
       <v-dialog
         v-model="dialog"
         max-width="800"
@@ -95,12 +99,33 @@
             {{ selectedResult.name }} — {{ selectedResult.file }}
           </v-card-title>
           <v-card-text>
-            <div class="full-content-container">
-              <pre><code>{{ selectedResult.fullDescription }}</code></pre>
+            <!-- 如果是 JSON 描述 -->
+            <div v-if="selectedResult.isJsonDesc" class="detail-section">
+              <h3>总体功能</h3>
+              <p>{{ selectedResult.descSummary }}</p>
+
+              <h3>执行流程</h3>
+              <ol class="process-list">
+                <li v-for="(step, idx) in selectedResult.processList" :key="idx">
+                  {{ step }}
+                </li>
+              </ol>
+            </div>
+
+            <!-- 否则当作普通文本描述 -->
+            <div v-else class="detail-section">
+              <h3>描述</h3>
+              <p>{{ selectedResult.fullDescription }}</p>
+            </div>
+
+            <!-- 代码片段 -->
+            <div v-if="selectedResult.code_snippet" class="detail-section">
+              <h3>代码片段</h3>
+              <pre><code class="language-javascript">{{ selectedResult.code_snippet }}</code></pre>
             </div>
           </v-card-text>
           <v-card-actions>
-            <v-spacer></v-spacer>
+            <v-spacer />
             <v-btn text @click="dialog = false">关闭</v-btn>
           </v-card-actions>
         </v-card>
@@ -127,8 +152,8 @@ export default {
       selectedRepo: '', // 当前选中的仓库
       repositories: [],
       searchResults: [], // 搜索结果
-      dialog: false,                // 控制弹窗显示
-      selectedResult: {},           // 当前要回显的结果
+      dialog: false, // 控制弹窗显示
+      selectedResult: {}, // 当前要回显的结果
     }
   },
   created() {
@@ -136,9 +161,7 @@ export default {
     listRepos().then(async (res) => {
       if (res.status === 200 && res.data.length > 0) {
         for (const repo of res.data) {
-          const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(
-            repo.local_path
-          )
+          const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(repo.local_path)
           if (hasDb && !indexing) {
             repo.tag = 'yes'
             repo.tag_label = ''
@@ -166,7 +189,7 @@ export default {
       this.selectedResult = result
       this.dialog = true
     },
-    // 处理搜索请求
+    // 处理搜索并解析 description
     async handleSearch() {
       if (!this.searchQuery.trim()) return
 
@@ -175,24 +198,56 @@ export default {
         this.selectedRepo.local_path
       )
       if (hasDb && !indexing) {
-        searchCode(this.selectedRepo.local_path, this.searchQuery, '', 10)
-          .then((res) => {
-            this.isSearching = false
-            if (res.status === 200 && res.data.code === 0 && res.data.data.length) {
-              // 这里把完整描述（fullDescription）和截断描述（truncatedDescription）都存下来
-              this.searchResults = res.data.data.map(item => ({
+        try {
+          const res = await searchCode(
+            this.selectedRepo.local_path,
+            this.searchQuery,
+            'hybrid',
+            30
+          )
+          this.isSearching = false
+          if (res.status === 200 && res.data.code === 0 && res.data.data.length) {
+            this.searchResults = res.data.data.map(item => {
+              // 预处理 description
+              let isJson = false
+              let descSummary = ''
+              let processList = []
+              let fullDesc = item.description
+
+              try {
+                const obj = JSON.parse(item.description)
+                if (
+                  obj &&
+                  typeof obj === 'object' &&
+                  'description' in obj &&
+                  'process' in obj &&
+                  Array.isArray(obj.process)
+                ) {
+                  isJson = true
+                  descSummary = obj.description
+                  processList = obj.process
+                }
+              } catch (e) {
+                // 不是 JSON，保持默认
+              }
+
+              return {
                 name: item.name,
                 package: item.package,
                 file: item.file,
                 score: item.score,
-                fullDescription: item.description,
-                truncatedDescription: omit(item.description, 30)
-              }))
-            }
-          })
-          .catch(() => {
-            this.isSearching = false
-          })
+                fullDescription: fullDesc,
+                truncatedDescription: omit(fullDesc, 30),
+                code_snippet: item.code_snippet || '',
+                isJsonDesc: isJson,
+                descSummary,
+                processList
+              }
+            })
+          }
+        } catch (e) {
+          this.isSearching = false
+        }
       } else {
         this.isSearching = false
         const msg = indexing
@@ -226,8 +281,13 @@ export default {
 
     // 选择仓库
     selectRepo(repo) {
+      if (this.selectedRepo === repo) {
+        return
+      }
       this.selectedRepo = repo
       this.dropdownOpen = false
+      this.selectedResult = {}
+      this.searchResults = []
       document.removeEventListener('click', this.closeDropdownOnClickOutside)
     },
 
@@ -294,7 +354,7 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   width: 450px;
-  max-height: 200px;
+  max-height: 800px;
   overflow-y: auto;
   margin-top: 8px;
   background: rgba(var(--v-theme-surface-rgb), 0.95);
@@ -365,7 +425,7 @@ export default {
 }
 
 .search-input::placeholder {
-  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+  color:  rgba(159, 159, 159, 0.7);
   transition: opacity 0.3s ease;
 }
 
@@ -458,12 +518,9 @@ export default {
 }
 
 .search-button {
-  width: 52px;
-  height: 52px;
-  min-width: 52px;
-  border-radius: 50%;
+  border-radius: 10px;
   background: rgba(var(--v-theme-primary-rgb), 0.9) !important;
-  color: white;
+  color: rgba(var(--v-theme-primary-rgb), 0.5) !important;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   box-shadow: 0 4px 12px rgba(var(--v-theme-primary-rgb), 0.3);
 }
@@ -639,5 +696,28 @@ export default {
   background: #f5f5f5;
   padding: 16px;
   border-radius: 4px;
+}
+.detail-section {
+  margin-bottom: 24px;
+}
+.detail-section h3 {
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  border-left: 4px solid rgba(var(--v-theme-primary-rgb), 0.8);
+  padding-left: 8px;
+}
+.detail-section p {
+  line-height: 1.6;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.75);
+}
+.detail-section pre {
+  background: rgba(var(--v-theme-surface-rgb), 0.9);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: 'Source Code Pro', monospace;
+  font-size: 0.95rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 </style>
