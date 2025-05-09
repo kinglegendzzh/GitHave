@@ -11,8 +11,8 @@
             {{ selectedRepo.show }}
             <v-icon size="small" right>{{
               dropdownOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'
-            }}</v-icon></span
-          >
+            }}</v-icon>
+          </span>
           仓库的代码
         </h2>
         <div v-if="dropdownOpen" class="repo-dropdown">
@@ -31,13 +31,22 @@
         </div>
       </div>
 
+      <!-- 搜索类型选择 -->
+      <div class="search-type-selector" :class="{ animate: true }">
+        <v-btn-toggle v-model="searchType" mandatory class="type-toggle" rounded elevation="0">
+          <v-btn value="semantic" class="type-btn"> 语义搜索 </v-btn>
+          <v-btn value="keyword" class="type-btn"> 关键词搜索 </v-btn>
+          <v-btn value="hybrid" class="type-btn"> 混合搜索 </v-btn>
+        </v-btn-toggle>
+      </div>
+
       <div class="search-input-container">
         <div class="search-input-wrapper">
           <input
             v-model="searchQuery"
             type="text"
             class="search-input"
-            placeholder="寻找一段使用了Faiss库，基于语义相似度搜索的方法"
+            :placeholder="placeholderText"
             @keyup.enter="handleSearch"
             @focus="handleFocus"
             @blur="handleBlur"
@@ -66,7 +75,7 @@
           @click="handleSearch"
         >
           <v-icon>mdi-keyboard-return</v-icon>
-          {{ isSearching ? '正在搜索...' : 'Enter' }}
+          {{ isSearching ? '正在搜索...' : '' }}
         </v-btn>
       </div>
 
@@ -99,7 +108,6 @@
             {{ selectedResult.name }} — {{ selectedResult.file }}
           </v-card-title>
           <v-card-text>
-            <!-- 如果是 JSON 描述 -->
             <div v-if="selectedResult.isJsonDesc" class="detail-section">
               <h3>总体功能</h3>
               <p>{{ selectedResult.descSummary }}</p>
@@ -112,13 +120,11 @@
               </ol>
             </div>
 
-            <!-- 否则当作普通文本描述 -->
             <div v-else class="detail-section">
               <h3>描述</h3>
               <p>{{ selectedResult.fullDescription }}</p>
             </div>
 
-            <!-- 代码片段 -->
             <div v-if="selectedResult.code_snippet" class="detail-section">
               <h3>代码片段</h3>
               <pre><code class="language-javascript">{{ selectedResult.code_snippet }}</code></pre>
@@ -143,17 +149,30 @@ export default {
   name: 'DeepSearch',
   data() {
     return {
-      initialLoad: true, // 初次加载标识
-      placeholderImage: SVG, // 外部矢量图路径
-      searchQuery: '', // 搜索查询
-      isSearching: false, // 搜索状态
-      isFocused: false, // 输入框聚焦状态
-      dropdownOpen: false, // 下拉列表状态
-      selectedRepo: '', // 当前选中的仓库
+      initialLoad: true,
+      placeholderImage: SVG,
+      searchQuery: '',
+      isSearching: false,
+      isFocused: false,
+      dropdownOpen: false,
+      selectedRepo: '',
       repositories: [],
-      searchResults: [], // 搜索结果
-      dialog: false, // 控制弹窗显示
-      selectedResult: {}, // 当前要回显的结果
+      searchResults: [],
+      dialog: false,
+      selectedResult: {},
+      searchType: 'semantic' // 新增搜索类型
+    }
+  },
+  computed: {
+    placeholderText() {
+      switch (this.searchType) {
+        case 'keyword':
+          return '基于大模型意图识别关键词的精确搜索'
+        case 'hybrid':
+          return '基于大模型联想关键词并融合RAG檢索增強生成的混合搜索'
+        default:
+          return '基于向量检索的自然语义相似度搜索'
+      }
     }
   },
   created() {
@@ -178,18 +197,23 @@ export default {
           repo.show = `${repo.name}/${repo.branch}(${omit(repo.desc, 12)})`
         }
         this.repositories = res.data
-        this.selectedRepo = this.repositories[0]
+        const lsRepo = localStorage.getItem('selectedRepo')
+        console.log('lsRepo:', JSON.stringify(lsRepo))
+        if (lsRepo) {
+          var find = this.repositories.find((repo) => repo.local_path === lsRepo)
+          this.selectedRepo = find === undefined ? this.repositories[0] : find
+        } else {
+          this.selectedRepo = this.repositories[0]
+        }
         console.log('repositories:', this.repositories)
       }
     })
   },
   methods: {
-    // 打开弹窗并设置当前选中项
     openDialog(result) {
       this.selectedResult = result
       this.dialog = true
     },
-    // 处理搜索并解析 description
     async handleSearch() {
       if (!this.searchQuery.trim()) return
 
@@ -202,17 +226,16 @@ export default {
           const res = await searchCode(
             this.selectedRepo.local_path,
             this.searchQuery,
-            'hybrid',
+            this.searchType, // 使用动态搜索类型
             30
           )
           this.isSearching = false
           if (res.status === 200 && res.data.code === 0 && res.data.data.length) {
-            this.searchResults = res.data.data.map(item => {
-              // 预处理 description
+            this.searchResults = res.data.data.map((item) => {
               let isJson = false
               let descSummary = ''
               let processList = []
-              let fullDesc = item.description
+              const fullDesc = item.description
 
               try {
                 const obj = JSON.parse(item.description)
@@ -227,9 +250,7 @@ export default {
                   descSummary = obj.description
                   processList = obj.process
                 }
-              } catch (e) {
-                // 不是 JSON，保持默认
-              }
+              } catch (e) {}
 
               return {
                 name: item.name,
@@ -256,46 +277,32 @@ export default {
         window.confirm(msg)
       }
     },
-
-    // 处理输入框聚焦
     handleFocus() {
       this.isFocused = true
     },
-
-    // 处理输入框失焦
     handleBlur() {
       this.isFocused = false
     },
-
-    // 切换仓库下拉列表显示状态
     toggleRepoDropdown() {
       this.dropdownOpen = !this.dropdownOpen
-
-      // 添加点击外部关闭下拉列表的事件监听
       if (this.dropdownOpen) {
         setTimeout(() => {
           document.addEventListener('click', this.closeDropdownOnClickOutside)
         }, 0)
       }
     },
-
-    // 选择仓库
     selectRepo(repo) {
-      if (this.selectedRepo === repo) {
-        return
-      }
+      if (this.selectedRepo === repo) return
       this.selectedRepo = repo
+      localStorage.setItem('selectedRepo', repo.local_path)
       this.dropdownOpen = false
       this.selectedResult = {}
       this.searchResults = []
       document.removeEventListener('click', this.closeDropdownOnClickOutside)
     },
-
-    // 点击外部关闭下拉列表
     closeDropdownOnClickOutside(event) {
       const dropdown = document.querySelector('.repo-dropdown')
       const selector = document.querySelector('.repo-selector')
-
       if (dropdown && !dropdown.contains(event.target) && !selector.contains(event.target)) {
         this.dropdownOpen = false
         document.removeEventListener('click', this.closeDropdownOnClickOutside)
@@ -425,7 +432,7 @@ export default {
 }
 
 .search-input::placeholder {
-  color:  rgba(159, 159, 159, 0.7);
+  color: rgba(159, 159, 159, 0.7);
   transition: opacity 0.3s ease;
 }
 
@@ -719,5 +726,35 @@ export default {
   font-family: 'Source Code Pro', monospace;
   font-size: 0.95rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.search-type-selector {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  opacity: 0;
+  animation: fadeIn 0.4s ease-out forwards;
+}
+.type-toggle {
+  background: rgba(var(--v-theme-surface-rgb), 0.4);
+  backdrop-filter: blur(20px);
+  border-radius: 24px;
+}
+.type-btn {
+  text-transform: none;
+  font-weight: 500;
+  transition: transform 0.3s ease;
+}
+.type-btn.v-btn--active {
+  transform: translateY(-2px);
+  background: rgba(var(--v-theme-primary-rgb), 0.9) !important;
+  color: rgba(var(--v-theme-on-primary-rgb), 0.9) !important;
+}
+.type-btn:not(.v-btn--active):hover {
+  background: rgba(var(--v-theme-primary-rgb), 0.15) !important;
+}
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
 }
 </style>
