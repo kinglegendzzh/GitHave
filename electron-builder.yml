@@ -3,17 +3,45 @@ productName: GitHave
 directories:
   buildResources: build
 files:
+  - 'bin/FAISSService/**/*'
+  - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
+  - '!bin/FAISSService/.env'        # 同时排除空目录
+  - 'bin/app'
+  - 'bin/app.exe'
+  - 'bin/bot'
+  - 'bin/bot.exe'
+  - 'bin/config.yaml'
+  - 'bin/fm'
+  - 'bin/fm.exe'
+  - 'bin/fm.yaml'
+  - 'bin/fm_http'
+  - 'bin/fm_http.exe'
+  - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - '!**/.vscode/*'
+  - '!**/.idea/*'
+  - '!**/.gitgo/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - 'bin/**/*'  # 包括 bin 目录下的所有文件
   - 'out/**/*'  # 包括 out 目录下的所有文件
   - 'public/**/*'
 asarUnpack:
   - resources/**
-  - bin/**/*
+  - 'bin/FAISSService/**/*'
+  - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
+  - '!bin/FAISSService/.env'        # 同时排除空目录
+  - 'bin/app'
+  - 'bin/app.exe'
+  - 'bin/bot'
+  - 'bin/bot.exe'
+  - 'bin/config.yaml'
+  - 'bin/fm'
+  - 'bin/fm.exe'
+  - 'bin/fm.yaml'
+  - 'bin/fm_http'
+  - 'bin/fm_http.exe'
+  - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - 'public/**/*'
 #  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
 win:
