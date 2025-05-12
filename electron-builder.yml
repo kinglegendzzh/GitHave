@@ -6,16 +6,6 @@ files:
   - 'bin/FAISSService/**/*'
   - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
   - '!bin/FAISSService/.env'        # 同时排除空目录
-  - 'bin/app'
-  - 'bin/app.exe'
-  - 'bin/bot'
-  - 'bin/bot.exe'
-  - 'bin/config.yaml'
-  - 'bin/fm'
-  - 'bin/fm.exe'
-  - 'bin/fm.yaml'
-  - 'bin/fm_http'
-  - 'bin/fm_http.exe'
   - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - '!**/.vscode/*'
   - '!**/.idea/*'
@@ -31,27 +21,47 @@ asarUnpack:
   - 'bin/FAISSService/**/*'
   - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
   - '!bin/FAISSService/.env'        # 同时排除空目录
-  - 'bin/app'
-  - 'bin/app.exe'
-  - 'bin/bot'
-  - 'bin/bot.exe'
-  - 'bin/config.yaml'
-  - 'bin/fm'
-  - 'bin/fm.exe'
-  - 'bin/fm.yaml'
-  - 'bin/fm_http'
-  - 'bin/fm_http.exe'
   - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - 'public/**/*'
 #  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
 win:
   executableName: GitHave
+  files:
+    - 'bin/app.exe'
+    - 'bin/bot.exe'
+    - 'bin/config.yaml'
+    - 'bin/fm.exe'
+    - 'bin/fm.yaml'
+    - 'bin/fm_http.exe'
+
+  asarUnpack:
+    - 'bin/app.exe'
+    - 'bin/bot.exe'
+    - 'bin/config.yaml'
+    - 'bin/fm.exe'
+    - 'bin/fm.yaml'
+    - 'bin/fm_http.exe'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  files:
+    - 'bin/app'
+    - 'bin/bot'
+    - 'bin/config.yaml'
+    - 'bin/fm'
+    - 'bin/fm.yaml'
+    - 'bin/fm_http'
+
+  asarUnpack:
+    - 'bin/app'
+    - 'bin/bot'
+    - 'bin/config.yaml'
+    - 'bin/fm'
+    - 'bin/fm.yaml'
+    - 'bin/fm_http'
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
