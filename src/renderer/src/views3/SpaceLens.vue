@@ -1,18 +1,19 @@
 <template>
-  <v-container class="cover-fill" style="height: 80vh">
+  <v-container class="cover-fill space-lens-container-modern">
     <!-- 全局加载遮罩：在调用 IPC 时显示 -->
-    <v-overlay :value="isProcessing" absolute>
+    <v-overlay :value="isProcessing" absolute class="modern-overlay">
       <v-progress-circular indeterminate color="purple" size="64" />
     </v-overlay>
 
-    <v-container fluid class="cover-fill" style="height: 80vh">
+    <v-container fluid class="cover-fill">
       <v-row style="display: flex">
         <v-autocomplete
           v-model="lensPath"
           :items="pathSuggestions"
           label="选择透镜路径..."
-          outlined
           dense
+          variant="solo-filled"
+          flat
           clearable
           item-title="title"
           item-value="value"
@@ -20,18 +21,18 @@
           color="purple"
           @focus="loadPathSuggestions"
         />
-        <div style="width: 45%; height: 55px; font-size: 18px; display: block; margin-top: 10px">
-          <v-btn color="purple" class="mr-2" @click="applyLensPath">
+        <div class="button-group-modern" style="width: 45%; height: 55px; font-size: 18px; display: flex; align-items: center; margin-top: 0px; gap: 8px;">
+          <v-btn color="purple" class="mr-2 modern-btn" elevation="0" @click="applyLensPath">
             <v-icon color="white">mdi-line-scan</v-icon>
             <span style="color: white">深度扫描</span>
           </v-btn>
-          <v-btn ref="analysisBtn" color="indigo" class="mr-2" @click="toggleAnalysisDrawer">
-            <v-icon color="white">mdi-file-document-outline</v-icon>
-            <span style="color: white">生成代码分析报告</span>
+          <v-btn ref="analysisBtn" variant="flat" color="indigo" class="mr-2 modern-btn" elevation="0" @click="toggleAnalysisDrawer">
+            <v-icon>mdi-file-document</v-icon>
+            <span>生成代码分析报告</span>
           </v-btn>
-          <v-btn ref="architectureBtn" color="teal" @click="toggleArchitectureDrawer">
-            <v-icon color="white">mdi-sitemap</v-icon>
-            <span style="color: white">生成架构流程图</span>
+          <v-btn ref="architectureBtn" variant="flat" color="teal" class="modern-btn" elevation="0" @click="toggleArchitectureDrawer">
+            <v-icon>mdi-sitemap</v-icon>
+            <span>生成架构流程图</span>
           </v-btn>
         </div>
       </v-row>
@@ -39,7 +40,7 @@
       <!-- 顶部工具栏：面包屑导航 -->
       <v-row>
         <v-col cols="12">
-          <v-toolbar flat color="transparent">
+          <v-toolbar flat color="transparent" density="compact">
             <v-spacer />
             <v-breadcrumbs :items="breadcrumbs" divider="/">
               <template #item="{ item }">
@@ -83,18 +84,19 @@
         <v-col cols="4">
           <div class="text-center">
             <v-skeleton-loader v-if="legendLoading" type="table" />
-            <div v-else class="bg-surface-variant rounded-lg mx-auto directory-list-container">
-              <v-list dense class="pa-0 directory-list">
+            <div v-else class="modern-surface rounded-lg mx-auto directory-list-container">
+              <v-list dense class="pa-0 directory-list modern-list">
                 <v-list-item
                   v-for="item in legendItems"
                   :key="item.name"
                   style="cursor: pointer"
                   @click="onLegendItemClick($event, item)"
                   @contextmenu="showContextMenu($event, item)"
+                  class="modern-list-item"
                 >
                   <template #prepend>
                     <v-avatar size="32">
-                      <v-icon :color="item.color" outlined>
+                      <v-icon :color="item.color">
                         {{ item.isDirectory ? item.icon : 'mdi-file-outline' }}
                       </v-icon>
                     </v-avatar>
@@ -119,7 +121,7 @@
         }"
       >
         <!-- 此处没有明确设置背景颜色，由 v-card 全局主题决定 -->
-        <v-card class="tooltip-card theme--light" outlined>
+        <v-card class="tooltip-card-modern theme--light" elevation="2">
           <v-icon left>mdi-comment</v-icon>
           <span style="font-size: 18px; margin-left: 4px">{{ tooltipContent }}</span>
         </v-card>
@@ -129,8 +131,8 @@
     <FileContextMenu ref="contextMenu" :menu-items="menuItems" />
 
     <!-- 代码分析报告抽屉 -->
-    <div v-if="analysisDrawerVisible" class="analysis-drawer" :style="analysisDrawerStyle">
-      <v-card class="drawer-card" elevation="4">
+    <div v-if="analysisDrawerVisible" class="modern-drawer analysis-drawer" :style="analysisDrawerStyle">
+      <v-card class="drawer-card-modern" elevation="2">
         <v-card-text>
           <div class="drawer-title">选择分析范围</div>
           <v-radio-group v-model="analysisScope" column dense>
@@ -138,8 +140,8 @@
             <v-radio value="all" label="整个仓库" color="indigo"></v-radio>
           </v-radio-group>
           <div class="drawer-actions">
-            <v-btn color="indigo" small @click="generateAnalysisReport">确认</v-btn>
-            <v-btn text small @click="analysisDrawerVisible = false">取消</v-btn>
+            <v-btn color="indigo" variant="flat" small @click="generateAnalysisReport">确认</v-btn>
+            <v-btn variant="text" small @click="analysisDrawerVisible = false">取消</v-btn>
           </div>
         </v-card-text>
       </v-card>
@@ -148,10 +150,10 @@
     <!-- 架构流程图抽屉 -->
     <div
       v-if="architectureDrawerVisible"
-      class="architecture-drawer"
+      class="modern-drawer architecture-drawer"
       :style="architectureDrawerStyle"
     >
-      <v-card class="drawer-card" elevation="4">
+      <v-card class="drawer-card-modern" elevation="2">
         <v-card-text>
           <div class="drawer-title">选择架构图范围</div>
           <v-radio-group v-model="architectureScope" column dense>
@@ -159,14 +161,14 @@
             <v-radio value="all" label="整个仓库" color="teal"></v-radio>
           </v-radio-group>
           <div class="drawer-actions">
-            <v-btn color="teal" small @click="generateArchitectureMap">确认</v-btn>
-            <v-btn text small @click="architectureDrawerVisible = false">取消</v-btn>
+            <v-btn color="teal" variant="flat" small @click="generateArchitectureMap">确认</v-btn>
+            <v-btn variant="text" small @click="architectureDrawerVisible = false">取消</v-btn>
           </div>
         </v-card-text>
       </v-card>
     </div>
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000">
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000" rounded="pill" elevation="2">
       {{ snackbar.message }}
     </v-snackbar>
   </v-container>
@@ -291,7 +293,7 @@ const generateFileAnalysisReport = async () => {
       // 示例：await window.electron.ipcRenderer.invoke('generate-analysis-report', targetPath)
 
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在为文件生成代码分析报告，请稍候...`,
+        message: `正在为文件生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
         color: 'info'
       })
     } catch (error) {
@@ -319,7 +321,7 @@ const generateFolderArchitectureMap = async () => {
       // 示例：await window.electron.ipcRenderer.invoke('generate-architecture-map', targetPath)
 
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在为文件夹梳理架构流程图，请稍候...`,
+        message: `正在为文件夹梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
         color: 'info'
       })
     } catch (error) {
@@ -437,7 +439,7 @@ const generateAnalysisReport = async () => {
     // 示例：await window.electron.ipcRenderer.invoke('generate-analysis-report', targetPath)
 
     store.dispatch('snackbar/showSnackbar', {
-      message: `正在为${scopeText}生成代码分析报告，请稍候...`,
+      message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
       color: 'info'
     })
   } catch (error) {
@@ -468,7 +470,7 @@ const generateArchitectureMap = async () => {
     // 示例：await window.electron.ipcRenderer.invoke('generate-architecture-map', targetPath)
 
     store.dispatch('snackbar/showSnackbar', {
-      message: `正在为${scopeText}梳理架构流程图，请稍候...`,
+      message: `正在为${scopeText}梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
       color: 'info'
     })
   } catch (error) {
@@ -913,7 +915,7 @@ const drawChartWithAnimation = () => {
           return baseColor.brighter(lighten).toString()
         }
       })
-      .attr('stroke', '#fff')
+      .attr('stroke', 'none')
       .attr('stroke-width', 1)
       .each(function (d) {
         this._current = getArcData(d)
@@ -1032,6 +1034,183 @@ onMounted(() => {
 </style>
 
 <style scoped>
+/* General container and animations */
+.space-lens-container-modern {
+  /* Inspired by DeepSearch.vue .search-container */
+  animation: fadeIn 0.6s ease-out;
+  padding-top: 16px; /* Add some top padding */
+}
+
+.modern-overlay .v-progress-circular {
+  /* Style for progress circular if needed, matching DeepSearch */
+}
+
+/* Autocomplete and Buttons */
+.v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line .v-field {
+  border-radius: 20px !important; /* Rounded like DeepSearch input */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line .v-field:focus-within {
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12) !important;
+  border: 1px solid rgba(var(--v-theme-primary), 0.6) !important;
+}
+
+.button-group-modern .modern-btn {
+  border-radius: 20px; /* Rounded buttons */
+  text-transform: none; /* No uppercase text */
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+.button-group-modern .modern-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Toolbar and Breadcrumbs */
+.v-toolbar--density-compact {
+  margin-bottom: 8px; /* Spacing like DeepSearch header */
+}
+
+.v-breadcrumbs {
+  padding: 8px 0;
+}
+
+.v-breadcrumbs-item {
+  font-size: 0.9rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.7);
+  transition: color 0.2s ease;
+}
+
+.v-breadcrumbs-item:hover {
+  color: rgba(var(--v-theme-primary-rgb), 1);
+}
+
+/* Chart and Legend Area */
+.chart {
+  /* Add subtle shadow or border if needed */
+  border-radius: 12px;
+  /* background: rgba(var(--v-theme-surface-rgb), 0.6); */ /* Optional: if a background is desired */
+  /* box-shadow: 0 6px 24px rgba(0, 0, 0, 0.05); */
+  animation: slideUp 0.5s ease-out 0.2s; /* Delayed animation */
+  animation-fill-mode: backwards; /* Ensure it starts from opacity 0 */
+}
+
+.directory-list-container.modern-surface {
+  background: rgba(var(--v-theme-surface-rgb), 0.4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  animation: slideUp 0.5s ease-out 0.3s; /* Delayed animation */
+  animation-fill-mode: backwards;
+}
+
+.modern-list {
+  background-color: transparent !important; /* Make list transparent to show container's backdrop */
+}
+
+.modern-list-item {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  border-radius: 8px;
+  margin: 4px 0; /* Add some spacing */
+}
+
+.modern-list-item:hover {
+  background-color: rgba(var(--v-theme-primary-rgb), 0.1);
+  transform: translateX(3px);
+}
+
+.modern-list-item .v-list-item-title {
+  font-weight: 500;
+}
+
+/* Tooltip */
+.tooltip-card-modern {
+  background-color: rgba(var(--v-theme-surface-rgb), 0.9) !important; /* Match DeepSearch dropdown */
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.12) !important;
+}
+
+.tooltip-card-modern .v-icon {
+  color: rgba(var(--v-theme-primary-rgb), 1);
+}
+
+.tooltip-card-modern span {
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87) !important;
+  font-size: 1rem !important;
+}
+
+/* Drawers */
+.modern-drawer .drawer-card-modern {
+  width: 250px; /* Slightly wider */
+  border-radius: 12px; /* More rounded */
+  background: rgba(var(--v-theme-surface-rgb), 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease-out; /* Use fadeIn for drawers */
+}
+
+.drawer-card-modern .v-card-text {
+  padding: 20px;
+}
+
+.drawer-card-modern .drawer-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-primary-rgb), 0.9);
+  margin-bottom: 16px;
+}
+
+.drawer-card-modern .v-radio-group .v-label {
+  font-size: 0.95rem;
+}
+
+.drawer-card-modern .drawer-actions {
+  margin-top: 20px;
+}
+
+.drawer-card-modern .drawer-actions .v-btn {
+  border-radius: 18px;
+  text-transform: none;
+}
+
+/* Snackbar */
+.v-snackbar--rounded-pill .v-snackbar__wrapper {
+  /* Styles for pill snackbar if needed, already has good defaults */
+}
+
+/* Keyframe animations (from DeepSearch.vue) */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-15px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(15px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Ensure initial state for animations if not handled by v-if */
+.v-row:first-child, /* Top controls row */
+.v-row:nth-child(2) /* Breadcrumbs row */
+{
+  animation: slideDown 0.5s ease-out;
+}
+
 .space-lens-container {
   max-width: 600px;
   margin: 0 auto;
