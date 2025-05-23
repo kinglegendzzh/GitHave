@@ -29,8 +29,17 @@
 
       <!-- Content: flex-1 + min-h-0 + overflow-auto -->
       <div class="flex-1 min-h-0 overflow-auto px-6 py-4 prose max-w-none" style="max-height: 70vh;">
-        <div v-html="renderedMarkdown"></div>
-
+        <div v-if="props.api === 'deepResearch'">
+          <div v-html="renderedMarkdown"></div>
+        </div>
+        <div v-else>
+          <div class="flowchart-toolbar mb-2">
+            <v-btn variant="outlined" @click="zoomIn"><v-icon>mdi-magnify</v-icon>放大</v-btn>
+            <v-btn variant="outlined" @click="zoomOut"><v-icon>mdi-magnify-minus</v-icon>缩小</v-btn>
+            <v-btn variant="outlined" @click="resetZoom"><v-icon>mdi-refresh</v-icon>重置</v-btn>
+          </div>
+          <div ref="mermaidContainer" class="prose max-w-none"></div>
+        </div>
       </div>
     </div>
     <v-snackbar
@@ -46,11 +55,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { deepResearch, flowChart } from '../../service/api.js'
-import { useStore } from "vuex";
+import { useStore } from "vuex"
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs'
+const mermaidContainer = ref<HTMLElement|null>(null)
+const zoomLevel = ref(1)
+function applyZoom() {
+  const svg = mermaidContainer.value?.querySelector<SVGSVGElement>('svg')
+  if (svg) {
+    svg.style.transformOrigin = '0 0'
+    svg.style.transform = `scale(${zoomLevel.value})`
+  }
+}
+function zoomIn()   { zoomLevel.value += 0.1; applyZoom() }
+function zoomOut()  { zoomLevel.value = Math.max(0.1, zoomLevel.value - 0.1); applyZoom() }
+function resetZoom(){ zoomLevel.value = 1; applyZoom() }
+
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
 
@@ -73,35 +95,97 @@ const markdownContent = ref('')
 const isProcessing = ref(false)
 const success = ref(false)
 const scopeText = ref('(' + props.scopeText + ')')
+const lastEndIndex = ref(-1)
+const isRendering = ref(false)
 
-// Markdown parser
+// —— 1. 初始化 Mermaid ——
+// 关闭 startOnLoad，由手动触发渲染
+mermaid.initialize({ startOnLoad: false, theme: 'default' })
+
+// —— 2. 配置 MarkdownIt ——
+// 支持 HTML、关闭默认链接跳转
 const md = new MarkdownIt({ html: true, linkify: false })
+
+// 重写 fence 渲染：遇到 mermaid 代码块，输出 <div class="mermaid">…</div>
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const info = token.info.trim()  // 语言标识
+  if (info === 'mermaid') {
+    const code = token.content.trim()
+    return `<div class="mermaid">${code}</div>`
+  }
+  // 其他语言走默认
+  return self.renderToken(tokens, idx, options)
+}
+
 const renderedMarkdown = computed(() => md.render(markdownContent.value))
+
+// —— 3. 每次 Markdown 渲染完毕后，如果是 flowChart，就触发 Mermaid 渲染 ——
+watch(renderedMarkdown, async () => {
+  if (props.api !== 'flowChart') return
+
+  // 等待 DOM 更新
+  await nextTick()
+
+  try {
+    // 更新容器内容
+    mermaidContainer.value!.innerHTML = renderedMarkdown.value
+
+    const md = renderedMarkdown.value
+    const openTag = '<div class="mermaid">'
+    const closeTag = '</div>'
+
+    // 只找第一个开标签和第一个闭标签
+    const startIndex = md.indexOf(openTag)
+    const endIndex = md.indexOf(closeTag)
+
+    console.log('Mermaid 渲染范围：', startIndex, endIndex)
+    if (
+      startIndex !== -1 &&
+      endIndex !== -1 &&
+      startIndex < endIndex &&
+      endIndex === lastEndIndex.value
+      && !isRendering.value
+    ) {
+      // 有完整 mermaid 块且还没渲染过
+      mermaid.init(undefined, '.prose .mermaid')
+      applyZoom()
+      console.log('Mermaid 渲染成功', md)
+      isRendering.value = true
+    } else {
+      // lastEndIndex.value =  endIndex
+      console.log('跳过 Mermaid 渲染：未检测到完整的 <div class="mermaid">…</div> 块，或已渲染过')
+    }
+  } catch (e) {
+    console.error('Mermaid 渲染失败：', e)
+  }
+})
 
 watch(visible, (val) => {
   if (val) startStreaming()
   else reset()
 })
 
-md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
-  const token = tokens[idx]
-  const hrefIndex = token.attrIndex('href')
-  if (hrefIndex >= 0) {
-    const href = token.attrs[hrefIndex][1]
-    token.attrs[hrefIndex][1] = 'javascript:void(0)' // 将链接替换为 void(0)，防止跳转
-  }
-  return self.renderToken(tokens, idx, options) // 返回正常的 <a> 标签开始部分
-}
-
-md.renderer.rules.link_close = function () {
-  return '' // 不返回任何内容，避免链接闭合
-}
-
 const reset = () => {
   scopeText.value = '(' + props.scopeText + ')'
   markdownContent.value = ''
   isProcessing.value = false
   success.value = false
+  lastEndIndex.value = -1
+  isRendering.value = false
+}
+
+async function renderingMermaid() {
+  if (props.api !== 'flowChart') return
+  await nextTick()
+  try {
+    mermaidContainer.value!.innerHTML = renderedMarkdown.value
+    mermaid.init(undefined, '.prose .mermaid')
+    applyZoom()
+    console.log('Mermaid 渲染成功', renderedMarkdown.value)
+  } catch (e) {
+    console.error('Mermaid 渲染失败：', e)
+  }
 }
 
 async function startStreaming() {
@@ -110,122 +194,75 @@ async function startStreaming() {
   try {
     const repoID = parseInt(props.repoID)
     const without_code = props.wholeRepo
-    console.log('props.wholeRepo and without_code', props.wholeRepo, without_code)
-    let response = null
+
+    let response
     if (props.api  === 'deepResearch') {
-      console.log('调用 deepResearch，repoID=', repoID, 'targetPath=', props.targetPath)
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText}生成代码分析报告，你可以关闭当前输出稍等片刻后在‘枢纽’中查看...`,
+        message: `正在异步${scopeText.value}生成代码分析报告…`,
         color: 'info'
       })
       response = await deepResearch(repoID, props.targetPath, without_code, true)
-      if (!response.body) throw new Error('Streaming not supported')
     } else {
-      console.log('调用 flowChart，repoID=', repoID, 'targetPath=', props.targetPath)
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText}生成流程图，你可以关闭当前输出稍等片刻后在‘枢纽’中查看...`,
+        message: `正在异步${scopeText.value}生成流程图…`,
         color: 'info'
       })
       response = await flowChart(repoID, props.targetPath, without_code, true)
-      if (!response.body) throw new Error('Streaming not supported')
     }
+    if (!response.body) throw new Error('Streaming not supported')
 
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
 
-    console.log('开始流式处理...')
     while (true) {
       const { value, done } = await reader.read()
-      // console.log('read → done:', done, 'chunk 字节数:', value?.length)
-      if (done) {
-        console.log('流式读取完成')
-        break
-      }
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
 
-      const chunk = decoder.decode(value, { stream: true })
-      // console.log('当前 chunk:', chunk)
-      buffer += chunk
-      // console.log('累积 buffer:', buffer)
-
-      // 按“空行”拆分完整事件
       const events = buffer.split('\n\n')
       buffer = events.pop() || ''
-      // console.log('分割后的 events:', events, '剩余 buffer:', buffer)
-
       for (const evt of events) {
-        // console.log('处理事件块:', evt)
-        const lines = evt.split('\n')
-        let raw = ''
-        for (const line of lines) {
-          // console.log('事件行:', line)
-          if (line.startsWith('data:')) {
-            raw += line.slice(5)
-          }
-        }
-        // console.log('拼接 raw JSON:', raw)
+        const raw = evt
+          .split('\n')
+          .filter(line => line.startsWith('data:'))
+          .map(line => line.slice(5)).join('')
         if (!raw) continue
 
-        try {
-          const data = JSON.parse(raw)
-          // console.log('解析 JSON:', data)
-          if (data.title !== undefined && data.title !== '') {
-            scopeText.value += data.title
-            console.log('添加标题:', data.title)
-          }
-          if (data.answer !== undefined && data.answer !== '') {
-            markdownContent.value += data.answer
-            // console.log('添加回答内容:', data.answer)
-          }
-          if (data.status === 200) {
-            console.log('收到成功状态码:', data.status)
-            success.value = true
-            isProcessing.value = false
-            reader.cancel()
-            break
-          }
-        } catch (e) {
-          console.error('JSON 解析失败:', e, raw)
+        const data = JSON.parse(raw)
+        if (data.title) {
+          scopeText.value += data.title
+        }
+        if (data.answer) {
+          markdownContent.value += data.answer
+        }
+        if (data.status === 200) {
+          await renderingMermaid()
+          success.value = true
+          isProcessing.value = false
+          reader.cancel()
+          break
         }
       }
-
       if (!isProcessing.value) break
     }
 
-    // 处理残余 buffer（如果刚好是一条完整 JSON）
+    // 处理残余
     if (buffer.trim()) {
-      console.log('处理最终缓冲区内容:', buffer)
-      try {
-        const data = JSON.parse(buffer.trim())
-        console.log('最终解析 JSON:', data)
-        if (data.answer !== undefined) {
-          markdownContent.value += data.answer
-          console.log('添加最终回答内容:', data.answer)
-        }
-        if (data.status === 200) {
-          console.log('收到成功状态码:', data.status)
-          success.value = true
-        }
-      } catch (e) {
-        console.error('最终缓冲区 JSON 解析失败:', e, buffer)
-      }
+      const data = JSON.parse(buffer.trim())
+      if (data.answer) markdownContent.value += data.answer
+      if (data.status === 200) success.value = true
     }
   } catch (error) {
     console.error('流式解析失败:', error)
   } finally {
-    console.log('最终状态 → isProcessing:', isProcessing.value, 'success:', success.value)
     isProcessing.value = false
-    if (props.api  === 'deepResearch') {
-      store.dispatch('snackbar/showSnackbar', {
-        message: success.value ? '代码分析报告生成成功，在‘枢纽’中查看' : '代码分析报告生成失败',
-        color: success.value ? 'success' : 'error'
-      })
-    } else {
-      store.dispatch('snackbar/showSnackbar', {
-        message: success.value ? '流程图生成成功，在‘枢纽’中查看' : '流程图生成失败',
-        color: success.value ? 'success' : 'error'
-      })
-    }
+    store.dispatch('snackbar/showSnackbar', {
+      message: success.value
+        ? (props.api === 'deepResearch' ? '代码分析报告生成成功' : '流程图生成成功')
+        : (props.api === 'deepResearch' ? '代码分析报告生成失败' : '流程图生成失败'),
+      color: success.value ? 'success' : 'error'
+    })
   }
 }
 
