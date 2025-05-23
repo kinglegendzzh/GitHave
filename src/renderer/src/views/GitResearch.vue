@@ -1,355 +1,437 @@
 <template>
-  <v-container class="git-research-container">
-    <!-- 初始加载状态 -->
-    <div v-if="initialLoad && !files.length" class="text-center my-8">
-      <img :src="placeholderImage" alt="Chart Placeholder" draggable="false"
-           class="placeholder-image" />
-      <v-btn color="primary" class="mt-4" @click="selectDirectory">
-        <v-icon left>mdi-folder-open</v-icon>
-        选择研究目录
-      </v-btn>
-    </div>
-
-    <!-- 文件列表展示 -->
-    <div v-else>
-      <div class="d-flex align-center mb-4">
-        <h2 class="text-h5 font-weight-bold">研究报告</h2>
-        <v-spacer></v-spacer>
-        <v-btn color="primary" size="small" @click="selectDirectory">
-          <v-icon left>mdi-refresh</v-icon>
-          刷新
+  <v-container
+    class="mt-4"
+    style="display: flex; align-items: first baseline; justify-content: center"
+  >
+    <div v-cloak class="research-container">
+      <!-- 初始加载状态 -->
+      <div v-if="initialLoad && !files.length" class="text-center my-8">
+        <img
+          :src="placeholderImage"
+          alt="Chart Placeholder"
+          draggable="false"
+          class="placeholder-image"
+          style="max-width: 300px; opacity: 0.8"
+        />
+        <v-btn color="primary" class="mt-6 research-button" elevation="0" @click="selectDirectory">
+          <v-icon left>mdi-folder-open</v-icon>
+          选择研究目录
         </v-btn>
       </div>
 
-      <!-- 文件类型标签页 -->
-      <v-tabs v-model="activeTab" background-color="transparent" color="primary" class="mb-4">
-        <v-tab value="codeReport">代码分析报告</v-tab>
-        <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
-        <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
-        <v-tab value="commitDetails">提交记录修改明细</v-tab>
-        <v-tab value="commitAnalysis">提交记录分析报告</v-tab>
-      </v-tabs>
+      <!-- 文件列表展示 -->
+      <div v-else class="research-content">
+        <div class="research-header">
+          <h2>
+            枢纽 <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
+          </h2>
+          <v-btn class="refresh-button" elevation="0" @click="selectDirectory">
+            <v-icon left>mdi-refresh</v-icon>
+            刷新
+          </v-btn>
+        </div>
 
-      <v-card class="mb-4" variant="outlined">
-        <v-card-text>
-          <!-- 代码分析报告 -->
-          <div v-if="activeTab === 'codeReport'">
-            <div v-if="codeReportFiles.length === 0" class="text-center py-4">
-              <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-              <div class="text-body-1 mt-2">暂无代码分析报告</div>
-            </div>
-            <v-list v-else lines="two">
-              <v-list-item v-for="file in codeReportFiles" :key="file.path" @click="previewFile(file)">
-                <template v-slot:prepend>
-                  <v-icon :color="getFileIconColor(file.type)" size="large">
-                    {{ getFileIcon(file.type) }}
-                  </v-icon>
-                </template>
-                <v-list-item-title class="text-subtitle-1 font-weight-medium">{{ file.name }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                  <v-chip size="x-small" class="ml-2" :color="getFileTypeColor(file.type)" text-color="white">
-                    {{ file.type.toUpperCase() }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(main_tag, tIndex) in file.main_tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="green"
-                    text-color="white"
-                  >
-                    {{ main_tag }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(tag, tIndex) in file.tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="grey"
-                    text-color="white"
-                  >
-                    {{ tag }}
-                  </v-chip>
-                </v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-btn icon="mdi-open-in-new" variant="text" size="small" @click.stop="openFile(file)"></v-btn>
-                </template>
-              </v-list-item>
-            </v-list>
-          </div>
+        <!-- 文件类型标签页 -->
+        <v-tabs v-model="activeTab" background-color="transparent" color="primary" class="mb-4">
+          <v-tab value="codeReport">代码分析报告</v-tab>
+          <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
+          <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
+          <v-tab value="commitDetails">提交记录修改明细</v-tab>
+          <v-tab value="commitAnalysis">提交记录分析报告</v-tab>
+        </v-tabs>
 
-          <!-- 仓库提交贡献榜 -->
-          <div v-else-if="activeTab === 'contributionChart'">
-            <div v-if="contributionChartFiles.length === 0" class="text-center py-4">
-              <v-icon size="48" color="grey">mdi-image-outline</v-icon>
-              <div class="text-body-1 mt-2">暂无贡献榜图片</div>
-            </div>
-            <v-list v-else lines="one">
-              <v-list-item v-for="file in contributionChartFiles" :key="file.path" @click="previewFile(file)">
-                <template v-slot:prepend>
-                  <v-icon color="orange" size="large">mdi-image-outline</v-icon>
-                </template>
-                <v-list-item-title class="text-subtitle-1 font-weight-medium">{{ file.name }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                  <v-chip size="x-small" class="ml-2" color="orange" text-color="white">IMG</v-chip>
-                  <v-chip
-                    v-for="(main_tag, tIndex) in file.main_tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="green"
-                    text-color="white"
-                  >
-                    {{ main_tag }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(tag, tIndex) in file.tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="grey"
-                    text-color="white"
-                  >
-                    {{ tag }}
-                  </v-chip>
-                </v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-btn icon="mdi-open-in-new" variant="text" size="small" @click.stop="openFile(file)"></v-btn>
-                </template>
-              </v-list-item>
-            </v-list>
-          </div>
-
-          <!-- 提交活跃度热力图 -->
-          <div v-else-if="activeTab === 'activityHeatmap'">
-            <div v-if="activityHeatmapFiles.length === 0" class="text-center py-4">
-              <v-icon size="48" color="grey">mdi-image-outline</v-icon>
-              <div class="text-body-1 mt-2">暂无活跃度热力图</div>
-            </div>
-            <v-list v-else lines="one">
-              <v-list-item v-for="file in activityHeatmapFiles" :key="file.path" @click="previewFile(file)">
-                <template v-slot:prepend>
-                  <v-icon color="orange" size="large">mdi-image-outline</v-icon>
-                </template>
-                <v-list-item-title class="text-subtitle-1 font-weight-medium">{{ file.name }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                  <v-chip size="x-small" class="ml-2" color="orange" text-color="white">IMG</v-chip>
-                  <v-chip
-                    v-for="(main_tag, tIndex) in file.main_tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="green"
-                    text-color="white"
-                  >
-                    {{ main_tag }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(tag, tIndex) in file.tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="grey"
-                    text-color="white"
-                  >
-                    {{ tag }}
-                  </v-chip>
-                </v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-btn icon="mdi-open-in-new" variant="text" size="small" @click.stop="openFile(file)"></v-btn>
-                </template>
-              </v-list-item>
-            </v-list>
-          </div>
-
-          <!-- 提交记录修改明细 -->
-          <div v-else-if="activeTab === 'commitDetails'">
-            <div v-if="commitDetailFiles.length === 0" class="text-center py-4">
-              <v-icon size="48" color="grey">mdi-file-delimited-outline</v-icon>
-              <div class="text-body-1 mt-2">暂无提交记录明细</div>
-            </div>
-            <v-list v-else lines="two">
-              <v-list-item v-for="file in commitDetailFiles" :key="file.path" @click="previewFile(file)">
-                <template v-slot:prepend>
-                  <v-icon color="green" size="large">mdi-file-delimited-outline</v-icon>
-                </template>
-                <v-list-item-title class="text-subtitle-1 font-weight-medium">{{ file.name }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                  <v-chip size="x-small" class="ml-2" color="green" text-color="white">CSV</v-chip>
-                  <v-chip
-                    v-for="(main_tag, tIndex) in file.main_tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="green"
-                    text-color="white"
-                  >
-                    {{ main_tag }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(tag, tIndex) in file.tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="grey"
-                    text-color="white"
-                  >
-                    {{ tag }}
-                  </v-chip>
-                </v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-btn icon="mdi-open-in-new" variant="text" size="small" @click.stop="openFile(file)"></v-btn>
-                </template>
-              </v-list-item>
-            </v-list>
-          </div>
-
-          <!-- 提交记录分析报告 -->
-          <div v-else-if="activeTab === 'commitAnalysis'">
-            <div v-if="commitAnalysisFiles.length === 0" class="text-center py-4">
-              <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-              <div class="text-body-1 mt-2">暂无提交记录分析报告</div>
-            </div>
-            <v-list v-else lines="two">
-              <v-list-item v-for="file in commitAnalysisFiles" :key="file.path" @click="previewFile(file)">
-                <template v-slot:prepend>
-                  <v-icon :color="getFileIconColor(file.type)" size="large">
-                    {{ getFileIcon(file.type) }}
-                  </v-icon>
-                </template>
-                <v-list-item-title class="text-subtitle-1 font-weight-medium">{{ file.name }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                  <v-chip size="x-small" class="ml-2" :color="getFileTypeColor(file.type)" text-color="white">
-                    {{ file.type.toUpperCase() }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(main_tag, tIndex) in file.main_tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="green"
-                    text-color="white"
-                  >
-                    {{ main_tag }}
-                  </v-chip>
-                  <v-chip
-                    v-for="(tag, tIndex) in file.tags"
-                    :key="'tag-' + tIndex"
-                    size="x-small"
-                    class="ml-2"
-                    color="grey"
-                    text-color="white"
-                  >
-                    {{ tag }}
-                  </v-chip>
-                </v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-btn icon="mdi-open-in-new" variant="text" size="small" @click.stop="openFile(file)"></v-btn>
-                </template>
-              </v-list-item>
-            </v-list>
-          </div>
-        </v-card-text>
-      </v-card>
-
-      <!-- 文件预览对话框 -->
-      <v-dialog v-model="previewDialog" max-width="800">
-        <v-card>
-          <v-card-title class="d-flex align-center">
-            <span>{{ selectedFile?.name || '文件预览' }}</span>
-            <v-spacer></v-spacer>
-            <v-btn icon="mdi-close" variant="text" @click="previewDialog = false"></v-btn>
-          </v-card-title>
-          <v-divider></v-divider>
-          <v-card-text class="preview-content">
-            <div v-if="fileContent" class="pa-2">
-              <div v-if="selectedFile?.type === 'csv'" class="csv-preview">
-                <table class="csv-table">
-                  <thead>
-                    <tr>
-                      <th v-for="(header, index) in csvHeaders" :key="index">{{ header }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(row, rowIndex) in csvData" :key="rowIndex">
-                      <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
-                    </tr>
-                  </tbody>
-                </table>
+        <v-card class="content-card" variant="flat">
+          <v-card-text class="content-container">
+            <!-- 代码分析报告 -->
+            <div v-if="activeTab === 'codeReport'">
+              <div v-if="codeReportFiles.length === 0" class="text-center py-4">
+                <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
+                <div class="text-body-1 mt-2">暂无代码分析报告</div>
               </div>
-              <div v-else-if="['png','jpg','jpeg'].includes(selectedFile?.type)">
-                <img :src="fileContent" style="max-width: 100%;" />
-              </div>
-              <div v-else class="markdown-preview">
-                {{ fileContent }}
-              </div>
+              <v-list v-else lines="two">
+                <v-list-item
+                  v-for="file in codeReportFiles"
+                  :key="file.path"
+                  @click="previewFile(file)"
+                >
+                  <template #prepend>
+                    <v-icon :color="getFileIconColor(file.type)" size="large">
+                      {{ getFileIcon(file.type) }}
+                    </v-icon>
+                  </template>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
+                    file.name
+                  }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                    <v-chip
+                      size="x-small"
+                      class="ml-2"
+                      :color="getFileTypeColor(file.type)"
+                      text-color="white"
+                    >
+                      {{ file.type.toUpperCase() }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(main_tag, tIndex) in file.main_tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="green"
+                      text-color="white"
+                    >
+                      {{ main_tag }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(tag, tIndex) in file.tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="grey"
+                      text-color="white"
+                    >
+                      {{ tag }}
+                    </v-chip>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon="mdi-open-in-new"
+                      variant="text"
+                      size="small"
+                      @click.stop="openFile(file)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
             </div>
-            <div v-else class="d-flex justify-center align-center" style="height: 200px">
-              <v-progress-circular indeterminate color="primary"></v-progress-circular>
+
+            <!-- 仓库提交贡献榜 -->
+            <div v-else-if="activeTab === 'contributionChart'">
+              <div v-if="contributionChartFiles.length === 0" class="text-center py-4">
+                <v-icon size="48" color="grey">mdi-image-outline</v-icon>
+                <div class="text-body-1 mt-2">暂无贡献榜图片</div>
+              </div>
+              <v-list v-else lines="one">
+                <v-list-item
+                  v-for="file in contributionChartFiles"
+                  :key="file.path"
+                  @click="previewFile(file)"
+                >
+                  <template #prepend>
+                    <v-icon color="orange" size="large">mdi-image-outline</v-icon>
+                  </template>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
+                    file.name
+                  }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                    <v-chip size="x-small" class="ml-2" color="orange" text-color="white"
+                      >IMG</v-chip
+                    >
+                    <v-chip
+                      v-for="(main_tag, tIndex) in file.main_tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="green"
+                      text-color="white"
+                    >
+                      {{ main_tag }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(tag, tIndex) in file.tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="grey"
+                      text-color="white"
+                    >
+                      {{ tag }}
+                    </v-chip>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon="mdi-open-in-new"
+                      variant="text"
+                      size="small"
+                      @click.stop="openFile(file)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </div>
+
+            <!-- 提交活跃度热力图 -->
+            <div v-else-if="activeTab === 'activityHeatmap'">
+              <div v-if="activityHeatmapFiles.length === 0" class="text-center py-4">
+                <v-icon size="48" color="grey">mdi-image-outline</v-icon>
+                <div class="text-body-1 mt-2">暂无活跃度热力图</div>
+              </div>
+              <v-list v-else lines="one">
+                <v-list-item
+                  v-for="file in activityHeatmapFiles"
+                  :key="file.path"
+                  @click="previewFile(file)"
+                >
+                  <template #prepend>
+                    <v-icon color="orange" size="large">mdi-image-outline</v-icon>
+                  </template>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
+                    file.name
+                  }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                    <v-chip size="x-small" class="ml-2" color="orange" text-color="white"
+                      >IMG</v-chip
+                    >
+                    <v-chip
+                      v-for="(main_tag, tIndex) in file.main_tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="green"
+                      text-color="white"
+                    >
+                      {{ main_tag }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(tag, tIndex) in file.tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="grey"
+                      text-color="white"
+                    >
+                      {{ tag }}
+                    </v-chip>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon="mdi-open-in-new"
+                      variant="text"
+                      size="small"
+                      @click.stop="openFile(file)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </div>
+
+            <!-- 提交记录修改明细 -->
+            <div v-else-if="activeTab === 'commitDetails'">
+              <div v-if="commitDetailFiles.length === 0" class="text-center py-4">
+                <v-icon size="48" color="grey">mdi-file-delimited-outline</v-icon>
+                <div class="text-body-1 mt-2">暂无提交记录明细</div>
+              </div>
+              <v-list v-else lines="two">
+                <v-list-item
+                  v-for="file in commitDetailFiles"
+                  :key="file.path"
+                  @click="previewFile(file)"
+                >
+                  <template #prepend>
+                    <v-icon color="green" size="large">mdi-file-delimited-outline</v-icon>
+                  </template>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
+                    file.name
+                  }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                    <v-chip size="x-small" class="ml-2" color="green" text-color="white"
+                      >CSV</v-chip
+                    >
+                    <v-chip
+                      v-for="(main_tag, tIndex) in file.main_tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="green"
+                      text-color="white"
+                    >
+                      {{ main_tag }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(tag, tIndex) in file.tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="grey"
+                      text-color="white"
+                    >
+                      {{ tag }}
+                    </v-chip>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon="mdi-open-in-new"
+                      variant="text"
+                      size="small"
+                      @click.stop="openFile(file)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </div>
+
+            <!-- 提交记录分析报告 -->
+            <div v-else-if="activeTab === 'commitAnalysis'">
+              <div v-if="commitAnalysisFiles.length === 0" class="text-center py-4">
+                <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
+                <div class="text-body-1 mt-2">暂无提交记录分析报告</div>
+              </div>
+              <v-list v-else lines="two">
+                <v-list-item
+                  v-for="file in commitAnalysisFiles"
+                  :key="file.path"
+                  @click="previewFile(file)"
+                >
+                  <template #prepend>
+                    <v-icon :color="getFileIconColor(file.type)" size="large">
+                      {{ getFileIcon(file.type) }}
+                    </v-icon>
+                  </template>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
+                    file.name
+                  }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                    <v-chip
+                      size="x-small"
+                      class="ml-2"
+                      :color="getFileTypeColor(file.type)"
+                      text-color="white"
+                    >
+                      {{ file.type.toUpperCase() }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(main_tag, tIndex) in file.main_tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="green"
+                      text-color="white"
+                    >
+                      {{ main_tag }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(tag, tIndex) in file.tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="grey"
+                      text-color="white"
+                    >
+                      {{ tag }}
+                    </v-chip>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon="mdi-open-in-new"
+                      variant="text"
+                      size="small"
+                      @click.stop="openFile(file)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
             </div>
           </v-card-text>
-          <v-card-actions>
-            <v-spacer></v-spacer>
-            <v-btn color="primary" variant="text" @click="openFile(selectedFile)">
-              在外部打开
-              <v-icon right>mdi-open-in-new</v-icon>
-            </v-btn>
-          </v-card-actions>
         </v-card>
-      </v-dialog>
+
+        <!-- 文件预览对话框 -->
+        <v-dialog v-model="previewDialog" max-width="800">
+          <v-card>
+            <v-card-title class="d-flex align-center">
+              <span>{{ selectedFile?.name || '文件预览' }}</span>
+              <v-spacer></v-spacer>
+              <v-btn icon="mdi-close" variant="text" @click="previewDialog = false"></v-btn>
+            </v-card-title>
+            <v-divider></v-divider>
+            <v-card-text class="preview-content">
+              <div v-if="fileContent" class="pa-2">
+                <div v-if="selectedFile?.type === 'csv'" class="csv-preview">
+                  <table class="csv-table">
+                    <thead>
+                      <tr>
+                        <th v-for="(header, index) in csvHeaders" :key="index">{{ header }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, rowIndex) in csvData" :key="rowIndex">
+                        <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else-if="['png', 'jpg', 'jpeg'].includes(selectedFile?.type)">
+                  <img :src="fileContent" style="max-width: 100%" />
+                </div>
+                <div v-else class="markdown-preview">
+                  {{ fileContent }}
+                </div>
+              </div>
+              <div v-else class="d-flex justify-center align-center" style="height: 200px">
+                <v-progress-circular indeterminate color="primary"></v-progress-circular>
+              </div>
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn color="primary" variant="text" @click="openFile(selectedFile)">
+                在外部打开
+                <v-icon right>mdi-open-in-new</v-icon>
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+      </div>
     </div>
   </v-container>
 </template>
 
 <script>
-import SVG from '../assets/report.svg';
+import SVG from '../assets/report.svg'
 
 export default {
   name: 'GitResearch',
   data() {
     return {
-      initialLoad: true,   // 初次加载标识
-      placeholderImage: SVG,  // 外部矢量图路径
-      selectedDirectory: '',  // 选中的目录路径
-      files: [],             // 所有文件列表
-      activeTab: 'codeReport',   // 当前活动的标签页
-      previewDialog: false,   // 预览对话框显示状态
-      selectedFile: null,     // 当前选中的文件
-      fileContent: null,      // 文件内容
-      csvHeaders: [],         // CSV文件表头
-      csvData: []             // CSV文件数据
+      initialLoad: true, // 初次加载标识
+      placeholderImage: SVG, // 外部矢量图路径
+      selectedDirectory: '', // 选中的目录路径
+      files: [], // 所有文件列表
+      activeTab: 'codeReport', // 当前活动的标签页
+      previewDialog: false, // 预览对话框显示状态
+      selectedFile: null, // 当前选中的文件
+      fileContent: null, // 文件内容
+      csvHeaders: [], // CSV文件表头
+      csvData: [] // CSV文件数据
     }
   },
   computed: {
     // 代码分析报告（docx/md）
     codeReportFiles() {
-      return this.files.filter(f => f.category === 'codeReport');
+      return this.files.filter((f) => f.category === 'codeReport')
     },
     // 仓库提交贡献榜（图片）
     contributionChartFiles() {
-      return this.files.filter(f => f.category === 'contributionChart');
+      return this.files.filter((f) => f.category === 'contributionChart')
     },
     // 提交活跃度热力图（图片）
     activityHeatmapFiles() {
-      return this.files.filter(f => f.category === 'activityHeatmap');
+      return this.files.filter((f) => f.category === 'activityHeatmap')
     },
     // 提交记录修改明细（csv）
     commitDetailFiles() {
-      return this.files.filter(f => f.category === 'commitDetails');
+      return this.files.filter((f) => f.category === 'commitDetails')
     },
     // 提交记录分析报告（docx/md）
     commitAnalysisFiles() {
-      return this.files.filter(f => f.category === 'commitAnalysis');
-    },
+      return this.files.filter((f) => f.category === 'commitAnalysis')
+    }
   },
   created() {
     // 组件创建时加载模拟数据
-    this.loadMockData();
+    this.loadMockData()
   },
   methods: {
     // 选择目录
@@ -357,17 +439,17 @@ export default {
       try {
         // 调用Electron的对话框API选择目录
         const result = await window.electron.invoke('dialog:openDirectory', {
-          title: '选择研究报告目录',
+          title: '选择枢纽目录',
           properties: ['openDirectory']
-        });
+        })
 
         if (!result.canceled && result.filePaths.length > 0) {
-          this.selectedDirectory = result.filePaths[0];
-          this.initialLoad = false;
-          await this.loadDirectoryFiles(this.selectedDirectory);
+          this.selectedDirectory = result.filePaths[0]
+          this.initialLoad = false
+          await this.loadDirectoryFiles(this.selectedDirectory)
         }
       } catch (error) {
-        console.error('选择目录失败:', error);
+        console.error('选择目录失败:', error)
       }
     },
 
@@ -375,17 +457,17 @@ export default {
     async loadDirectoryFiles(dirPath) {
       try {
         // 使用IPC调用读取目录内容
-        const fs = await window.electron.fs;
-        const path = await window.electron.path;
+        const fs = await window.electron.fs
+        const path = await window.electron.path
 
         // 实际项目中应该使用以下代码读取目录
         // const files = await window.electron.readDirectory(dirPath);
 
         // 由于我们使用模拟数据，这里暂不实际调用
-        console.log('读取目录:', dirPath);
+        console.log('读取目录:', dirPath)
         // 保持使用模拟数据
       } catch (error) {
-        console.error('读取目录失败:', error);
+        console.error('读取目录失败:', error)
       }
     },
 
@@ -471,32 +553,32 @@ export default {
           tags: ['支持推送'],
           modifiedTime: new Date(2023, 9, 18, 15, 45)
         }
-      ];
+      ]
 
       // 设置初始加载完成
-      this.initialLoad = false;
+      this.initialLoad = false
     },
 
     // 预览文件
     async previewFile(file) {
-      this.selectedFile = file;
-      this.previewDialog = true;
-      this.fileContent = null;
+      this.selectedFile = file
+      this.previewDialog = true
+      this.fileContent = null
 
       // 模拟加载文件内容
       setTimeout(() => {
         if (file.type === 'csv') {
           // 模拟CSV数据
-          this.csvHeaders = ['文件路径', '修改类型', '修改行数', '修改时间', '提交者'];
+          this.csvHeaders = ['文件路径', '修改类型', '修改行数', '修改时间', '提交者']
           this.csvData = [
             ['/src/components/App.vue', '修改', '15', '2023-10-15 10:30', '张三'],
             ['/src/utils/helpers.js', '新增', '42', '2023-10-15 11:15', '李四'],
             ['/src/api/index.js', '删除', '8', '2023-10-15 14:20', '王五'],
             ['/src/styles/main.css', '修改', '23', '2023-10-15 16:45', '张三']
-          ];
+          ]
         } else if (['png', 'jpg', 'jpeg'].includes(file.type)) {
           // 图片文件直接预览
-          this.fileContent = file.path;
+          this.fileContent = file.path
         } else {
           // 模拟Markdown/文档内容
           this.fileContent = `# 项目分析报告
@@ -512,24 +594,24 @@ export default {
 ## 建议
 1. 重构数据处理模块，提高性能
 2. 增加单元测试覆盖率
-3. 优化构建流程`;
+3. 优化构建流程`
         }
-      }, 500);
+      }, 500)
     },
 
     // 在外部打开文件
     async openFile(file) {
-      if (!file) return;
+      if (!file) return
 
       try {
         // 实际项目中应该使用以下代码打开文件
         // await window.electron.shell.openPath(file.path);
 
         // 由于我们使用模拟数据，这里只打印信息
-        console.log('打开文件:', file.path);
-        alert(`将在外部打开文件: ${file.name}`);
+        console.log('打开文件:', file.path)
+        alert(`将在外部打开文件: ${file.name}`)
       } catch (error) {
-        console.error('打开文件失败:', error);
+        console.error('打开文件失败:', error)
       }
     },
 
@@ -537,17 +619,17 @@ export default {
     getFileIcon(type) {
       switch (type) {
         case 'md':
-          return 'mdi-language-markdown-outline';
+          return 'mdi-language-markdown-outline'
         case 'docx':
-          return 'mdi-file-word-outline';
+          return 'mdi-file-word-outline'
         case 'csv':
-          return 'mdi-file-delimited-outline';
+          return 'mdi-file-delimited-outline'
         case 'png':
         case 'jpg':
         case 'jpeg':
-          return 'mdi-image-outline';
+          return 'mdi-image-outline'
         default:
-          return 'mdi-file-outline';
+          return 'mdi-file-outline'
       }
     },
 
@@ -555,17 +637,17 @@ export default {
     getFileIconColor(type) {
       switch (type) {
         case 'md':
-          return 'blue';
+          return 'blue'
         case 'docx':
-          return 'indigo';
+          return 'indigo'
         case 'csv':
-          return 'green';
+          return 'green'
         case 'png':
         case 'jpg':
         case 'jpeg':
-          return 'orange';
+          return 'orange'
         default:
-          return 'grey';
+          return 'grey'
       }
     },
 
@@ -573,28 +655,174 @@ export default {
     getFileTypeColor(type) {
       switch (type) {
         case 'md':
-          return 'blue';
+          return 'blue'
         case 'docx':
-          return 'indigo';
+          return 'indigo'
         case 'csv':
-          return 'green';
+          return 'green'
         case 'png':
         case 'jpg':
         case 'jpeg':
-          return 'orange';
+          return 'orange'
         default:
-          return 'grey';
+          return 'grey'
       }
     },
 
     // 格式化日期
     formatDate(date) {
-      if (!date) return '';
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+      if (!date) return ''
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
     }
   }
 }
 </script>
+
+<style scoped>
+[v-cloak] {
+  display: none;
+}
+
+.research-container {
+  width: 100%;
+  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: fadeIn 0.6s ease-out;
+}
+
+.research-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  animation: slideDown 0.5s ease-out;
+}
+
+.research-header h2 {
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.subtitle {
+  font-size: 1rem;
+  font-weight: normal;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+}
+
+.research-button {
+  background: rgba(var(--v-theme-primary-rgb), 0.9) !important;
+  color: white;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 12px rgba(var(--v-theme-primary-rgb), 0.3);
+}
+
+.research-button:hover {
+  background: rgba(var(--v-theme-primary-rgb), 1) !important;
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(var(--v-theme-primary-rgb), 0.4);
+}
+
+.refresh-button {
+  background: rgba(var(--v-theme-surface-rgb), 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  transition: all 0.3s ease;
+}
+
+.refresh-button:hover {
+  background: rgba(var(--v-theme-surface-rgb), 0.6);
+  transform: scale(1.05);
+}
+
+.content-card {
+  background: rgba(var(--v-theme-surface-rgb), 0.6);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 12px;
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.content-card:hover {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+}
+
+.content-container {
+  padding: 24px;
+}
+
+.v-list-item {
+  border-radius: 8px;
+  margin-bottom: 8px;
+  transition: all 0.3s ease;
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.v-list-item:hover {
+  background: rgba(var(--v-theme-surface-rgb), 0.8);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 暗色模式适配 */
+.v-theme--dark .content-card {
+  background: rgba(30, 30, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.v-theme--dark .v-list-item:hover {
+  background: rgba(40, 40, 40, 0.8);
+}
+
+.v-theme--dark .refresh-button {
+  background: rgba(40, 40, 40, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.v-theme--dark .refresh-button:hover {
+  background: rgba(40, 40, 40, 0.6);
+}
+</style>
 
 <style scoped>
 .git-research-container {
@@ -622,7 +850,8 @@ export default {
   border-collapse: collapse;
 }
 
-.csv-table th, .csv-table td {
+.csv-table th,
+.csv-table td {
   border: 1px solid #ddd;
   padding: 8px;
   text-align: left;
