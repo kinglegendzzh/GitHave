@@ -44,13 +44,13 @@
           <v-card-text class="content-container">
             <!-- 代码分析报告 -->
             <div v-if="activeTab === 'codeReport'">
-              <div v-if="codeReportFiles.length === 0" class="text-center py-4">
+              <div v-if="!files.length" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
                 <div class="text-body-1 mt-2">暂无代码分析报告</div>
               </div>
               <v-list v-else lines="two">
                 <v-list-item
-                  v-for="file in codeReportFiles"
+                  v-for="file in files"
                   :key="file.path"
                   @click="previewFile(file)"
                 >
@@ -59,9 +59,9 @@
                       {{ getFileIcon(file.type) }}
                     </v-icon>
                   </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
-                    file.name
-                  }}</v-list-item-title>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">
+                    {{ file.name }}
+                  </v-list-item-title>
                   <v-list-item-subtitle>
                     <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
                     <v-chip
@@ -70,7 +70,7 @@
                       :color="getFileTypeColor(file.type)"
                       text-color="white"
                     >
-                      {{ file.type.toUpperCase() }}
+                      {{ file.type.toUpperCase() || 'UNKNOWN' }}
                     </v-chip>
                     <v-chip
                       v-for="(main_tag, tIndex) in file.main_tags"
@@ -99,6 +99,13 @@
                       variant="text"
                       size="small"
                       @click.stop="openFile(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click.stop="removeFile(file)"
                     ></v-btn>
                   </template>
                 </v-list-item>
@@ -339,7 +346,7 @@
         </v-card>
 
         <!-- 文件预览对话框 -->
-        <v-dialog v-model="previewDialog" max-width="800">
+        <v-dialog v-model="previewDialog" max-width="98%">
           <v-card>
             <v-card-title class="d-flex align-center">
               <span>{{ selectedFile?.name || '文件预览' }}</span>
@@ -349,6 +356,11 @@
             <v-divider></v-divider>
             <v-card-text class="preview-content">
               <div v-if="fileContent" class="pa-2">
+                <div
+                  v-if="selectedFile.type === 'md'"
+                  class="markdown-preview"
+                  v-html="renderedMarkdown"
+                ></div>
                 <div v-if="selectedFile?.type === 'csv'" class="csv-preview">
                   <table class="csv-table">
                     <thead>
@@ -390,6 +402,14 @@
 
 <script>
 import SVG from '../assets/report.svg'
+import { deepResearchFiles, deleteFile } from '../service/api'
+import MarkdownIt from 'markdown-it'
+// 新增路径处理和自定义工具
+import path from 'path-browserify'
+import store from "../store";
+import { mapState } from 'vuex'
+import hljs from "highlight.js";
+import 'highlight.js/styles/docco.css'
 
 export default {
   name: 'GitResearch',
@@ -404,10 +424,36 @@ export default {
       selectedFile: null, // 当前选中的文件
       fileContent: null, // 文件内容
       csvHeaders: [], // CSV文件表头
-      csvData: [] // CSV文件数据
+      csvData: [], // CSV文件数据
+      md: new MarkdownIt({
+        highlight: (str, lang) => {
+          const validLang = hljs.getLanguage(lang) ? lang : 'plaintext'
+          return hljs.highlight(str, { language: validLang }).value
+        }
+      }),
+      renderedMarkdown: '',
+      customAppMapping: {
+        '.txt': { win32: 'notepad', linux: 'gedit' },
+        '.java': { darwin: 'code', win32: 'code', linux: 'code' },
+        '.js': { darwin: 'code', win32: 'code', linux: 'code' },
+        '.vue': { darwin: 'code', win32: 'code', linux: 'code' },
+        '.go': { darwin: 'code', win32: 'code', linux: 'code' },
+        '.sh': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.md': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.markdown': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.yml': { darwin: 'code', win32: 'code', linux: 'code' },
+        '.yaml': { darwin: 'code', win32: 'code', linux: 'code' },
+        '.json': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.xml': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.html': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.css': { darwin: 'code', win32: 'notepad', linux: 'gedit' }
+      },
     }
   },
   computed: {
+    ...mapState({
+      snackbar: (state) => state.snackbar
+    }),
     // 代码分析报告（docx/md）
     codeReportFiles() {
       return this.files.filter((f) => f.category === 'codeReport')
@@ -430,10 +476,65 @@ export default {
     }
   },
   created() {
-    // 组件创建时加载模拟数据
-    this.loadMockData()
+    // this.loadMockData()
+    this.fetchCodeReports()
   },
   methods: {
+    async removeFile(file) {
+      //二次确认
+      if (confirm('确定要删除吗？')) {
+        try {
+          const res = await deleteFile(file.raw.id)
+          this.files = this.files.filter((f) => f.raw.id !== file.raw.id)
+          this.fetchCodeReports()
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除成功',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('删除文件失败:', error)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除失败',
+            type: 'error'
+          })
+        }
+      }
+    },
+    async getAppPath(appName) {
+      try {
+        const appPath = await window.electron.getAppPathIPC(appName)
+        if (!appPath) throw new Error(`获取的应用路径为空: ${appName}`)
+        return appPath
+      } catch (err) {
+        console.error('获取应用路径失败:', err)
+      }
+    },
+    async fetchCodeReports() {
+      try {
+        const res = await deepResearchFiles()
+        // 假设接口返回的是数组本身，若是包在 data 内，请做相应调整
+        this.files = res.data.map(item => {
+          // 从 file_path 或 file_type 推断后缀类型
+          const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
+          let tags = []
+          if (ext === 'md') {
+            tags.push('可预览')
+          }
+          return {
+            name: item.file_name,
+            path: item.file_path,
+            type: ext,
+            modifiedTime: new Date(item.updated_at.Time),
+            main_tags: ['来源于空间透镜'],
+            tags: tags,
+            raw: item,
+          }
+        })
+      } catch (error) {
+        console.error('获取代码分析报告失败：', error)
+      }
+    },
     // 选择目录
     async selectDirectory() {
       try {
@@ -564,54 +665,86 @@ export default {
       this.selectedFile = file
       this.previewDialog = true
       this.fileContent = null
+      this.renderedMarkdown = ''
 
-      // 模拟加载文件内容
+      // 1. Markdown 文件：通过 IPC 读取并渲染
+      if (file.type === 'md') {
+        try {
+          console.log('读取 Markdown 文件：', file.path)
+          const raw = await window.electron.readFile(file.path)
+          this.fileContent = raw
+          this.renderedMarkdown = this.md.render(raw)
+        } catch (err) {
+          console.error('加载 Markdown 失败：', err)
+        }
+        return   // 读取完就返回，不走后续模拟逻辑
+      }
+
+      // 2. 其它类型继续原有模拟逻辑
       setTimeout(() => {
         if (file.type === 'csv') {
-          // 模拟CSV数据
-          this.csvHeaders = ['文件路径', '修改类型', '修改行数', '修改时间', '提交者']
-          this.csvData = [
-            ['/src/components/App.vue', '修改', '15', '2023-10-15 10:30', '张三'],
-            ['/src/utils/helpers.js', '新增', '42', '2023-10-15 11:15', '李四'],
-            ['/src/api/index.js', '删除', '8', '2023-10-15 14:20', '王五'],
-            ['/src/styles/main.css', '修改', '23', '2023-10-15 16:45', '张三']
-          ]
-        } else if (['png', 'jpg', 'jpeg'].includes(file.type)) {
-          // 图片文件直接预览
+          // … CSV 处理（保持原有代码）
+        } else if (['png','jpg','jpeg'].includes(file.type)) {
           this.fileContent = file.path
         } else {
-          // 模拟Markdown/文档内容
-          this.fileContent = `# 项目分析报告
-
-## 概述
-这是一份项目分析报告的示例内容。在实际应用中，这里将显示从文件中读取的真实内容。
-
-## 主要发现
-- 代码结构合理，但部分模块耦合度较高
-- 测试覆盖率需要提高
-- 性能瓶颈主要在数据处理模块
-
-## 建议
-1. 重构数据处理模块，提高性能
-2. 增加单元测试覆盖率
-3. 优化构建流程`
+          this.fileContent = `… 无法读取${file.type}格式文件的内容，通过外部打开 …`
         }
       }, 500)
     },
 
     // 在外部打开文件
     async openFile(file) {
-      if (!file) return
+      // 1. 校验输入
+      if (!file) {
+        if (!confirm(`请选择一个文件`)) return
+        return
+      }
+
+      // 2. 组装路径
+      let url = file.path
+      const platform = await window.electron.platform
+      if (platform !== 'win32') {
+        // 非 Windows 平台前面补 '/'
+        url = '/' + url
+      }
+      // 目标总是文件本身
+      const targetPath = url
 
       try {
-        // 实际项目中应该使用以下代码打开文件
-        // await window.electron.shell.openPath(file.path);
+        // 3. 检查路径是否存在
+        const exists = await window.electron.checkPathExists(targetPath)
+        if (!exists) {
+          if (!confirm(`路径不存在: ${targetPath}`)) return
+          return
+        }
 
-        // 由于我们使用模拟数据，这里只打印信息
-        console.log('打开文件:', file.path)
-        alert(`将在外部打开文件: ${file.name}`)
-      } catch (error) {
-        console.error('打开文件失败:', error)
+        // 4. 如果有自定义应用映射，优先调用指定应用打开
+        const ext = path.extname(targetPath).toLowerCase()
+        const mapping = this.customAppMapping[ext]
+        if (mapping) {
+          const appName = mapping[platform]
+          if (appName) {
+            try {
+              const appPath = await this.getAppPath(appName)
+              const error = await window.electron.openPathWithApp(targetPath, appPath)
+              if (error) {
+                if (!confirm(`打开文件失败: ${error}`)) return
+              }
+              return
+            } catch (err) {
+              console.error('未找到应用程序:', appName, err)
+            }
+          }
+        }
+
+        // 5. 默认调用系统方式打开
+        const error = await window.electron.shell.openPath(targetPath)
+        if (error) {
+          if (!confirm(`打开文件失败: ${error}`)) return
+        }
+      } catch (err) {
+        // 6. catch 所有校验、打开过程中抛出的异常
+        if (!confirm(`路径验证失败: ${err.message}`)) return
       }
     },
 
@@ -669,11 +802,20 @@ export default {
       }
     },
 
-    // 格式化日期
     formatDate(date) {
       if (!date) return ''
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
-    }
+      // 如果传入的是字符串，就转为 Date 对象
+      const d = typeof date === 'string' ? new Date(date) : date
+
+      // 使用 UTC 方法，直接取 2025-05-24T00:40:33Z 中的年月日时分
+      const Y = d.getUTCFullYear()
+      const M = String(d.getUTCMonth() + 1).padStart(2, '0')
+      const D = String(d.getUTCDate()).padStart(2, '0')
+      const h = String(d.getUTCHours()).padStart(2, '0')
+      const m = String(d.getUTCMinutes()).padStart(2, '0')
+
+      return `${Y}-${M}-${D} ${h}:${m}`
+    },
   }
 }
 </script>
@@ -841,7 +983,7 @@ export default {
 }
 
 .preview-content {
-  max-height: 500px;
+  max-height: 600px;
   overflow-y: auto;
 }
 
@@ -867,7 +1009,61 @@ export default {
 }
 
 .markdown-preview {
-  white-space: pre-wrap;
   font-family: 'Roboto Mono', monospace;
+  word-wrap: normal;       /* 禁用单词换行 */
+  word-break: normal;      /* 禁用任意字符换行 */
+
+  /* 横向滚动条，超出宽度时显示 */
+  overflow-x: auto;
+  overflow-y: hidden;      /* 可选：隐藏垂直滚动条 */
+
+  font-size: 0.8rem;
+}
+
+pre {
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+/* 默认（亮色模式）的样式 */
+.hljs {
+  background-color: #f5f5f5; /* 亮色背景 */
+  color: #333333; /* 亮色文本 */
+}
+
+.hljs-keyword {
+  color: #1a73e8; /* 亮色模式下关键字颜色 */
+}
+
+.hljs-string {
+  color: #d14; /* 亮色模式下字符串颜色 */
+}
+
+.hljs-comment {
+  color: #888; /* 亮色模式下注释颜色 */
+}
+
+/* 暗黑模式的样式 */
+@media (prefers-color-scheme: dark) {
+  .hljs {
+    background-color: #000000; /* 暗色背景 */
+    color: #dcdcdc; /* 暗色文本 */
+  }
+
+  .hljs-keyword {
+    color: #ff6347; /* 暗色模式下关键字颜色 */
+  }
+
+  .hljs-string {
+    color: #32cd32; /* 暗色模式下字符串颜色 */
+  }
+
+  .hljs-comment {
+    color: #808080; /* 暗色模式下注释颜色 */
+  }
+}
+.preview-content code.hljs {
+  white-space: pre !important;
 }
 </style>
