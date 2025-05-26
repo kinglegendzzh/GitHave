@@ -13,10 +13,10 @@
           class="placeholder-image"
           style="max-width: 300px; opacity: 0.8"
         />
-        <v-btn color="primary" class="mt-6 research-button" elevation="0" @click="selectDirectory">
-          <v-icon left>mdi-folder-open</v-icon>
-          选择研究目录
-        </v-btn>
+<!--        <v-btn color="primary" class="mt-6 research-button" elevation="0" @click="selectDirectory">-->
+<!--          <v-icon left>mdi-folder-open</v-icon>-->
+<!--          初始化指定存储目录-->
+<!--        </v-btn>-->
       </div>
 
       <!-- 文件列表展示 -->
@@ -25,10 +25,10 @@
           <h2>
             枢纽 <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
           </h2>
-          <v-btn class="refresh-button" elevation="0" @click="selectDirectory">
-            <v-icon left>mdi-refresh</v-icon>
-            刷新
-          </v-btn>
+<!--          <v-btn class="refresh-button" elevation="0" @click="selectDirectory">-->
+<!--            <v-icon left>mdi-refresh</v-icon>-->
+<!--            刷新-->
+<!--          </v-btn>-->
         </div>
 
         <!-- 文件类型标签页 -->
@@ -36,6 +36,7 @@
           <v-tab value="codeReport">代码分析报告</v-tab>
           <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
           <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
+          <v-tab value="weekly">代码仓库周刊</v-tab>
           <v-tab value="commitDetails">提交记录修改明细</v-tab>
           <v-tab value="commitAnalysis">提交记录分析报告</v-tab>
         </v-tabs>
@@ -346,7 +347,7 @@
         </v-card>
 
         <!-- 文件预览对话框 -->
-        <v-dialog v-model="previewDialog" max-width="98%">
+        <v-dialog v-model="previewDialog" max-width="98%" >
           <v-card>
             <v-card-title class="d-flex align-center">
               <span>{{ selectedFile?.name || '文件预览' }}</span>
@@ -378,7 +379,7 @@
                 <div v-else-if="['png', 'jpg', 'jpeg'].includes(selectedFile?.type)">
                   <img :src="fileContent" style="max-width: 100%" />
                 </div>
-                <div v-else class="markdown-preview">
+                <div v-else-if="selectedFile?.type === 'docx'">
                   {{ fileContent }}
                 </div>
               </div>
@@ -511,26 +512,49 @@ export default {
     },
     async fetchCodeReports() {
       try {
+        // 1. 先拿到静态示例文件列表
+        const examples = await window.electron.getStaticFileList('static', 'deep_research')
+        console.log('示例文件列表', examples)
+
+        // 2. 再调用后端接口拿到实际报告
         const res = await deepResearchFiles()
-        // 假设接口返回的是数组本身，若是包在 data 内，请做相应调整
-        this.files = res.data.map(item => {
-          // 从 file_path 或 file_type 推断后缀类型
+        // 假设 res.data 就是文件数组
+        const apiFiles = res.data.map(item => {
           const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
           const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
-          let tags = []
-          if (ext === 'md') {
-            tags.push('可预览')
-          }
+          const tags = ext === 'md' ? ['可预览'] : []
           return {
             name: item.file_name,
             path: item.file_path,
             type: ext,
             modifiedTime: new Date(item.updated_at.Time),
             main_tags: ['来源于空间透镜'],
-            tags: tags,
+            tags,
             raw: item,
           }
         })
+
+        // 3. 把静态示例文件也映射成同样的结构
+        const exampleFiles = examples.map(file => {
+          const extMatch = file.name.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : ''
+          const tags = ext === 'md' ? ['可预览'] : []
+          return {
+            name: file.name,
+            path: file.path,
+            type: ext,
+            modifiedTime: new Date(file.creationDate),
+            main_tags: ['示例文件'],   // 可以改成你需要的标签
+            tags,
+            raw: file,
+          }
+        })
+
+        // 4. 合并两部分到 this.files
+        this.files = [
+          ...apiFiles,
+          ...exampleFiles,
+        ]
       } catch (error) {
         console.error('获取代码分析报告失败：', error)
       }
@@ -687,7 +711,7 @@ export default {
         } else if (['png','jpg','jpeg'].includes(file.type)) {
           this.fileContent = file.path
         } else {
-          this.fileContent = `… 无法读取${file.type}格式文件的内容，通过外部打开 …`
+          this.fileContent = `无法读取${file.type}格式文件的内容，通过外部打开`
         }
       }, 500)
     },
@@ -983,7 +1007,7 @@ export default {
 }
 
 .preview-content {
-  max-height: 600px;
+  max-height: 75vh;
   overflow-y: auto;
 }
 
