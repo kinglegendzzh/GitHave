@@ -153,16 +153,18 @@
         </template>
         <span>刷新</span>
       </v-tooltip>
+      <!-- 切换核心服务状态的按钮 -->
       <v-tooltip class="no-drag-region" bottom>
         <template #activator="{ props }">
-          <!-- 切换核心服务状态的按钮 -->
           <v-btn
             icon
             class="ml-4 no-drag-region"
             v-bind="props"
             :disabled="
-              appHealthState === '正在清理端口并重启核心服务' || appHealthState === '正在重启'
-            "
+          isTogglingApp ||
+          appHealthState === '正在清理端口并重启核心服务' ||
+          appHealthState === '正在重启'
+        "
             @click="toggleAppService"
           >
             <v-icon>mdi-laptop</v-icon>
@@ -170,14 +172,19 @@
         </template>
         <span>{{ toggleAppTip }}</span>
       </v-tooltip>
+
+      <!-- 切换 AI 索引服务状态的按钮 -->
       <v-tooltip class="no-drag-region" bottom>
         <template #activator="{ props }">
-          <!-- 切换核心服务状态的按钮 -->
           <v-btn
             icon
             class="ml-4 no-drag-region"
             v-bind="props"
-            :disabled="fmHttpHealthState === '正在清理端口并重启AI索引' || fmHttpHealthState === '正在重启'"
+            :disabled="
+          isTogglingFm ||
+          fmHttpHealthState === '正在清理端口并重启AI索引' ||
+          fmHttpHealthState === '正在重启'
+        "
             @click="toggleFmHttpService"
           >
             <v-icon>mdi-flash</v-icon>
@@ -234,6 +241,7 @@ import bannerSrc from '../assets/banner.svg'
 import titleSrc from '../assets/title.svg'
 import titleNSrc from '../assets/title-night.svg'
 import { RouterView } from 'vue-router'
+import {fmHealthCheck, appHealthCheck, faissHealthCheck} from "../service/api";
 
 export default {
   name: 'MainLayout',
@@ -244,7 +252,7 @@ export default {
     return {
       isTogglingApp: false,  // 核心服务按钮防连点
       isTogglingFm: false,   // 索引服务按钮防连点
-      isCompactMode: false, // 紧凑模式开关
+      isCompactMode: true, // 紧凑模式开关
       // 健康状态枚举：支持 "正在重启"、"已关闭"、"已启动"
       toggleAppTip: '强制关闭核心服务',
       appHealthState: '正在重启',
@@ -264,15 +272,15 @@ export default {
           expanded: false,
           children: [
             { title: '深度搜索', to: '/search', icon: 'mdi-book-search' },
-            { title: '代码记忆', to: '/memory', icon: 'mdi-brain' },
+            // { title: '代码记忆', to: '/memory', icon: 'mdi-brain' },
             { title: '空间透镜', to: '/space', icon: 'mdi-telescope' },
-            { title: '代码预览', to: '/finder', icon: 'mdi-code-block-tags' },
+            { title: '代码视窗', to: '/finder', icon: 'mdi-code-block-tags' },
             { title: '提交审查', to: '/commits/history', icon: 'mdi-github' },
             { title: '推送机器人', to: '/sender', icon: 'mdi-send' },
           ]
         },
         {
-          title: '仓库配置',
+          title: '仓库管理',
           icon: 'mdi-source-repository',
           expanded: false,
           children: [
@@ -281,12 +289,12 @@ export default {
           ]
         },
         {
-          title: 'AI配置',
+          title: '配置中心',
           icon: 'mdi-cogs',
           expanded: false,
           children: [
-            { title: '模型与角色', to: '/model', icon: 'mdi-cards-playing-club-multiple-outline' },
-            { title: '智能体', to: '/agent', icon: 'mdi-robot-happy-outline' }
+            { title: '模型配置', to: '/model', icon: 'mdi-cards-playing-club-multiple-outline' },
+            { title: '智能体配置', to: '/agent', icon: 'mdi-robot-happy-outline' }
           ]
         },
         {
@@ -294,8 +302,11 @@ export default {
           icon: 'mdi-hammer-sickle',
           expanded: false,
           children: [
-            { title: '公共仓库周刊', to: '/public/weekly', icon: 'mdi-newspaper' },
-            { title: '公共AI索引', to: '/weekly/flashmemory', icon: 'mdi-flash' }
+            { title: '核心技术报告', to: '/', icon: 'mdi-atom' },
+            { title: '代码维基', to: '/', icon: 'mdi-wikipedia' },
+            { title: '仓库周刊', to: '/', icon: 'mdi-newspaper' },
+            { title: '公共配置镜像', to: '/', icon: 'mdi-mirror-rectangle' },
+            { title: '公共索引镜像', to: '/', icon: 'mdi-flash' },
           ]
         }
       ],
@@ -306,6 +317,7 @@ export default {
       ollamaRunning: false,
       ollamaPid: null,
       pythonInstalled: false,
+      pandocInstalled: false,
       attemptedStart: false,
       healthState: 'ing',
       showConfigSnackbar: false,  // 控制提示气泡显示
@@ -384,10 +396,11 @@ export default {
         this.fmHttpHealthState = '已关闭'
       }
 
-      const ollama = await this.checkOllama()
+      // const ollama = await this.checkOllama()
       const python = await this.checkPython()
-      this.healthState = (ollama && python) ? 'yes' : 'no'
-    }, 5000)
+      const pandoc = await this.checkPandoc()
+      this.healthState = ( python && pandoc) ? 'yes' : 'no'
+    }, 3000)
   },
   beforeUnmount() {
     if (this.healthInterval) {
@@ -457,6 +470,16 @@ export default {
         return false;
       }
     },
+    async checkPandoc() {
+      try {
+        const { installed, version } = await window.electron.checkPandocIPC()
+        this.pandocInstalled = installed
+        return installed
+      } catch {
+        this.pandocInstalled = false
+        return false
+      }
+    },
     changeFmHttpTip(state) {
       switch (state) {
         case '正在重启':
@@ -474,26 +497,26 @@ export default {
     },
 
     async toggleFmHttpService() {
+      if (this.isTogglingFm) return;
+      this.isTogglingFm = true;
+      // 3 秒后恢复按钮可用
+      setTimeout(() => { this.isTogglingFm = false }, 3000);
+
       try {
-        const fmConfigResp = await window.electron.fmConfig()
-        console.log('configPath:', fmConfigResp.configPath)
+        const fmConfigResp = await window.electron.fmConfig();
         if (this.fmHttpHealthState === '已关闭') {
-          const startResult = await window.electron.startFmHttp(fmConfigResp.configPath)
-          if (!startResult.started) {
-            console.error('启动 fm_http 服务失败:', startResult.error)
-            return
+          const startResult = await window.electron.startFmHttp(fmConfigResp.configPath);
+          if (startResult.started) {
+            this.fmHttpHealthState = '已启动';
           }
-          this.fmHttpHealthState = '已启动'
         } else if (this.fmHttpHealthState === '已启动') {
-          const stopResult = await window.electron.stopFmHttp()
-          if (!stopResult.stopped) {
-            console.error('停止 fm_http 服务失败:', stopResult.error)
-            return
+          const stopResult = await window.electron.stopFmHttp();
+          if (stopResult.stopped) {
+            this.fmHttpHealthState = '已关闭';
           }
-          this.fmHttpHealthState = '已关闭'
         }
       } catch (error) {
-        console.error('切换 fm_http 服务状态失败:', error)
+        console.error('切换 fm_http 服务状态失败：', error);
       }
     },
     async handleNav(item) {
@@ -509,7 +532,7 @@ export default {
       this.$router.push(item.to)
     },
     async toggleCompactMode() {
-      const factor = this.isCompactMode ? 1 : 0.85 // true→还原，false→紧凑
+      const factor = this.isCompactMode ? 1 : 0.875 // true→还原，false→紧凑
       await window.electron.setZoomFactor(factor)
       this.isCompactMode = !this.isCompactMode
       localStorage.setItem('isCompactMode', this.isCompactMode)
@@ -536,33 +559,26 @@ export default {
       location.reload()
     },
     async toggleAppService() {
+      if (this.isTogglingApp) return;
+      this.isTogglingApp = true;
+      // 3 秒后恢复按钮可用
+      setTimeout(() => { this.isTogglingApp = false }, 2000);
+
       try {
-        // 获取系统配置路径，注意启动服务需要配置路径，停止服务则不需要
-        const sysConfigResp = await window.electron.sysConfig()
-        console.log('configPath:', sysConfigResp.configPath)
+        const sysConfigResp = await window.electron.sysConfig();
         if (this.appHealthState === '已关闭' || this.appHealthState === '未启动') {
-          console.log('当前状态为已关闭（未启动），开始启动 app 服务...')
-          // 调用启动接口启动 app 服务
-          const startResult = await window.electron.startApp(sysConfigResp.configPath)
-          if (!startResult.started) {
-            console.error('启动 app 服务失败:', startResult.error)
-            return
+          const startResult = await window.electron.startApp(sysConfigResp.configPath);
+          if (startResult.started) {
+            this.appHealthState = '已启动';
           }
-          console.log('app 服务启动成功，新 pid:', startResult.pid)
-          this.appHealthState = '已启动'
         } else if (this.appHealthState === '已启动') {
-          console.log('当前状态为已启动，开始停止 app 服务...')
-          // 调用停止接口停止 app 服务
-          const stopResult = await window.electron.stopApp()
-          if (!stopResult.stopped) {
-            console.error('停止 app 服务失败:', stopResult.error)
-            return
+          const stopResult = await window.electron.stopApp();
+          if (stopResult.stopped) {
+            this.appHealthState = '已关闭';
           }
-          console.log('app 服务已停止')
-          this.appHealthState = '已关闭'
         }
       } catch (error) {
-        console.error('切换 app 服务状态失败:', error)
+        console.error('切换 app 服务状态失败：', error);
       }
     },
     toggleTheme() {
