@@ -3,7 +3,7 @@
 const { app, BrowserWindow, ipcMain, protocol, shell, dialog } = require('electron')
 const installExtension = require('electron-devtools-installer').default
 const { VUEJS_DEVTOOLS } = require('electron-devtools-installer')
-const { spawn, exec } = require('child_process')
+const { spawn, exec, spawnSync } = require('child_process')
 const { is } = require('@electron-toolkit/utils')
 const path = require('path')
 const fs = require('fs')
@@ -15,6 +15,8 @@ const net = require('net')
 const killPort = require('kill-port')
 const winston = require('winston')
 const { format, transports } = winston
+const fsPromises = fs.promises
+const { readdir, stat } = require('fs/promises');
 
 remoteMain.initialize()
 const BOT_PORT = 19150
@@ -32,6 +34,7 @@ let isRestartingApp = false
 //【新增】全局标记，表示正在异步清理端口占用的进程（供 check-health 使用）
 let isClearingBot = false
 let isClearingApp = false
+let isClearingFm = false
 
 let timeout = 0
 
@@ -75,8 +78,8 @@ function flushLogQueue() {
   isFlushing = false
 }
 
-// 每隔2秒刷新一次日志队列（根据业务情况可调整间隔时间）
-setInterval(flushLogQueue, 2000)
+// 每隔7秒刷新一次日志队列（根据业务情况可调整间隔时间）
+setInterval(flushLogQueue, 7000)
 
 // 封装日志记录方法，将日志追加到队列中
 function logMessage(level, ...args) {
@@ -88,9 +91,19 @@ function logMessage(level, ...args) {
 const isProduction = process.env.NODE_ENV === 'production'
 const isDevelopment = !isProduction
 if (isProduction) {
-  // 生产环境关闭 console 输出（不建议在生产环境下大量输出）
-  console.log = () => {}
-  console.error = () => {}
+  // // 生产环境关闭 console 输出（不建议在生产环境下大量输出）
+  // console.log = () => {}
+  // console.error = () => {}
+  const originalLog = console.log
+  const originalError = console.error
+  console.log = (...args) => {
+    originalLog(...args)
+    logMessage('info', ...args)
+  }
+  console.error = (...args) => {
+    originalError(...args)
+    logMessage('error', ...args)
+  }
 } else {
   const originalLog = console.log
   const originalError = console.error
@@ -109,18 +122,18 @@ console.log('应用启动，使用 winston 日志记录器')
 console.error('模拟错误信息，用于测试日志输出')
 
 // GPU 和缓存优化命令行参数
-app.disableHardwareAcceleration()
-app.commandLine.appendSwitch('ignore-gpu-blocklist')
-app.commandLine.appendSwitch('enable-gpu-rasterization')
-app.commandLine.appendSwitch('enable-zero-copy')
-app.commandLine.appendSwitch('enable-accelerated-2d-canvas')
-app.commandLine.appendSwitch('disk-cache-size', (100 * 1024 * 1024).toString()) // 100MB 缓存
+// app.disableHardwareAcceleration()
+// app.commandLine.appendSwitch('ignore-gpu-blocklist')
+// app.commandLine.appendSwitch('enable-gpu-rasterization')
+// app.commandLine.appendSwitch('enable-zero-copy')
+// app.commandLine.appendSwitch('enable-accelerated-2d-canvas')
+// app.commandLine.appendSwitch('disk-cache-size', (100 * 1024 * 1024).toString()) // 100MB 缓存
 
 // 定义全局变量保存启动后的进程
 // 注意：根据新要求，不进行自启动
 let botProcess = null
 let appProcess = null
-const childProcesses = []
+let childProcesses = []
 const STATIC_SERVER_PORT = 19166
 
 // 保留启动静态服务器函数（仅开发环境可能使用）
@@ -158,9 +171,20 @@ function getResourcePath(fileName) {
   return path.join(app.getAppPath(), 'bin', fileName)
 }
 
+function getUserResourcePath(fileName) {
+  if (app.isPackaged) {
+    const p = path.join(app.getPath('userData'), fileName);
+    console.log('getUserResourcePath', p)
+    return p
+  }
+  const p = path.join(app.getAppPath(), 'bin', fileName)
+  console.log('getUserResourcePath', p)
+  return p
+}
+
 function getExecutablePath(name) {
   const ext = process.platform === 'win32' ? '.exe' : ''
-  return getResourcePath(name + ext)
+  return getUserResourcePath(name + ext)
 }
 
 // 辅助函数：执行命令并返回 stdout（错误交由调用者处理）
@@ -262,19 +286,19 @@ async function clearOccupiedPorts() {
   }
 
   // 检查 fm_http 端口是否被占用
-  const fmHttpOccupied = await checkPortAndStore(FM_PORT, 'fm_http');
+  const fmHttpOccupied = await checkPortAndStore(FM_PORT, 'fm_http')
   if (fmHttpOccupied !== null) {
-    isClearingApp = true;
-    timeout += 5000;
-    const result = await killPort(FM_PORT);
+    isClearingFm = true
+    timeout += 5000
+    const result = await killPort(FM_PORT)
     if (result === 'timeout') {
-      winstonLogger.log('warn', `清理 fm_http 端口 ${FM_PORT} 超时，跳过等待`);
+      winstonLogger.log('warn', `清理 fm_http 端口 ${FM_PORT} 超时，跳过等待`)
     } else {
-      winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 已清理`);
+      winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 已清理`)
     }
-    isClearingApp = false;
+    isClearingFm = false
   } else {
-    winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 空闲，跳过清理`);
+    winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 空闲，跳过清理`)
   }
 }
 
@@ -302,7 +326,19 @@ ipcMain.handle('dialog:openDirectory', async (event, options) => {
 ipcMain.handle('sys-config', async (event, options) => {
   let configPath = ''
   try {
-    configPath = getResourcePath('config.yaml')
+    configPath = getUserResourcePath('config.yaml')
+  } catch (err) {
+    console.error('Error reading config.yaml:', err)
+  }
+  return {
+    configPath
+  }
+})
+
+ipcMain.handle('fm-config', async (event, options) => {
+  let configPath = ''
+  try {
+    configPath = getUserResourcePath('fm.yaml')
   } catch (err) {
     console.error('Error reading config.yaml:', err)
   }
@@ -328,7 +364,7 @@ ipcMain.handle('start-bot', async (event, configPath) => {
   }
 
   const botPath = getExecutablePath('bot')
-  const newBot = spawnAndTrack(botPath, ['-config', configPath], {
+  const newBot = spawnAndTrack(botPath, ['-config', configPath, '-db', getUserResourcePath('githave.db')], {
     detached: true,
     stdio: 'ignore'
   })
@@ -350,10 +386,26 @@ ipcMain.handle('stop-bot', async (event) => {
     try {
       proc.kill()
       winstonLogger.log('info', `[IPC stop-bot] 杀死 Bot 进程，pid: ${proc.pid}`)
+      childProcesses = childProcesses.filter((p) => p.pid !== proc.pid)
+      winstonLogger.log('info', `childProcesses: ${childProcesses}`)
     } catch (err) {
       console.error('[IPC stop-bot] 停止 Bot 时出错:', err)
       return { stopped: false, error: err.toString() }
     }
+  }
+  const botOccupied = await checkPortAndStore(BOT_PORT, 'bot')
+  if (botOccupied !== null) {
+    isClearingBot = true
+    timeout += 5000
+    const result = await killPort(BOT_PORT)
+    if (result === 'timeout') {
+      winstonLogger.log('warn', `清理 BOT_PORT ${BOT_PORT} 超时，跳过等待`)
+    } else {
+      winstonLogger.log('info', `BOT_PORT ${BOT_PORT} 已清理`)
+    }
+    isClearingBot = false
+  } else {
+    winstonLogger.log('info', `BOT_PORT ${BOT_PORT} 空闲，跳过清理`)
   }
   return { stopped: true }
 })
@@ -375,7 +427,7 @@ ipcMain.handle('start-app', async (event, configPath) => {
   }
 
   const appPath = getExecutablePath('app')
-  const newApp = spawnAndTrack(appPath, ['-config', configPath], {
+  const newApp = spawnAndTrack(appPath, ['-config', configPath, '-db', getUserResourcePath('githave.db')], {
     detached: true,
     stdio: 'ignore'
   })
@@ -397,10 +449,26 @@ ipcMain.handle('stop-app', async (event) => {
     try {
       proc.kill()
       winstonLogger.log('info', `[IPC stop-app] 杀死 App 进程，pid: ${proc.pid}`)
+      childProcesses = childProcesses.filter((p) => p.pid !== proc.pid)
+      winstonLogger.log('info', `childProcesses: ${childProcesses}`)
     } catch (err) {
       console.error('[IPC stop-app] 停止 App 时出错:', err)
       return { stopped: false, error: err.toString() }
     }
+  }
+  const appOccupied = await checkPortAndStore(APP_PORT, 'app')
+  if (appOccupied !== null) {
+    isClearingApp = true
+    timeout += 5000
+    const result = await killPort(APP_PORT)
+    if (result === 'timeout') {
+      winstonLogger.log('warn', `清理 APP_PORT ${APP_PORT} 超时，跳过等待`)
+    } else {
+      winstonLogger.log('info', `APP_PORT ${APP_PORT} 已清理`)
+    }
+    isClearingApp = false
+  } else {
+    winstonLogger.log('info', `APP_PORT ${APP_PORT} 空闲，跳过清理`)
   }
   return { stopped: true }
 })
@@ -408,7 +476,7 @@ ipcMain.handle('stop-app', async (event) => {
 // 修改后的 check-bot-health IPC 处理函数
 ipcMain.handle('check-bot-health', async () => {
   if (isClearingBot) {
-    return { state: '正在清理端口并重启核心服务' }
+    return { state: '正在清理端口并重启Bot服务' }
   }
   const botProc = childProcesses.find((proc) => proc.tag === 'bot')
   if (botProc && !botProc.killed) {
@@ -440,68 +508,98 @@ ipcMain.handle('start-fm_http', async (event, configPath) => {
     `[IPC start-fm_http] 启动外部程序的路径: ${getExecutablePaths()
       .map((f) => f.path)
       .join(', ')}`
-  );
+  )
 
   // 检查是否已存在 tag 为 'fm_http' 的子进程
-  const existingFmHttp = childProcesses.find((proc) => proc.tag === 'fm_http');
+  const existingFmHttp = childProcesses.find((proc) => proc.tag === 'fm_http')
   if (existingFmHttp) {
-    console.log('[IPC start-fm_http] fm_http 已经在运行，无需重复启动');
-    return { started: true, message: 'fm_http already running', pid: existingFmHttp.pid };
+    console.log('[IPC start-fm_http] fm_http 已经在运行，无需重复启动')
+    return { started: true, message: 'fm_http already running', pid: existingFmHttp.pid }
   }
 
-  const fmHttpPath = getExecutablePath('fm_http');
+  const fmHttpPath = getExecutablePath('fm_http')
   const newFmHttp = spawnAndTrack(fmHttpPath, ['-config', configPath], {
     detached: true,
     stdio: 'ignore'
-  });
-  newFmHttp.unref();
-  newFmHttp.tag = 'fm_http'; // 设置标记以便后续识别
-  winstonLogger.log('info', `[IPC start-fm_http] fm_http 启动成功，新的 pid: ${newFmHttp.pid}`);
-  return { started: true, pid: newFmHttp.pid };
-});
+  })
+  newFmHttp.unref()
+  newFmHttp.tag = 'fm_http' // 设置标记以便后续识别
+  winstonLogger.log('info', `[IPC start-fm_http] fm_http 启动成功，新的 pid: ${newFmHttp.pid}`)
+  return { started: true, pid: newFmHttp.pid }
+})
 
 // 修改后的 stop-fm_http IPC 处理函数
 ipcMain.handle('stop-fm_http', async (event) => {
   // 从 childProcesses 中筛选出 tag 为 'fm_http' 的所有进程
-  const fmHttpProcesses = childProcesses.filter((proc) => proc.tag === 'fm_http');
+  const fmHttpProcesses = childProcesses.filter((proc) => proc.tag === 'fm_http')
   if (fmHttpProcesses.length === 0) {
-    console.log('[IPC stop-fm_http] 没有发现正在运行的 fm_http 进程');
-    return { stopped: true, message: 'No fm_http process running' };
+    console.log('[IPC stop-fm_http] 没有发现正在运行的 fm_http 进程')
+    return { stopped: true, message: 'No fm_http process running' }
   }
   for (const proc of fmHttpProcesses) {
     try {
-      proc.kill();
-      winstonLogger.log('info', `[IPC stop-fm_http] 杀死 fm_http 进程，pid: ${proc.pid}`);
+      proc.kill()
+      winstonLogger.log('info', `[IPC stop-fm_http] 杀死 fm_http 进程，pid: ${proc.pid}`)
+      //将fm_http从childProcesses中移除
+      childProcesses = childProcesses.filter((p) => p.pid !== proc.pid)
+      winstonLogger.log('info', `childProcesses: ${childProcesses}`)
     } catch (err) {
-      console.error('[IPC stop-fm_http] 停止 fm_http 时出错:', err);
-      return { stopped: false, error: err.toString() };
+      console.error('[IPC stop-fm_http] 停止 fm_http 时出错:', err)
+      return { stopped: false, error: err.toString() }
     }
   }
-  return { stopped: true };
-});
+  const fmHttpOccupied = await checkPortAndStore(FM_PORT, 'fm_http')
+  if (fmHttpOccupied !== null) {
+    isClearingFm = true
+    timeout += 5000
+    const result = await killPort(FM_PORT)
+    if (result === 'timeout') {
+      winstonLogger.log('warn', `清理 fm_http 端口 ${FM_PORT} 超时，跳过等待`)
+    } else {
+      winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 已清理`)
+    }
+    isClearingFm = false
+  } else {
+    winstonLogger.log('info', `fm_http 端口 ${FM_PORT} 空闲，跳过清理`)
+  }
+  return { stopped: true }
+})
 
 // 修改后的 check-fm_http-health IPC 处理函数
 ipcMain.handle('check-fm_http-health', async () => {
-  const fmHttpProc = childProcesses.find((proc) => proc.tag === 'fm_http');
-  if (fmHttpProc && !fmHttpProc.killed) {
-    console.log(`[IPC check-fm_http-health] fm_http 已启动, pid: ${fmHttpProc.pid}`);
-    return { state: '已启动', pid: fmHttpProc.pid };
-  } else {
-    console.log('[IPC check-fm_http-health] fm_http 已关闭');
-    return { state: '已关闭' };
+  if (isClearingFm) {
+    return { state: '正在清理端口并重启AI索引' }
   }
-});
-
+  const fmHttpProc = childProcesses.find((proc) => proc.tag === 'fm_http')
+  if (fmHttpProc && !fmHttpProc.killed) {
+    return { state: '已启动', pid: fmHttpProc.pid }
+  } else {
+    return { state: '已关闭' }
+  }
+})
 
 ipcMain.handle('read-config', async (event, configPath = null) => {
   console.log('[IPC read-config] Received configPath:', configPath)
   try {
-    if (!configPath) configPath = getResourcePath('config.yaml')
+    if (!configPath) configPath = getUserResourcePath('config.yaml')
     const data = await fs.promises.readFile(configPath, 'utf-8')
     console.log('[IPC read-config] Read data successfully')
     return data
   } catch (err) {
     console.error('[IPC read-config] Error reading config.yaml:', err)
+    throw err
+  }
+})
+
+ipcMain.handle('read-fm-config', async (event, configPath = null) => {
+  console.log('[IPC read-fm-config] Received fm configPath:', configPath)
+  try {
+    if (!configPath) configPath = getUserResourcePath('fm.yaml')
+    const data = await fs.promises.readFile(configPath, 'utf-8')
+    console.log('[IPC read-fm-config] Read fm data successfully')
+    return data
+  } catch (err) {
+    console.error('[IPC read-fm-config] Error reading fm config.yaml:', err)
     throw err
   }
 })
@@ -577,7 +675,7 @@ ipcMain.handle('open-path-with-app', async (event, targetPath, appPath) => {
     console.log('[IPC open-path-with-app] Opened path successfully')
     return
   } catch (error) {
-    console.error(`[IPC open-path-with-app] Error opening ${targetPath} with ${appPath}:`, error)
+    console.error(`[IPC open-path-with-app] Error opening ${resolvedPath} with ${appPath}:`, error)
     throw error
   }
 })
@@ -606,6 +704,15 @@ function getOllamaPath() {
   }
 }
 
+function getPandocPath() {
+  // Windows上通常安装在Program Files目录下，但也可能在PATH中
+  // macOS和Linux上通常在/usr/local/bin/pandoc
+  if (process.platform === 'win32') {
+    return 'pandoc' // Windows上使用命令名称，依赖PATH环境变量
+  } else {
+    return '/usr/local/bin/pandoc' // macOS和Linux上使用完整路径
+  }
+}
 
 ipcMain.handle('check-ollama', async () => {
   const ollamaCmd = getOllamaPath();
@@ -614,67 +721,99 @@ ipcMain.handle('check-ollama', async () => {
     // 调用 --version，比 serve 安全，不会占端口
     await execAsync(`${ollamaCmd} --version`);
   } catch (err) {
-    console.error('[IPC check-ollama] ollama 未安装或无法执行:', err);
-    return { installed: false, running: false };
+    console.error('[IPC check-ollama] ollama 未安装或无法执行:', err)
+    return { installed: false, running: false }
   }
 
   // 第二步：检查默认端口（11434）是否有 ollama 进程在监听
   try {
-    const result = await checkProcessByPort(11434, 'ollama');
+    const result = await checkProcessByPort(11434, 'ollama')
     if (result.healthy) {
-      console.log('[IPC check-ollama] ollama 正在运行, pid=', result.pid);
-      return { installed: true, running: true, pid: result.pid };
+      return { installed: true, running: true, pid: result.pid }
     } else {
-      console.log('[IPC check-ollama] ollama 已安装但未运行');
-      return { installed: true, running: false };
+      console.log('[IPC check-ollama] ollama 已安装但未运行')
+      return { installed: true, running: false }
     }
   } catch (err) {
-    console.error('[IPC check-ollama] 检测端口时出错:', err);
+    console.error('[IPC check-ollama] 检测端口时出错:', err)
     // 安装了但检测失败，也当作已安装未运行
-    return { installed: true, running: false };
+    return { installed: true, running: false }
   }
-});
+})
 
 // 解析 Ollama 列表输出为对象数组
 async function parseOllamaList() {
-  const ollamaPath = getOllamaPath();
-  const { stdout, stderr } = await execAsync(`${ollamaPath} list`);
-  if (stderr) console.error('[parseOllamaList] stderr:', stderr);
-  const lines = stdout.trim().split('\n');
-  const dataLines = lines.slice(1).filter(line => line.trim());
-  return dataLines.map(line => {
-    const parts = line.split(/\s{2,}/);
-    return { name: parts[0], id: parts[1], size: parts[2], modified: parts[3] };
-  });
+  const ollamaPath = getOllamaPath()
+  const { stdout, stderr } = await execAsync(`${ollamaPath} list`)
+  if (stderr) console.error('[parseOllamaList] stderr:', stderr)
+  const lines = stdout.trim().split('\n')
+  const dataLines = lines.slice(1).filter((line) => line.trim())
+  return dataLines.map((line) => {
+    const parts = line.split(/\s{2,}/)
+    return { name: parts[0], id: parts[1], size: parts[2], modified: parts[3] }
+  })
 }
+
+ipcMain.handle('remove-models', async (event, modelName) => {
+  try {
+    const ollamaPath = getOllamaPath()
+    // 如果传入的是数组，则逐个卸载；否则视为单个模型名
+    const models = Array.isArray(modelName) ? modelName : [modelName]
+
+    for (const model of models) {
+      winstonLogger.log('info', `[remove-models] 开始卸载模型: ${model}`)
+      const proc = spawnAndTrack(ollamaPath, ['rm', model])
+
+      await new Promise((resolve, reject) => {
+        proc.on('close', (code, signal) => {
+          if (code === 0) {
+            winstonLogger.log('info', `[remove-models] 模型 ${model} 卸载成功`)
+            resolve()
+          } else {
+            const msg = `ollama rm ${model} 退出，退出码 ${code}${signal ? `，信号 ${signal}` : ''}`
+            winstonLogger.log('error', `[remove-models] ${msg}`)
+            reject(new Error(msg))
+          }
+        })
+      })
+
+      // 可选：如果需要在渲染进程显示进度
+      // event.sender.send('remove-progress', { model, progress: 100 });
+    }
+
+    return { removed: true, models: models }
+  } catch (err) {
+    console.error('[remove-models] Error:', err)
+    throw err
+  }
+})
 
 // IPC：获取 Ollama 模型列表
 ipcMain.handle('list-models', async () => {
   try {
-    return await parseOllamaList();
+    return await parseOllamaList()
   } catch (err) {
-    console.error('[list-models] Error:', err);
-    throw err;
+    console.error('[list-models] Error:', err)
+    throw err
   }
-});
-
+})
 
 // IPC：检测指定模型是否已安装
 ipcMain.handle('check-model-installed', async (event, modelName) => {
   try {
     console.log('[IPC check-model-installed] Received model name:', modelName)
-    const list = await parseOllamaList();
-    if (list.some(item => item.name === modelName)) {
+    const list = await parseOllamaList()
+    if (list.some((item) => item.name === modelName)) {
       console.log('[IPC check-model-installed] Model is installed')
       return true
     }
     console.log('[IPC check-model-installed] Model is not installed')
     return false
   } catch (err) {
-    console.error('[check-model-installed] Error:', err);
-    throw err;
+    console.error('[check-model-installed] Error:', err)
+    throw err
   }
-});
+})
 
 ipcMain.handle('check-model-deployment', async (event, requiredModelsList) => {
   console.log('[IPC check-model-deployment] Received models list:', requiredModelsList)
@@ -770,7 +909,7 @@ ipcMain.handle('install-models', async (event, modelsToInstall) => {
 ipcMain.handle('write-config', async (event, configPath = null, data) => {
   console.log('[IPC write-config] Received configPath:', configPath, 'data length:', data.length)
   try {
-    if (!configPath) configPath = getResourcePath('config.yaml')
+    if (!configPath) configPath = getUserResourcePath('config.yaml')
     await fs.promises.writeFile(configPath, data, 'utf-8')
     console.log('[IPC write-config] Write successful')
     return true
@@ -780,20 +919,27 @@ ipcMain.handle('write-config', async (event, configPath = null, data) => {
   }
 })
 
+ipcMain.handle('get-resource-path', async (event, filePath) => {
+  return getUserResourcePath(filePath)
+})
+
 ipcMain.handle('get-user-data-path', async () => {
   return app.getPath('userData')
 })
 
 // 新增：检查 Python 是否安装
-ipcMain.handle('check-python', async () => {
-  const cmd = process.platform === 'win32' ? 'where python' : 'which python3'
-  try {
-    await execAsync(cmd)
-    return true
-    // eslint-disable-next-line no-unused-vars
-  } catch (error) {
-    return false
+
+ipcMain.handle('check-python', () => {
+  const py = process.platform === 'win32' ? 'python' : 'python3'
+  const result = spawnSync(py, ['--version'], { encoding: 'utf8' })
+
+  if (result.error) {
+    console.error(`[IPC check-python] Python 检查失败:`, result.error)
+    return { success: false, version: null }
   }
+
+  const version = result.stdout.trim() || result.stderr.trim()
+  return { success: true, version }
 })
 ipcMain.handle('save-file', async (event, filePath, data) => {
   console.log(`[IPC save-file] 保存文件: ${filePath}`)
@@ -825,6 +971,12 @@ ipcMain.handle('get-zoom-factor', (event) => {
 /* 主窗口创建与页面加载 */
 
 async function createSkeletonWindow() {
+  try {
+    console.log('[initializeUserDataBin] 正在初始化用户数据目录...')
+    await initializeUserDataBin()
+  } catch (err) {
+    console.error('[initializeUserDataBin] 初始化失败：', err)
+  }
   const preload = path.join(__dirname, '../preload/index.js')
   const win = new BrowserWindow({
     width: 1400,
@@ -1140,7 +1292,7 @@ async function checkPortAndStore(port, executableName) {
 // 打开新窗口
 ipcMain.on('open-new-window-ide', (event, url) => {
   const win = new BrowserWindow({
-    width: 1400,
+    width: 1440,
     height: 900,
     frame: true,
     autoHideMenuBar: false,
@@ -1171,5 +1323,114 @@ ipcMain.on('open-new-window-ide', (event, url) => {
   }
 })
 
+ipcMain.handle('check-memory-flash', async (_event, args) => {
+  const dir = args.local_path
+  const gitgoDir = path.join(dir, '.gitgo')
+
+  // 检查 .gitgo 文件夹是否存在
+  try {
+    const stat = await fsPromises.stat(gitgoDir)
+    if (!stat.isDirectory()) {
+      return { exists: false, indexing: false }
+    }
+  } catch (err) {
+    return { exists: false, indexing: false }
+  }
+
+  // 检查 code_index.db 和 code_index.faiss
+  const dbPath = path.join(gitgoDir, 'code_index.db')
+  const faissPath = path.join(gitgoDir, 'code_index.faiss')
+  const indexing = path.join(gitgoDir, 'indexing.temp')
+  const hasDb = fs.existsSync(dbPath)
+  const hasFaiss = fs.existsSync(faissPath)
+  const hasIndexing = fs.existsSync(indexing)
+
+  return { exists: hasDb && hasFaiss, indexing: hasIndexing, hasDb }
+})
+
+ipcMain.handle('checkPandocIPC', async () => {
+  try {
+    const { stdout } = await execAsync(`${getPandocPath()} --version`)
+    if (!stdout || !stdout.trim()) {
+      return { installed: false }
+    }
+    const version = stdout.split('\n')[0]
+    return { installed: true, version }    // ← 改成 return
+  } catch (err) {
+    console.error('检查 Pandoc 失败：', err)
+    return { installed: false }
+  }
+})
+
+/**
+ * 初始化 userData 下的 bin 目录：
+ * 逐个检查源目录（开发环境：app.getAppPath()/bin，
+ * 生产环境：process.resourcesPath/app.asar.unpacked/bin）中的所有文件和文件夹，
+ * 如果 userData 中不存在，则复制过去。
+ */
+async function initializeUserDataBin() {
+  const userDataPath = app.getPath('userData')
+  const sourceBinPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
+    : path.join(app.getAppPath(), 'bin')
+
+  // 如果源目录不存在，直接返回（可能是可选功能）
+  if (!fs.existsSync(sourceBinPath)) {
+    console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`)
+    return
+  }
+
+  // 确保 userData 下有同名目录
+  await fsPromises.mkdir(userDataPath, { recursive: true })
+
+  // 读取源目录下所有文件和文件夹
+  const entries = await fsPromises.readdir(sourceBinPath)
+
+  for (const name of entries) {
+    const src = path.join(sourceBinPath, name)
+    const dest = path.join(userDataPath, name)
+    const stat = await fsPromises.stat(src)
+
+    if (stat.isDirectory()) {
+      // 如果目标不存在，递归复制整个目录
+      if (!fs.existsSync(dest)) {
+        await fsPromises.cp(src, dest, { recursive: true })
+        console.log(`[initializeUserDataBin] 复制目录：${name}`)
+      }
+    } else {
+      // 文件：如果目标不存在，复制文件
+      if (!fs.existsSync(dest)) {
+        await fsPromises.copyFile(src, dest)
+        console.log(`[initializeUserDataBin] 复制文件：${name}`)
+      }
+    }
+  }
+}
+
+ipcMain.handle('get-static-file-list', async (event, dirPath, subPath) => {
+  try {
+    const dir = getUserResourcePath(path.join(dirPath, subPath));
+    const entries = await readdir(dir, { withFileTypes: true });
+    const fileList = [];
+
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const fullPath = path.resolve(dir, entry.name);
+        const stats = await stat(fullPath);
+        fileList.push({
+          name: entry.name,
+          size: stats.size,
+          creationDate: stats.birthtime,
+          path: fullPath,
+        });
+      }
+    }
+
+    return fileList;
+  } catch (err) {
+    console.error(`读取目录失败：${err.message}`);
+    throw err;
+  }
+});
 
 console.log('main/index.js loaded!')
