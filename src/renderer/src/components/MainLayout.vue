@@ -241,7 +241,7 @@ import bannerSrc from '../assets/banner.svg'
 import titleSrc from '../assets/title.svg'
 import titleNSrc from '../assets/title-night.svg'
 import { RouterView } from 'vue-router'
-import {fmHealthCheck, appHealthCheck, faissHealthCheck} from "../service/api";
+import { fmHealthCheck, appHealthCheck, faissHealthCheck } from '../service/api'
 
 export default {
   name: 'MainLayout',
@@ -318,6 +318,7 @@ export default {
       ollamaPid: null,
       pythonInstalled: false,
       pandocInstalled: false,
+      gitInstalled: false,
       attemptedStart: false,
       healthState: 'ing',
       showConfigSnackbar: false,  // 控制提示气泡显示
@@ -325,7 +326,7 @@ export default {
   },
   computed: {
     fmHttpChipColor() {
-      if (this.fmHttpHealthState === '正在重启') return 'grey'
+      if (this.fmHttpHealthState === '正在重启') return 'orange'
       if (this.fmHttpHealthState === '正在清理端口并重启AI索引') return 'grey'
       else if (this.fmHttpHealthState === '已启动') return 'purple'
       else if (this.fmHttpHealthState === '已关闭') return 'grey'
@@ -342,7 +343,7 @@ export default {
       return this.$route.meta.title || 'GitHave'
     },
     chipColor() {
-      if (this.appHealthState === '正在重启') return 'grey'
+      if (this.appHealthState === '正在重启') return 'orange'
       if (this.appHealthState === '正在清理端口并重启核心服务') return 'grey'
       else if (this.appHealthState === '已启动') return 'purple'
       else if (this.appHealthState === '已关闭') return 'grey'
@@ -371,35 +372,64 @@ export default {
   async created() {
     this.detectSystemTheme()
     this.changeTip(this.appHealthState)
-    console.log('appHealthState:', this.appHealthState)
-    // 定时器每 5 秒轮询检测 app 服务健康状态
+    console.log('初始 appHealthState:', this.appHealthState)
+    // 定时器每 3 秒轮询检测各服务健康状态
     this.healthInterval = setInterval(async () => {
+      // —— App 服务健康检测 ——
       try {
         const result = await window.electron.checkAppHealth()
         if (result && result.state) {
-          this.appHealthState = result.state
+          // 二次调用 HTTP 接口，检查状态码
+          try {
+            const resp = await appHealthCheck()
+            if (resp.status === 200) {
+              this.appHealthState = '已启动'
+            } else {
+              this.appHealthState = '正在重启'
+            }
+          } catch (err) {
+            console.error('App HTTP 接口检查失败：', err)
+            this.appHealthState = '正在重启'
+          }
         } else {
           this.appHealthState = '已关闭'
         }
-        this.changeTip(this.appHealthState)
       } catch (err) {
         console.error('检测 app 健康状态失败：', err)
         this.appHealthState = '已关闭'
       }
+      this.changeTip(this.appHealthState)
 
+      // —— FM HTTP 服务健康检测 ——
       try {
         const result = await window.electron.checkFmHttpHealth()
-        this.fmHttpHealthState = result.state || '已关闭'
-        this.changeFmHttpTip(this.fmHttpHealthState)
+        if (result && result.state) {
+          try {
+            const resp = await fmHealthCheck()
+            const faiss_resp = await faissHealthCheck()
+            if (resp.status === 200 && faiss_resp.status === 200) {
+              this.fmHttpHealthState = '已启动'
+            } else {
+              this.fmHttpHealthState = '正在重启'
+            }
+          } catch (err) {
+            console.error('FM HTTP 接口检查失败：', err)
+            this.fmHttpHealthState = '正在重启'
+          }
+        } else {
+          this.fmHttpHealthState = '已关闭'
+        }
       } catch (err) {
         console.error('检测 fm_http 健康状态失败：', err)
         this.fmHttpHealthState = '已关闭'
       }
+      this.changeFmHttpTip(this.fmHttpHealthState)
 
-      // const ollama = await this.checkOllama()
+      // —— 本地环境依赖检查 ——
       const python = await this.checkPython()
       const pandoc = await this.checkPandoc()
-      this.healthState = ( python && pandoc) ? 'yes' : 'no'
+      const git = await this.checkGit()
+      this.healthState = (python && pandoc && git) ? 'yes' : 'no'
     }, 3000)
   },
   beforeUnmount() {
@@ -473,6 +503,16 @@ export default {
     async checkPandoc() {
       try {
         const { installed, version } = await window.electron.checkPandocIPC()
+        this.gitInstalled = installed
+        return installed
+      } catch {
+        this.gitInstalled = false
+        return false
+      }
+    },
+    async checkGit() {
+      try {
+        const { installed, version } = await window.electron.checkGitIPC()
         this.pandocInstalled = installed
         return installed
       } catch {
