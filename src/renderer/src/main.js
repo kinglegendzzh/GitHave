@@ -68,10 +68,26 @@ import {
   VHover,
   VSheet,
   VListItemAction,
+  VBadge,
+  VBottomNavigation,
+  VBtnToggle,
+  VSelect,
 } from 'vuetify/components'
 import { Ripple } from 'vuetify/directives'
 import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
 import '@mdi/font/css/materialdesignicons.css' // 图标字体
+import mermaid from 'mermaid/dist/mermaid.esm.min.mjs';
+document.addEventListener('DOMContentLoaded', () => {
+  mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+  document.querySelectorAll('.mermaid').forEach((block, idx) => {
+    const code = block.textContent;
+    // mermaid.render 会返回 SVG
+    mermaid.render(`mermaid-${idx}`, code, (svgCode) => {
+      block.innerHTML = svgCode;
+    });
+  });
+});
 
 // 创建 Vue 应用实例
 const app = createApp(App)
@@ -142,6 +158,10 @@ const vuetify = createVuetify({
     VHover,
     VSheet,
     VListItemAction,
+    VBadge,
+    VBottomNavigation,
+    VBtnToggle,
+    VSelect,
   },
   directives: {
     Ripple
