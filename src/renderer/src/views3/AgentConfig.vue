@@ -1,40 +1,33 @@
 <template>
   <v-container>
     <div v-if="messages.length > 0">
-      <v-badge class="mt-4 mr-4" :content="messages.length" color="error" offset-x="-10">
-        <h5 class="headline text-h5">公告</h5>
+      <v-badge :content="messages.length" color="error" offset-x="-12" class="badge-compact">
+        <span class="compact-title">公告</span>
       </v-badge>
-      <div class="news-tips">
+      <div class="news-tips compact-list">
         <tip-banner
           v-for="(item, idx) in messages"
           :key="idx"
-          class="mt-2"
+          class="tip-compact"
           :date="item.date"
           :message="item.message"
           :href="item.href"
         />
       </div>
     </div>
-    <!-- 智能体卡片列表 -->
-    <h5 class="headline text-h5 mt-4 mr-4">系统内置智能体</h5>
-    <v-row class="mt-4 mr-4" justify="center">
-      <!-- 企微提交记录推送智能体 -->
+
+    <span class="compact-section-title">系统内置智能体</span>
+    <v-row class="compact-row" justify="center">
+      <!-- 企业微信推送智能体 -->
       <v-col cols="12" md="4">
-        <v-card
-          outlined
-          class="agent-card mb-4 radio"
-          :elevation="hoveredCard === 'wechat' ? 8 : 2"
-          @click="openAgentDialog('wechat')"
-          @mouseover="hoveredCard = 'wechat'"
-          @mouseleave="hoveredCard = null"
-        >
-          <v-card-title class="d-flex align-center">
-            <v-icon large color="amber" class="mr-2">mdi-bell-ring</v-icon>
-            <span class="text-grey mr-2 ml-2">[内置]</span>
-            <span class="headline"> 企业微信推送 </span>
+        <v-card outlined class="agent-card-compact" :elevation="hoveredCard === 'wechat' ? 6 : 1" @click="openAgentDialog('wechat')" @mouseover="hoveredCard = 'wechat'" @mouseleave="hoveredCard = null">
+          <v-card-title class="card-title-compact">
+            <v-icon small class="icon-compact">mdi-bell-ring</v-icon>
+            <span class="tag-compact">[内置]</span>
+            <span class="title-compact">企业微信推送</span>
           </v-card-title>
-          <v-card-subtitle>将代码提交记录实时推送提交记录到企业微信群</v-card-subtitle>
-          <v-card-text class="text-body-2">
+          <v-card-subtitle class="subtitle-compact">将代码提交记录推送到企业微信群</v-card-subtitle>
+          <v-card-text class="text-compact">
             <div><strong>Webhook URL:</strong> {{ config.webhook_url ? '已配置' : '未配置' }}</div>
             <div><strong>仓库数量:</strong> {{ config.repos.length }}</div>
             <div><strong>心跳频率:</strong> {{ config.plugin_cron.GitHunt || '未设置' }}</div>
@@ -44,24 +37,15 @@
 
       <!-- 提交记录分析智能体 -->
       <v-col cols="12" md="4">
-        <v-card
-          outlined
-          class="agent-card mb-4"
-          :elevation="hoveredCard === 'analysis' ? 8 : 2"
-          @click="openAgentDialog('analysis')"
-          @mouseover="hoveredCard = 'analysis'"
-          @mouseleave="hoveredCard = null"
-        >
-          <v-card-title class="d-flex align-center">
-            <v-icon large color="grey" class="mr-2">mdi-file-document</v-icon>
-            <span class="text-grey mr-2 ml-2">[内置]</span>
-            <span class="headline">提交记录分析</span>
+        <v-card outlined class="agent-card-compact" :elevation="hoveredCard === 'analysis' ? 6 : 1" @click="openAgentDialog('analysis')" @mouseover="hoveredCard = 'analysis'" @mouseleave="hoveredCard = null">
+          <v-card-title class="card-title-compact">
+            <v-icon small class="icon-compact">mdi-file-document</v-icon>
+            <span class="tag-compact">[内置]</span>
+            <span class="title-compact">提交记录分析</span>
           </v-card-title>
-          <v-card-subtitle>对提交记录生成分析报告</v-card-subtitle>
-          <v-card-text class="text-body-2">
-            <div>
-              <strong>报告路径:</strong> {{ config.reports_file_path ? '已配置' : '未配置' }}
-            </div>
+          <v-card-subtitle class="subtitle-compact">生成提交记录报告</v-card-subtitle>
+          <v-card-text class="text-compact">
+            <div><strong>报告路径:</strong> {{ config.reports_file_path ? '已配置' : '未配置' }}</div>
             <div><strong>CSV模板:</strong> {{ config.csv_file_template || '未设置' }}</div>
             <div><strong>报告模板:</strong> {{ config.doc_file_template || '未设置' }}</div>
           </v-card-text>
@@ -70,21 +54,14 @@
 
       <!-- 仓库周刊智能体 -->
       <v-col cols="12" md="4">
-        <v-card
-          outlined
-          class="agent-card mb-4"
-          :elevation="hoveredCard === 'weekly' ? 8 : 2"
-          @click="openAgentDialog('weekly')"
-          @mouseover="hoveredCard = 'weekly'"
-          @mouseleave="hoveredCard = null"
-        >
-          <v-card-title class="d-flex align-center">
-            <v-icon large color="pink lighten-2" class="mr-2">mdi-calendar-text</v-icon>
-            <span class="text-grey mr-2 ml-2">[内置]</span>
-            <span class="headline">仓库周刊</span>
+        <v-card outlined class="agent-card-compact" :elevation="hoveredCard === 'weekly' ? 6 : 1" @click="openAgentDialog('weekly')" @mouseover="hoveredCard = 'weekly'" @mouseleave="hoveredCard = null">
+          <v-card-title class="card-title-compact">
+            <v-icon small class="icon-compact">mdi-calendar-text</v-icon>
+            <span class="tag-compact">[内置]</span>
+            <span class="title-compact">仓库周刊</span>
           </v-card-title>
-          <v-card-subtitle>生成仓库周报/周刊</v-card-subtitle>
-          <v-card-text class="text-body-2">
+          <v-card-subtitle class="subtitle-compact">生成仓库周报</v-card-subtitle>
+          <v-card-text class="text-compact">
             <div><strong>仓库数量:</strong> {{ config.repos_daily.length }}</div>
             <div><strong>周报频率:</strong> {{ config.plugin_cron.GitSummary || '未设置' }}</div>
             <div><strong>提示词:</strong> {{ config.prompt_daily ? '已配置' : '未配置' }}</div>
@@ -92,12 +69,11 @@
         </v-card>
       </v-col>
     </v-row>
-    <h5 class="headline text-h5 mt-4 mr-4">来自社区的智能体</h5>
-    <v-row class="mt-4 mr-4" justify="center" style="display: block">
-      <span class="text-grey text-h6 ml-4">敬请期待</span>
-      <v-skeleton-loader type="card-avatar, article, actions" style="width: auto" />
-    </v-row>
 
+    <span class="compact-section-title">来自社区的智能体</span>
+    <v-row class="compact-row" justify="center">
+      <span class="coming-soon">敬请期待</span>
+    </v-row>
     <!-- 智能体配置对话框 -->
     <v-dialog v-model="agentDialog" max-width="900px" class="mt-10" scrollable persistent>
       <v-card>
@@ -283,7 +259,7 @@
                   </v-expansion-panel-text>
                 </v-expansion-panel>
 
-                <!-- 仓库配置 -->
+                <!-- 仓库管理 -->
                 <v-expansion-panel>
                   <v-expansion-panel-title>⏰ 轮询监听代码仓库</v-expansion-panel-title>
                   <v-expansion-panel-text>
@@ -1014,5 +990,58 @@ onMounted(() => {
 /* 调整按钮圆角和间距 */
 .v-card-actions > .v-btn + .v-btn {
   margin-left: 8px;
+}
+
+/* 全局紧凑调整 */
+.compact-title, .compact-section-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 4px 0;
+}
+.badge-compact {
+  margin-bottom: 4px;
+}
+.tip-compact {
+  margin: 4px 0;
+}
+.card-title-compact {
+  padding: 8px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+}
+.icon-compact {
+  font-size: 16px;
+  margin-right: 4px;
+}
+.tag-compact {
+  font-size: 12px;
+  color: #757575;
+  margin: 0 4px;
+}
+.title-compact {
+  font-size: 14px;
+  font-weight: 600;
+}
+.subtitle-compact {
+  font-size: 13px;
+  margin: 0 8px 8px;
+}
+.text-compact div {
+  font-size: 12px;
+  margin: 2px 0;
+}
+.agent-card-compact {
+  margin: 8px 0;
+}
+.compact-row {
+  margin: 0 -8px;
+}
+.news-tips.compact-list {
+  padding: 0;
+}
+.coming-soon {
+  font-size: 13px;
+  color: #999;
 }
 </style>
