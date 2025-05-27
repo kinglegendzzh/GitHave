@@ -27,7 +27,7 @@ export default {
 
 <style scoped>
 .diagram-full {
-  width: 60%; /* 宽度占满容器 */
+  width: 55%; /* 宽度占满容器 */
   height: auto; /* 高度自适应 */
   display: block; /* 去除底部间距 */
   margin-bottom: 1rem;
