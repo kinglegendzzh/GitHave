@@ -6,7 +6,17 @@
   <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
   <meta
     http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://127.0.0.1:19151 http://localhost:19151 http://127.0.0.1:19150 http://localhost:19150;"
+    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
+    img-src 'self' data: https:;
+    connect-src 'self'
+      http://127.0.0.1:19151
+      http://localhost:19151
+      http://127.0.0.1:19150
+      http://localhost:19150
+      http://127.0.0.1:5533
+      http://localhost:5533
+      http://127.0.0.1:5532
+      http://localhost:5532;"
   />
   <style>
     /* 默认浅色模式 */
