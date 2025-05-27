@@ -1,43 +1,70 @@
 <template>
   <div id="app" class="app-container">
-    <MainLayout></MainLayout>
+    <component :is="layoutComponent" />
   </div>
 </template>
 
 <script>
 import MainLayout from './components/MainLayout.vue'
+import BlankLayout from './views/BlankLayout.vue'
+import IDE from './views3/IDE.vue'
 
 export default {
   name: 'App',
   components: {
     MainLayout,
+    BlankLayout,
+    IDE
+  },
+  computed: {
+    layoutComponent() {
+      // 如果路由 meta.standalone 为 true，则使用 BlankLayout
+      return this.$route.meta.standalone ? BlankLayout : MainLayout
+    }
   },
   mounted() {
-    this.initializeApp();
+    this.initializeApp()
   },
   methods: {
     async initializeApp() {
       try {
         // 调用 checkAppHealth 检测 app 进程健康状态
-        const health = await window.electron.checkAppHealth();
-        console.log('[App.vue] app-health', health);
-        // 如果状态不是“已启动”，则调用 sysConfig 和 startApp
+        const health = await window.electron.checkAppHealth()
+        console.log('[App.vue] app-health', health)
+        // 如果状态不是“已启动”或正在清理，则启动服务
         if (health.state !== '已启动' && health.state !== '正在清理端口并重启核心服务') {
-          // 获取系统配置，通常包含 config.yaml 的路径
-          const sysCfg = await window.electron.sysConfig();
-          console.log('[App.vue] sysConfig', sysCfg);
-          // 需要传入的配置文件路径
-          const configPath = sysCfg.configPath;
+          const sysCfg = await window.electron.sysConfig()
+          console.log('[App.vue] sysConfig', sysCfg)
+          const configPath = sysCfg.configPath
           if (configPath) {
-            // 调用 startApp 启动 app 进程
-            const result = await window.electron.startApp(configPath);
-            console.log('[App.vue] startApp result', result);
+            const result = await window.electron.startApp(configPath)
+            console.log('[App.vue] startApp result', result)
           } else {
-            console.error('[App.vue] 未获取到配置文件路径，无法启动 app');
+            console.error('[App.vue] 未获取到配置文件路径，无法启动 app')
           }
         }
       } catch (error) {
-        console.error('[App.vue] initializeApp error:', error);
+        console.error('[App.vue] initializeApp error:', error)
+      }
+      try {
+        // 调用 checkAppHealth 检测 app 进程健康状态
+        const health = await window.electron.checkFmHttpHealth()
+        console.log('[App.vue] app-health', health)
+        // 如果状态不是“已启动”或正在清理，则启动服务
+        if (health.state !== '已启动' && health.state !== '正在清理端口并重启索引') {
+          const fmCfg = await window.electron.fmConfig()
+          console.log('[App.vue] fmConfig', fmCfg)
+          const configPath = fmCfg.configPath
+
+          if (configPath) {
+            const result = await window.electron.startFmHttp(configPath)
+            console.log('[App.vue] startFm result', result)
+          } else {
+            console.error('[App.vue] 未获取到配置文件路径，无法启动 fm')
+          }
+        }
+      } catch (error) {
+        console.error('[App.vue] initializeApp error:', error)
       }
     }
   }
@@ -70,6 +97,7 @@ export default {
     background-color: #202123;
     color: #fff;
   }
+
   .main-content {
     background-color: #18191a;
     color: #fff;
