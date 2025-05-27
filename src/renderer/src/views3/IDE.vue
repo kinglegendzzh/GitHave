@@ -1,5 +1,5 @@
 <template>
-  <v-container fluid class="cover-fill" style="height: 90vh">
+  <v-container fluid class="cover-fill" style="height: 100vh">
     <!-- Loading Spinner -->
     <v-row v-if="loading" align="center" justify="center" style="height: 100vh">
       <v-col cols="12" class="text-center">
@@ -12,12 +12,18 @@
       <!-- Toolbar -->
       <v-row>
         <!-- 替换原来的 v-toolbar -->
-        <v-toolbar class="mac-toolbar" flat density="compact">
+        <v-toolbar flat density="compact">
+          <v-toolbar-title style="user-select: none; pointer-events: none">
+            <v-icon>mdi-code-block-tags</v-icon>
+            <span style="border: 5px; padding: 0 4px">
+              GitHave IDE
+            </span>
+          </v-toolbar-title>
           <div class="d-flex align-center ml-auto">
             <v-autocomplete
               v-model="newRootPath"
               :items="pathSuggestions"
-              label="选择访达路径..."
+              label="选择代码仓库..."
               outlined
               dense
               clearable
@@ -25,7 +31,7 @@
               density="compact"
               item-title="title"
               item-value="value"
-              color="success"
+              color="warning"
               style="width: 400px"
               @focus="loadPathSuggestions"
               @update:menu="resetRoot"
@@ -34,7 +40,7 @@
             <v-select
               v-model="currentTheme"
               :items="themeOptions"
-              label="高亮主题"
+              label="主题外观"
               dense
               clearable
               hide-details
@@ -52,14 +58,19 @@
               title="格式化 (Shift+Alt+F)"
               @click="formatDocument"
             />
-            <v-btn
-              icon
-              :disabled="!isCodeFileName(selectedFileName)"
-              title="保存 (Ctrl+S)"
-              @click="saveDocument"
-            >
-              <v-icon size="18">mdi-content-save</v-icon>
-            </v-btn>
+            <v-tooltip text="保存代码 (Ctrl+S)">
+              <template #activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  icon
+                  :disabled="!isCodeFileName(selectedFileName)"
+                  title="保存代码 (Ctrl+S)"
+                  @click="saveDocument"
+                >
+                  <v-icon size="18">mdi-content-save</v-icon>
+                </v-btn>
+              </template>
+            </v-tooltip>
 
             <v-tooltip text="更新代码">
               <template #activator="{ props }">
@@ -68,6 +79,7 @@
                 </v-btn>
               </template>
             </v-tooltip>
+
             <!-- 其余按钮保持 -->
             <v-tooltip text="从本地目录打开">
               <template #activator="{ props }">
@@ -89,7 +101,7 @@
 
       <v-row style="display: flex; height: calc(100% - 10px)">
         <!-- Left Tree -->
-        <v-col cols="12" md="4" lg="3" style="width: 300px; max-width: 300px; position: relative">
+        <v-col cols="12" md="4" lg="3" style="width: 200px; max-width: 300px; position: relative">
           <v-card outlined class="pa-2 h-100" style="height: 100vh; overflow: auto">
             <Treeselect
               v-model="treeselectValue"
@@ -116,22 +128,20 @@
           cols="12"
           md="8"
           lg="9"
-          style="width: 72%; max-width: 72%"
+          style="width: 74%; max-width: 74%"
           class="mb-4 d-flex flex-column h-100"
         >
           <!-- Tabs & Breadcrumb -->
           <div class="flex-shrink-0">
-            <v-tabs v-model="activeTab" class="mb-4">
+            <v-tabs v-model="activeTab">
               <v-tab v-for="(tab, index) in tabs" :key="tab.path" class="d-flex align-center">
                 <v-icon
-                  class="ml-2"
                   color="error"
                   style="cursor: pointer"
                   @click.stop="removeTab(index)"
                   >mdi-close</v-icon
                 >
                 <span
-                  class="text-blue-grey-darken-4"
                   style="cursor: pointer"
                   @click="selectTab(tab)"
                   >{{ tab.name }}</span
@@ -139,7 +149,7 @@
               </v-tab>
             </v-tabs>
             <div class="breadcrumb-container">
-              <v-breadcrumbs :items="breadcrumbs" class="pa-0">
+              <v-breadcrumbs :items="breadcrumbs">
                 <template #item="{ item }">
                   <v-breadcrumbs-item @click="navigateTo(item.path)">{{
                     item.text
@@ -174,28 +184,25 @@
                   <div v-else>加载 XLSX 中...</div>
                 </div>
 
-                <!-- Markdown -->
-                <div
-                  v-else-if="isMarkdown(selectedFileName)"
-                  @click="handleLinkClick"
-                  v-html="renderMarkdown(fileContent)"
-                />
-
                 <!-- Code Preview with Monaco -->
-                <div v-else-if="isCodeFileName(selectedFileName)" class="h-100">
-                  <MonacoEditor
-                    ref="editorRef"
-                    :key="selectedFileName"
-                    v-model:value="fileContent"
-                    :language="detectedLanguage"
-                    :theme="currentTheme"
-                    :options="monacoOptions"
-                    @editorMounted="onEditorMounted"
-                  />
+                <div class="h-100">
+                  <keep-alive>
+                    <Suspense>
+                      <template #default>
+                        <MonacoEditor
+                          v-model:value="fileContent"
+                          :language="detectedLanguage"
+                          :theme="currentTheme"
+                          :options="monacoOptions"
+                          @editorMounted="onEditorMounted"
+                        />
+                      </template>
+                      <template #fallback>
+                        <div class="text-center">加载编辑器中…</div>
+                      </template>
+                    </Suspense>
+                  </keep-alive>
                 </div>
-
-                <!-- Plain Text -->
-                <pre v-else>{{ fileContent }}</pre>
               </div>
 
               <!-- Placeholder -->
@@ -236,26 +243,29 @@
 </template>
 
 <script setup>
-// import * as monaco from 'monaco-editor/esm/vs/editor/editor.api'
-// import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker'
-// import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
-// import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
-// self.MonacoEnvironment = {
-//   getWorker(_moduleId, label) {
+// 1) 导入 worker 构造器（路径视你的依赖版本和打包器语法而定）
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker'
+import JsonWorker   from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
+import TsWorker     from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
+
+// 2) 注入到全局
+// window.MonacoEnvironment = {
+//   getWorker: (_moduleId, label) => {
 //     if (label === 'json') {
 //       return new JsonWorker()
 //     }
 //     if (label === 'typescript' || label === 'javascript') {
 //       return new TsWorker()
 //     }
-//     // 默认
+//     // 默认就是编辑器本身的 worker
 //     return new EditorWorker()
 //   }
 // }
 import 'vue3-treeselect/dist/vue3-treeselect.css'
 import 'highlight.js/styles/atom-one-dark.css'
-import MonacoEditor from 'monaco-editor-vue3'
-import { ref, reactive, computed, watch, onMounted, nextTick, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, nextTick, onUnmounted, defineAsyncComponent, Suspense } from 'vue'
+import { debounce } from 'lodash-es'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
 import { useStore } from 'vuex'
 import mammoth from 'mammoth'
 import { LOAD_ROOT_OPTIONS, LOAD_CHILDREN_OPTIONS, ASYNC_SEARCH } from 'vue3-treeselect'
@@ -266,7 +276,8 @@ import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import * as XLSX from 'xlsx'
-import codeSVG from '../assets/code.svg'
+import codeSVG from '../assets/editor-mockup.svg'
+import codeSVGWhite from '../assets/editor-mockup-white.svg'
 import { listRepos, pullRepo } from '../service/api.js'
 import { VSelect } from 'vuetify/components'
 import dynamicLoadingSvg from '../assets/load.svg'
@@ -274,6 +285,17 @@ import dynamicLoadingSvg from '../assets/load.svg'
 const store = useStore()
 // computed 用于展现 snackbar 数据（减少不必要的更新）
 const snackbar = computed(() => store.state.snackbar)
+
+const MonacoEditor = defineAsyncComponent({
+  loader: () => import('monaco-editor-vue3'),
+  loadingComponent: LoadingSpinner,
+  delay: 200,
+  timeout: 10000
+})
+
+// 原 loadFileByType 保持不变
+const debouncedLoad = debounce(path => loadFileByType(path), 200)
+
 
 /* ----------------------------------------------------------
    Monaco Editor State & Utils
@@ -286,12 +308,14 @@ const editorRef = ref(null)
 const languageMap = {
   js: 'javascript',
   ts: 'typescript',
-  vue: 'vue',
+  vue: 'javascript',
   java: 'java',
   go: 'go',
   py: 'python',
   rb: 'ruby',
   c: 'c',
+  h: 'c',
+  glsl: 'c',
   cpp: 'cpp',
   html: 'html',
   css: 'css',
@@ -369,61 +393,104 @@ function formatDocument() {
   ed?.getAction('editor.action.formatDocument').run()
 }
 
-let monacoEditor
+let monacoGlobal
 
 /* NEW ─ onEditorMounted：注册快捷键、补全、装饰 */
 function onEditorMounted(editor) {
-  // 拿到内部 monaco 对象
-  monacoEditor = editor.$monaco;
+  // 拿到 Monaco 的全局对象
+  monacoGlobal = editor.$monaco;
 
-  // 1. 通用代码片段补全示例
-  monacoEditor.languages.registerCompletionItemProvider('*', {
+  // 1. 强制开启触发字符补全和片段建议
+  editor.updateOptions({
+    suggestOnTriggerCharacters: true,
+    snippetSuggestions: 'inline',
+  });
+
+  // 2. 获取当前模型的语言 ID
+  const model = editor.getModel();
+  const langId = model.getLanguageId();
+
+  // 3. 针对当前语言注册补全 provider
+  monacoGlobal.languages.registerCompletionItemProvider(langId, {
     triggerCharacters: ['.'],
-    provideCompletionItems() {
+    provideCompletionItems: () => {
       return {
-        suggestions: [{
-          label: 'helloWorld',
-          insertText: 'console.log("Hello, Monaco!")',
-          kind: monacoEditor.languages.CompletionItemKind.Snippet
-        }]
+        suggestions: [
+          {
+            label: 'helloWorld',
+            kind: monacoGlobal.languages.CompletionItemKind.Snippet,
+            insertText: 'console.log("Hello, Monaco!");',
+            // 确保这是以 snippet 形式插入
+            insertTextRules: monacoGlobal.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: '打印 “Hello, Monaco!” 到控制台',
+          },
+        ],
       };
-    }
+    },
   });
 
   // 2. 自定义保存快捷键 Ctrl/Cmd+S → 格式化当前文档
   editor.addCommand(
-    monacoEditor.KeyMod.CtrlCmd | monacoEditor.KeyCode.KeyS,
+    monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS,
     () => editor.getAction('editor.action.formatDocument').run()
   );
 
   // 3. 行高亮装饰示例
   const deco = editor.deltaDecorations([], [{
-    range: new monacoEditor.Range(1, 1, 1, 1),
+    range: new monacoGlobal.Range(1, 1, 1, 1),
     options: { isWholeLine: true, className: 'myLineHighlight' }
   }]);
   editor.onDidDispose(() => editor.deltaDecorations(deco, []));
 }
 
 
-// 监听系统暗色模式
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)')
-// 初始值：暗＝vs-dark，亮＝vs-light
-const currentTheme = ref(prefersDark.matches ? 'vs-dark' : 'vs-light')
-
 // 你的主题列表
 const themeOptions = ['vs-dark', 'vs-light', 'hc-black']
 
-// 当系统外观变化时更新
-function updateSystemTheme(e) {
-  currentTheme.value = e.matches ? 'vs-dark' : 'vs-light'
-}
+import { useTheme } from 'vuetify'
 
-onMounted(() => {
-  prefersDark.addEventListener('change', updateSystemTheme)
-})
-onUnmounted(() => {
-  prefersDark.removeEventListener('change', updateSystemTheme)
-})
+// 拿到 Vuetify 全局 theme 对象
+const theme = useTheme()
+
+// 根据 Vuetify 主题 name（'light' | 'dark'）算出一个布尔值
+const isDarkMode = computed(() => theme.global.name.value === 'dark')
+
+
+// 监听 Vuetify 主题切换
+// watch(isDarkMode, dark => {
+//   const t = dark ? 'vs-dark' : 'vs-light'
+//   currentTheme.value = t
+// }, { immediate: true })
+
+// 1️⃣ 初始化：优先用 localStorage，fallback 到系统（Vuetify）主题
+const saved = localStorage.getItem('ideTheme')
+// eslint-disable-next-line no-undef
+const currentTheme = ref(
+  saved && themeOptions.includes(saved)
+    ? saved
+    : theme.global.name.value === 'dark'
+      ? 'vs-dark'
+      : 'vs-light'
+)
+
+// 2️⃣ 监听并持久化，同时同步切 Vuetify light/dark
+watch(
+  currentTheme,
+  (val) => {
+    // 存
+    localStorage.setItem('ideTheme', val)
+    // 同步 Vuetify 模式
+    theme.global.name.value = val === 'vs-light' ? 'light' : 'dark'
+  },
+  { immediate: true }
+)
+
+// 占位图也跟着 currentTheme 切
+const placeholderImage = computed(() =>
+  currentTheme.value === 'vs-light'
+    ? codeSVGWhite
+    : codeSVG
+)
 
 // 定义 props（支持传入本地路径及一些控制参数）
 const props = defineProps({
@@ -460,7 +527,6 @@ const selectedFileName = ref('')
 const renderedDocx = ref('')
 const renderedXlsx = ref('')
 const selectedFileUrl = ref('')
-const placeholderImage = codeSVG
 const newRootPath = ref('')
 const pathSuggestions = ref([])
 const openNodes = ref([])
@@ -481,6 +547,8 @@ const allowedExtensions = [
   '.html',
   '.css',
   '.c',
+  '.h',
+  '.glsl',
   '.cpp',
   '.vue',
   '.ts',
@@ -682,7 +750,7 @@ async function loadFileByType(selectedPath) {
 /* 2️⃣ 判断代码文件的通用函数（路径或文件名都能用）*/
 function isCodeFileName(name) {
   const ext = path.extname(name).toLowerCase()
-  return allowedExtensions.includes(ext) && !['.md', '.markdown'].includes(ext)
+  return allowedExtensions.includes(ext)
 }
 
 function updateFileState(sp, updates) {
@@ -1166,6 +1234,7 @@ watch(activeTab, (newIndex) => {
 watch(treeselectValue, (newVal) => {
   if (newVal) {
     handleNodeSelection([newVal])
+    debouncedLoad(newVal)
   }
 })
 
@@ -1175,7 +1244,7 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style>
 pre {
   font-size: 0.9rem;
   white-space: pre-wrap;
@@ -1185,30 +1254,42 @@ pre {
 :deep(.v-card) {
   min-height: 200px;
 }
-:deep(.v-tabs) {
-  background: white;
-}
 :deep(.v-application) {
   height: 100%;
+}
+body {
+  background-color: rgba(var(--v-theme-surface-rgb), 1) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: rgba(var(--v-theme-surface-rgb), 1) !important;
+    color: rgb(var(--v-theme-on-surface)) !important;
+  }
 }
 html,
 body {
   height: 100%;
   overflow: hidden;
 }
-:deep(.vue-treeselect__menu) {
+.vue-treeselect__menu {
   height: 1000px !important;
   max-height: 1000px !important;
   overflow: auto;
-  background: #f8f8f8;
-  :deep(.vue-treeselect__label) {
-    color: #292929;
-    background: #f8f8f8;
+  background: rgb(var(--v-theme-tertiary)) !important;
+  .vue-treeselect__label {
+    color: rgb(var(--v-theme-on-tertiary)) !important;
+    background: rgb(var(--v-theme-tertiary)) !important;
   }
 }
-:deep(.v-slide-group__container) {
-  background: #f4f4f4;
-  border-radius: 10px;
+.vue-treeselect__option--highlight {
+  background: rgb(var(--v-theme-tertiary)) !important;
+  color: rgb(var(--v-theme-on-tertiary)) !important;
+}
+.vue-treeselect__control {
+  background: rgb(var(--v-theme-tertiary)) !important;
+  color: rgb(var(--v-theme-on-tertiary)) !important;
 }
 .breadcrumb-container {
   overflow-x: auto;
@@ -1227,7 +1308,7 @@ body {
   background: #888;
   border-radius: 2px;
 }
-:deep(.v-breadcrumbs) {
+.v-breadcrumbs {
   flex-wrap: nowrap;
   min-width: min-content;
 }
@@ -1254,13 +1335,24 @@ body {
 }
 
 .mac-toolbar {
-  /* 半透明毛玻璃效果 */
-  background: rgba(255, 255, 255, 0.2) !important;
+  /* 以 surface 色为底，半透明度 20% */
+  background: rgba(var(--v-theme-surface-rgb), 0.2) !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
   backdrop-filter: blur(20px);
-  /* 固定高度 */
   padding: 0 12px !important;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+  box-shadow: inset 0 -1px 0 rgba(var(--v-theme-on-surface-rgb), 0.1);
 }
+
+.mac-toolbar {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #000 !important;
+}
+
+.v-theme--dark .mac-toolbar {
+  background: rgba(0, 0, 0, 0.2) !important;
+  color: #fff !important;
+}
+
 
 /* 左侧菜单组 */
 .mac-menu-group {
@@ -1309,70 +1401,76 @@ body {
 }
 
 /* 去掉默认分隔线 */
-:deep(.mac-toolbar .v-toolbar__content) {
+.mac-toolbar .v-toolbar__content {
   border-bottom: none;
 }
-:deep(.v-tabs .v-tab),
-:deep(.v-tabs .v-tab .text-blue-grey-darken-4) {
+.v-tabs .v-tab,
+.v-tabs .v-tab .text-blue-grey-darken-4 {
   text-transform: none !important;
 }
 /* 核心：把输入框高度、内边距、字体都拉小 */
-:deep(.small-autocomplete .v-input__control) {
+.small-autocomplete .v-input__control {
   min-height: 20px !important;
   height: 20px !important;
 }
 
 /* 把 label / placeholder 也调小 */
-:deep(.small-autocomplete .v-field__label) {
+.small-autocomplete .v-field__label {
   font-size: 12px !important;
   line-height: 20px !important;
 }
 
 /* 输入框文字、padding */
-:deep(.small-autocomplete input) {
+.small-autocomplete input {
   font-size: 12px !important;
   height: 20px !important;
   padding: 0 4px !important;
 }
 
 /* 下拉列表项也缩一点 */
-:deep(.small-autocomplete .v-list-item) {
+.small-autocomplete .v-list-item{
   min-height: 24px !important;
   padding-top: 2px !important;
   padding-bottom: 2px !important;
   font-size: 12px !important;
 }
 /* 整体控制高度 */
-:deep(.small-switch .v-input__control) {
+.small-switch .v-input__control {
   min-height: 20px !important;
   height: 20px !important;
   padding: 0 4px !important;
 }
 
 /* 轨道 (track) */
-:deep(.small-switch .v-switch .v-input--selection-controls__track) {
+.small-switch .v-switch .v-input--selection-controls__track {
   height: 12px !important;
   width: 34px !important;
   border-radius: 6px !important;
 }
 
 /* 滑块容器 */
-:deep(.small-switch .v-switch .v-input--selection-controls__thumb-container) {
+.small-switch .v-switch .v-input--selection-controls__thumb-container {
   height: 16px !important;
   width: 16px !important;
   top: 2px !important;
 }
 
 /* 滑块 (thumb) */
-:deep(.small-switch .v-switch .v-input--selection-controls__thumb) {
+.small-switch .v-switch .v-input--selection-controls__thumb {
   height: 16px !important;
   width: 16px !important;
 }
 
 /* label 字体 & 行高 */
-:deep(.small-switch .v-label) {
+.small-switch .v-label {
   font-size: 12px !important;
   line-height: 20px !important;
   margin-left: 4px !important;
+}
+.v-slide-group__container, .v-tabs {
+}
+.vue-treeselect--single .vue-treeselect__option--selected {
+  background: rgb(var(--v-theme-on-surface-variant)) !important;
+  color: rgb(var(--v-theme-surface-variant)) !important;
 }
 </style>
