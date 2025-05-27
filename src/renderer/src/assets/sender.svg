@@ -18,5 +18,5 @@
     </path>
 
     <!-- Label -->
-    <text x="100" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#065f46">智能推送</text>
+    <text x="100" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#065f46">推送机器人</text>
 </svg>

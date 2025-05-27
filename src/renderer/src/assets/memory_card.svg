@@ -25,5 +25,5 @@
     </circle>
 
     <!-- Text Label -->
-    <text x="100" y="190" font-family="Arial, sans-serif" font-size="14" fill="#065f46" text-anchor="middle">数据记忆卡</text>
+    <text x="100" y="190" font-family="Arial, sans-serif" font-size="14" fill="#065f46" text-anchor="middle">AI索引</text>
 </svg>
