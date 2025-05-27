@@ -46,7 +46,7 @@ const router = createRouter({
       path: '/finder/:localPath?',
       name: 'finder',
       component: FileBrowser,
-      meta: { title: '代码预览' },
+      meta: { title: '代码视窗' },
       props: route => ({
         localPath: route.params.localPath,
         forceReplace: route.params.forceReplace === 'true',

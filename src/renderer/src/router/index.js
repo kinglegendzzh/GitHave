@@ -20,20 +20,26 @@ const router = createRouter({
     {
       path: '/model',
       name: 'model',
-      meta: { title: '模型与角色' },
+      meta: { title: '模型配置' },
       component: () => import('../views3/ModelConfig.vue')
     },
     {
       path: '/agent',
       name: 'agent',
-      meta: { title: '智能体' },
+      meta: { title: '智能体配置' },
       component: () => import('../views3/AgentConfig.vue')
     },
     {
-      path: '/commits',
-      name: 'commits',
+      path: '/diff/viewer',
+      name: 'diffViewer',
       meta: { title: '代码审查' },
-      component: () => import('../views/DiffViewer.vue')
+      component: () => import('../views3/DiffViewer.vue')
+    },
+    {
+      path: '/diff/viewer/demo',
+      name: 'diffViewerDemo',
+      meta: { title: '代码审查详情' },
+      component: () => import('../views/DiffViewerDemo.vue')
     },
     {
       path: '/sender',
@@ -44,7 +50,7 @@ const router = createRouter({
     {
       path: '/scan',
       name: 'scan',
-      meta: { title: '仓库记忆闪存' },
+      meta: { title: '仓库AI索引' },
       component: () => import('../views/MemoryCard.vue')
     },
     {
@@ -62,21 +68,26 @@ const router = createRouter({
     {
       path: '/finder/:localPath?',
       name: 'finder',
-      meta: { title: '代码预览' },
+      meta: { title: '代码视窗' },
       component: () => import('../views3/FileBrowser.vue'),
       props: route => ({
         localPath: route.params.localPath,
-        forceReplace: route.params.forceReplace === 'true',
+        rootPath: route.params.rootPath,
+        forceReplace: route.params.forceReplace,
       })
     },
     {
       path: '/ide/:localPath?',
       name: 'ide',
-      meta: { title: 'IDE' },
+      meta: {
+        title: 'IDE',
+        standalone: true
+      },
       component: () => import('../views3/IDE.vue'),
       props: route => ({
         localPath: route.params.localPath,
-        forceReplace: route.params.forceReplace === 'true',
+        rootPath: route.params.rootPath,
+        forceReplace: route.params.forceReplace,
       })
     },
     {
@@ -93,9 +104,6 @@ const router = createRouter({
       name: 'commitsHistory',
       meta: { title: '提交审查' },
       component: () => import('../views3/CommitHistory.vue'),
-      props: route => ({
-        localPath: route.params.localPath,
-      })
     },
   ]
 });
