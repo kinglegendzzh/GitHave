@@ -3,6 +3,7 @@ productName: GitHave
 directories:
   buildResources: build
 files:
+  - 'bin/static/**/*'
   - 'bin/FAISSService/**/*'
   - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
   - '!bin/FAISSService/.env'        # 同时排除空目录
@@ -18,6 +19,7 @@ files:
   - 'public/**/*'
 asarUnpack:
   - resources/**
+  - 'bin/static/**/*'
   - 'bin/FAISSService/**/*'
   - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
   - '!bin/FAISSService/.env'        # 同时排除空目录
