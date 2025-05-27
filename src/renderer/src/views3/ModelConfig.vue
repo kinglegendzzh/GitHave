@@ -36,12 +36,88 @@
     <div v-if="selectedTab === 'env'" class="bottom-nav-padding">
       <!-- 环境检测模块 -->
       <v-card class="pa-4 mb-4" outlined>
-        <v-card-title class="headline">1. 必要环境是否具备</v-card-title>
+        <v-card-title class="headline">1. 必要基础环境是否具备</v-card-title>
+        <v-card-text>
+          <v-row>
+
+            <!-- Python 状态 -->
+            <v-col cols="12" md="6" class="d-flex align-center">
+              <span class="mr-2">Python > 3.9.0：</span>
+              <template v-if="pythonInstalled === null">
+                <span>正在检测...</span>
+              </template>
+              <template v-else-if="pythonInstalled">
+                <v-icon color="green" small>mdi-check-circle</v-icon>
+                <span class="ml-1">已安装</span>
+              </template>
+              <template v-else>
+                <v-icon color="red" small>mdi-close-circle</v-icon>
+                <span class="ml-1">未安装</span>
+                <v-btn text small color="primary" @click="openPythonWebsite">前往官网下载</v-btn>
+              </template>
+            </v-col>
+
+            <!-- —— 新增：Pandoc 状态 —— -->
+            <v-col cols="12" md="6" class="d-flex align-center">
+              <span class="mr-2">Pandoc：</span>
+
+              <!-- 检测中 -->
+              <template v-if="pandocInstalled === null">
+                <span>正在检测...</span>
+              </template>
+
+              <!-- 已安装 -->
+              <template v-else-if="pandocInstalled">
+                <v-icon color="green" small>mdi-check-circle</v-icon>
+                <span class="ml-1">已安装</span>
+              </template>
+
+              <!-- 未安装 -->
+              <template v-else>
+                <v-icon color="red" small>mdi-close-circle</v-icon>
+                <span class="ml-1">未检测到 Pandoc</span>
+                <v-btn text small color="primary" class="ml-2" @click="openPandocWebsite">
+                  前往下载安装
+                </v-btn>
+              </template>
+            </v-col>
+
+            <!-- —— 新增：Git 状态 —— -->
+            <v-col cols="12" md="6" class="d-flex align-center">
+              <span class="mr-2">Git：</span>
+
+              <!-- 检测中 -->
+              <template v-if="gitInstalled === null">
+                <span>正在检测...</span>
+              </template>
+
+              <!-- 已安装 -->
+              <template v-else-if="gitInstalled">
+                <v-icon color="green" small>mdi-check-circle</v-icon>
+                <span class="ml-1">已安装</span>
+              </template>
+
+              <!-- 未安装 -->
+              <template v-else>
+                <v-icon color="red" small>mdi-close-circle</v-icon>
+                <span class="ml-1">未检测到 Git</span>
+                <v-btn text small color="primary" class="ml-2" @click="openGitWebsite">
+                  前往下载安装
+                </v-btn>
+              </template>
+            </v-col>
+          </v-row>
+        </v-card-text>
+      </v-card>
+
+      <!-- 本地模型安装状态 -->
+      <v-card class="pa-4 mb-4" outlined>
+        <v-card-title class="headline">2.1. 本地模型环境及服务是否配置（二选一）</v-card-title>
         <v-card-text>
           <v-row>
             <!-- Ollama 状态 -->
             <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Ollama 状态：</span>
+              <span class="mr-2">Ollama 框架状态：</span>
 
               <!-- 检测中 -->
               <template v-if="ollamaInstalled === null || ollamaRunning === null">
@@ -68,31 +144,7 @@
                 <v-btn text small color="primary" @click="openOllamaWebsite">前往官网下载</v-btn>
               </template>
             </v-col>
-
-            <!-- Python 状态 -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Python > 3.9.0：</span>
-              <template v-if="pythonInstalled === null">
-                <span>正在检测...</span>
-              </template>
-              <template v-else-if="pythonInstalled">
-                <v-icon color="green" small>mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else>
-                <v-icon color="red" small>mdi-close-circle</v-icon>
-                <span class="ml-1">未安装</span>
-                <v-btn text small color="primary" @click="openPythonWebsite">前往官网下载</v-btn>
-              </template>
-            </v-col>
           </v-row>
-        </v-card-text>
-      </v-card>
-
-      <!-- 本地模型安装状态 -->
-      <v-card class="pa-4 mb-4" outlined>
-        <v-card-title class="headline">2. 必要小模型是否安装</v-card-title>
-        <v-card-text>
           <v-row>
             <!-- nomic-embed-text -->
             <v-col cols="12" md="6" class="d-flex align-center">
@@ -157,6 +209,9 @@
           <v-spacer />
           <v-btn color="primary" @click="installNecessaryModels">一键安装缺失模型</v-btn>
         </v-card-actions>
+      </v-card>
+      <v-card class="pa-4 mb-4" outlined>
+        <v-card-title class="headline">2.2. 云端模型是否配置（二选一）</v-card-title>
       </v-card>
     </div>
     <!-- 本地模型主区域 -->
@@ -403,6 +458,20 @@
                         outlined
                       />
                     </v-col>
+                    <v-col cols="12">
+                      <v-text-field
+                        v-model.number="config.flow_chart.max_code_snippet_limit"
+                        label="最大流程图代码片段数量"
+                        outlined
+                      />
+                    </v-col>
+                    <v-col cols="12">
+                      <v-text-field
+                        v-model.number="config.flow_chart.code_snippet_text_limit"
+                        label="最大流程图代码片段文本长度"
+                        outlined
+                      />
+                    </v-col>
                   </v-row>
                   <v-card class="pa-4 mt-4" outlined max-height="250">
                     <v-card-title class="subtitle-1">部署向导</v-card-title>
@@ -637,6 +706,14 @@
                           <v-text-field
                             v-model.number="fmConfig.parser_code_line_limit"
                             label="批量增强解析代码行数限制"
+                            type="number"
+                            outlined
+                          />
+                        </v-col>
+                        <v-col cols="12" md="6">
+                          <v-text-field
+                            v-model.number="fmConfig.parser_code_chunk_limit"
+                            label="批量增强解析代码块数上限"
                             type="number"
                             outlined
                           />
@@ -1045,6 +1122,7 @@ const fmConfig = reactive({
   code_limit: 23000,
   prompt_limit: 30000,
   parser_code_line_limit: 500,
+  parser_code_chunk_limit: 10,
 })
 
 // —— 环境检测状态 ——
@@ -1571,11 +1649,49 @@ onMounted(async () => {
     checkPython(),
     checkNomic(),
     checkLlm(),
+    checkPandoc(),
+    checkGit(),
     fetchInstalledModels(),
     fetchFmConfig() // 添加获取FM配置
   ])
   initExpertSlotsFromConfig()
 })
+
+// —— 新增 Pandoc 安装状态 ——
+const pandocInstalled = ref(null)
+
+// —— 打开 Pandoc 官网 ——
+const openPandocWebsite = () => {
+  window.open('https://pandoc.org/installing.html', '_blank')
+}
+
+// —— 检测 Pandoc ——
+// 需要在主进程里实现一个 IPC 通道 `checkPandocIPC`，返回 { installed: boolean, version?: string }
+async function checkPandoc() {
+  try {
+    const { installed, version } = await window.electron.checkPandocIPC()
+    pandocInstalled.value = installed
+  } catch {
+    pandocInstalled.value = false
+  }
+}
+
+// —— 新增 Git 安装状态 ——
+const gitInstalled = ref(null)
+
+// —— 打开 Git 官网 ——
+const openGitWebsite = () => {
+  window.open('https://git-scm.com/downloads', '_blank')
+}
+
+async function checkGit() {
+  try {
+    const { installed, version } = await window.electron.checkGitIPC()
+    gitInstalled.value = installed
+  } catch {
+    gitInstalled.value = false
+  }
+}
 </script>
 
 <style scoped>
