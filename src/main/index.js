@@ -17,6 +17,8 @@ const winston = require('winston')
 const { format, transports } = winston
 const fsPromises = fs.promises
 const { readdir, stat } = require('fs/promises');
+const semver = require('semver');
+const { copyFile, mkdir, readFile, writeFile } = fs.promises;
 
 remoteMain.initialize()
 const BOT_PORT = 19150
@@ -174,11 +176,9 @@ function getResourcePath(fileName) {
 function getUserResourcePath(fileName) {
   if (app.isPackaged) {
     const p = path.join(app.getPath('userData'), fileName);
-    console.log('getUserResourcePath', p)
     return p
   }
   const p = path.join(app.getAppPath(), 'bin', fileName)
-  console.log('getUserResourcePath', p)
   return p
 }
 
@@ -971,12 +971,6 @@ ipcMain.handle('get-zoom-factor', (event) => {
 /* 主窗口创建与页面加载 */
 
 async function createSkeletonWindow() {
-  try {
-    console.log('[initializeUserDataBin] 正在初始化用户数据目录...')
-    await initializeUserDataBin()
-  } catch (err) {
-    console.error('[initializeUserDataBin] 初始化失败：', err)
-  }
   const preload = path.join(__dirname, '../preload/index.js')
   const win = new BrowserWindow({
     width: 1400,
@@ -1362,6 +1356,20 @@ ipcMain.handle('checkPandocIPC', async () => {
   }
 })
 
+ipcMain.handle('checkGitIPC', async () => {
+  try {
+    const { stdout } = await execAsync(`git --version`)
+    if (!stdout || !stdout.trim()) {
+      return { installed: false }
+    }
+    const version = stdout.split('\n')[0]
+    return { installed: true, version }    // ← 改成 return
+  } catch (err) {
+    console.error('检查 Pandoc 失败：', err)
+    return { installed: false }
+  }
+})
+
 /**
  * 初始化 userData 下的 bin 目录：
  * 逐个检查源目录（开发环境：app.getAppPath()/bin，
@@ -1369,43 +1377,122 @@ ipcMain.handle('checkPandocIPC', async () => {
  * 如果 userData 中不存在，则复制过去。
  */
 async function initializeUserDataBin() {
-  const userDataPath = app.getPath('userData')
-  const sourceBinPath = app.isPackaged
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
-    : path.join(app.getAppPath(), 'bin')
+  console.log('[initializeUserDataBin] 初始化 userData 下的 bin 目录...');
 
-  // 如果源目录不存在，直接返回（可能是可选功能）
-  if (!fs.existsSync(sourceBinPath)) {
-    console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`)
-    return
+  // 1. 确定目标目录（生产环境用 userData，开发环境指向项目 bin）
+  const isProd = app.isPackaged;
+  const userDataPath = isProd
+    ? app.getPath('userData')
+    : path.join(app.getAppPath(), 'bin');
+
+  // 2. 版本文件路径
+  const versionFilePath = path.join(userDataPath, 'app_version.json');
+  const currentVersion = app.getVersion();
+
+  // 3. 确保目标目录存在
+  await fsPromises.mkdir(userDataPath, { recursive: true });
+
+  // 4. 如果版本文件路径存在且是目录，先把它删掉
+  if (fs.existsSync(versionFilePath)) {
+    try {
+      const stat = await fsPromises.stat(versionFilePath);
+      if (stat.isDirectory()) {
+        console.warn(`[initializeUserDataBin] 版本文件路径误为目录，正在删除目录：${versionFilePath}`);
+        await fsPromises.rm(versionFilePath, { recursive: true, force: true });
+      }
+    } catch (err) {
+      console.error(`[initializeUserDataBin] 检查版本文件时出错: ${err}`);
+      // 继续执行，后面写文件时会再次报错或重建
+    }
   }
 
-  // 确保 userData 下有同名目录
-  await fsPromises.mkdir(userDataPath, { recursive: true })
+  // 5. 读取上次保存的版本号
+  let previousVersion = null;
+  if (fs.existsSync(versionFilePath)) {
+    try {
+      const data = await fsPromises.readFile(versionFilePath, 'utf-8');
+      previousVersion = JSON.parse(data).version;
+    } catch (err) {
+      console.warn(`[initializeUserDataBin] 无法读取版本文件: ${err}`);
+    }
+  }
 
-  // 读取源目录下所有文件和文件夹
-  const entries = await fsPromises.readdir(sourceBinPath)
+  // 6. 判断是否为新版本
+  const isNewVersion = !previousVersion || semver.gt(currentVersion, previousVersion);
+  if (isNewVersion) {
+    console.log(`[initializeUserDataBin] 检测到新版本: ${previousVersion || 'none'} → ${currentVersion}`);
+  }
 
+  // 7. 准备源目录路径
+  const sourceBinPath = isProd
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
+    : path.join(app.getAppPath(), 'bin');
+
+  if (!fs.existsSync(sourceBinPath)) {
+    console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`);
+    return;
+  }
+
+  // 8. 读取源目录内容
+  const entries = await fsPromises.readdir(sourceBinPath);
+
+  // 9. 新版本时强制覆盖的名单
+  const forceOverride = [
+    'app',
+    'app.exe',
+    'bot',
+    'bot.exe',
+    'fm',
+    'fm.exe',
+    'fm_http',
+    'fm_http.exe',
+  ];
+
+  // 10. 遍历复制或覆盖
   for (const name of entries) {
-    const src = path.join(sourceBinPath, name)
-    const dest = path.join(userDataPath, name)
-    const stat = await fsPromises.stat(src)
+    const src = path.join(sourceBinPath, name);
+    const dest = path.join(userDataPath, name);
+    const stat = await fsPromises.stat(src);
+    const shouldForce = isNewVersion && forceOverride.includes(name);
 
     if (stat.isDirectory()) {
-      // 如果目标不存在，递归复制整个目录
-      if (!fs.existsSync(dest)) {
-        await fsPromises.cp(src, dest, { recursive: true })
-        console.log(`[initializeUserDataBin] 复制目录：${name}`)
+      if (shouldForce || !fs.existsSync(dest)) {
+        await fsPromises.cp(src, dest, { recursive: true });
+        console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖目录' : '复制目录'}：${name}`);
       }
     } else {
-      // 文件：如果目标不存在，复制文件
-      if (!fs.existsSync(dest)) {
-        await fsPromises.copyFile(src, dest)
-        console.log(`[initializeUserDataBin] 复制文件：${name}`)
+      if (shouldForce || !fs.existsSync(dest)) {
+        await fsPromises.copyFile(src, dest);
+        console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖文件' : '复制文件'}：${name}`);
       }
     }
   }
+
+  // 11. 新版本时写入新版号到文件
+  if (isNewVersion) {
+    try {
+      await fsPromises.writeFile(
+        versionFilePath,
+        JSON.stringify({ version: currentVersion }, null, 2),
+        'utf-8'
+      );
+      console.log(`[initializeUserDataBin] 更新版本记录文件：${versionFilePath}`);
+    } catch (err) {
+      console.error(`[initializeUserDataBin] 写入版本文件失败: ${err}`);
+    }
+    if (isProd) {
+      console.log(`[initializeUserDataBin] 删除用于更新的原始文件：${sourceBinPath}`);
+      try {
+        await fsPromises.rm(sourceBinPath, { recursive: true, force: true });
+      } catch (err) {
+        console.error(`[initializeUserDataBin] 删除临时文件失败: ${err}`);
+      }
+    }
+  }
+
+  console.log('[initializeUserDataBin] 初始化完成！');
 }
+initializeUserDataBin()
 
 ipcMain.handle('get-static-file-list', async (event, dirPath, subPath) => {
   try {
@@ -1432,5 +1519,4 @@ ipcMain.handle('get-static-file-list', async (event, dirPath, subPath) => {
     throw err;
   }
 });
-
 console.log('main/index.js loaded!')
