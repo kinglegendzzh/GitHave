@@ -13,11 +13,8 @@
       <!-- 主内容区 -->
       <v-row>
         <v-toolbar class="mb-1">
-          <v-toolbar-title>
-            <v-icon>mdi-code-block-tags</v-icon>
-          </v-toolbar-title>
           <div class="d-flex align-center ml-auto">
-            <v-autocomplete
+            <v-select
               v-model="newRootPath"
               :items="pathSuggestions"
               label="选择访达路径..."
@@ -31,7 +28,7 @@
               style="width: 400px; height: auto"
               @focus="loadPathSuggestions"
               @update:menu="resetRoot"
-            ></v-autocomplete>
+            ></v-select>
             <v-tooltip text="更新代码">
               <template #activator="{ props }">
                 <v-btn v-bind="props" title="更新代码" outlined plain class="mr-2" @click="pull()">
@@ -70,18 +67,33 @@
                 </v-btn>
               </template>
             </v-tooltip>
+            <v-tooltip text="在IDE中编辑">
+              <template #activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  title="在IDE中编辑"
+                  outlined
+                  plain
+                  class="mr-2"
+                  @click="previewIde(newRootPath)"
+                >
+                  <v-icon>mdi-code-block-tags</v-icon>
+                  在IDE中编辑
+                </v-btn>
+              </template>
+            </v-tooltip>
           </div>
         </v-toolbar>
       </v-row>
 
-      <v-row style="display: flex; height: calc(100% - 10px)">
+      <v-row style="display: flex; height: calc(100% - 50px)">
         <!-- 左侧目录树 -->
         <v-col
           cols="12"
           md="4"
           lg="3"
           class="mb-4"
-          style="width: 300px; max-width: 300px; position: relative"
+          style="width: 20%; max-width: 20%; position: relative"
         >
           <v-card outlined class="pa-2 h-100" style="height: 100vh; overflow: auto">
             <v-card-title class="subtitle-1">访达目录树</v-card-title>
@@ -112,7 +124,7 @@
           cols="12"
           md="8"
           lg="9"
-          style="width: 72%; max-width: 72%"
+          style="width: 80%; max-width: 80%"
           class="mb-4 d-flex flex-column h-100"
         >
           <div class="flex-shrink-0">
@@ -128,7 +140,6 @@
                 >
                 <span
                   style="cursor: pointer"
-                  class="text-blue-grey-darken-4"
                   @click="selectTab(tab)"
                   >{{ tab.name }}</span
                 >
@@ -196,7 +207,7 @@
                     pointer-events: none;
                   "
                 />
-                <h1 style="margin-top: 16px; user-select: none; pointer-events: none">代码预览</h1>
+                <h1 style="margin-top: 16px; user-select: none; pointer-events: none">代码视窗</h1>
               </div>
             </v-card-text>
           </v-card>
@@ -233,11 +244,12 @@ import Treeselect from 'vue3-treeselect'
 import 'vue3-treeselect/dist/vue3-treeselect.css'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/atom-one-dark.css'
+import 'highlight.js/styles/docco.css'
 import * as XLSX from 'xlsx'
 import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo } from '../service/api.js'
 import dynamicLoadingSvg from '../assets/load.svg'
+import router from "../router";
 // Vuex store（假定已配置）
 const store = useStore()
 // computed 用于展现 snackbar 数据（减少不必要的更新）
@@ -250,12 +262,16 @@ const props = defineProps({
     default: ''
   },
   forceReplace: {
-    type: Boolean,
-    default: false
+    type: String,
+    default: 'false'
   },
   forceDeep: {
     type: Boolean,
     default: false
+  },
+  rootPath: {
+    type: String,
+    default: ''
   }
 })
 
@@ -298,6 +314,9 @@ const allowedExtensions = [
   '.xml',
   '.html',
   '.css',
+  '.scss',
+  '.h',
+  '.glsl',
   '.c',
   '.cpp',
   '.vue',
@@ -313,14 +332,16 @@ const allowedExtensions = [
   '.jsx',
   '.log',
   '.pdf',
-  'xls',
+  '.xls',
   '.xlsx',
   '.doc',
   '.docx',
   '.sql'
 ]
 const blacklistedExtensions = [
-  '.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk'
+  '.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk',
+  '.jpg', '.png', '.gif', '.mp4', '.mp3', '.mpeg', '.mpg', '.avi', '.wmv', '.mov', '.flv', '.mkv', '.webm',
+  '.ogg', '.ogv', '.ogm', '.ogx', '.lic'
 ]
 const customAppMapping = {
   '.txt': { win32: 'notepad', linux: 'gedit' },
@@ -386,16 +407,17 @@ async function initializePage() {
 
 async function initialize(initialPath) {
   let rootDir = ''
-  if (props.forceReplace && initialPath) {
+  if (props.forceReplace == 'true' && initialPath) {
     newRootPath.value = initialPath
     rootDir = isFilePath(initialPath) ? path.dirname(initialPath) : initialPath
   } else {
     rootDir = await window.electron.homeDir
   }
   if (rootDir) {
+    fileContent.value = ''
     await resetTree(rootDir)
     if (initialPath) {
-      if (props.forceReplace) {
+      if (props.forceReplace == 'true') {
         isFilePath(initialPath) ? expandToPath(initialPath) : handleNodeSelection([rootDir])
       } else {
         expandToPath(initialPath)
@@ -542,7 +564,9 @@ function addOrSwitchTab(tabData) {
 
 function loadDirectoryOptions({ action, parentNode, searchQuery, callback }) {
   if (action === LOAD_ROOT_OPTIONS) {
-    fetchChildren(props.localPath || '/')
+    // 使用 normalizePath 处理路径，避免不同系统路径分隔符问题
+    const rootPath = props.localPath || window.electron.homeDirPromise
+    fetchChildren(rootPath)
       .then((children) => {
         callback()
       })
@@ -949,13 +973,28 @@ async function pull() {
       message: '代码拉取成功',
       type: 'success'
     })
+
+    await initializePage()
   } catch (err) {
     console.error('拉取失败:', err)
     completeProgress(false)
+    const errorMsg =
+      err.response?.data || err.message || (newRootPath.value ? '更新仓库失败' : '新增仓库失败')
     store.dispatch('snackbar/showSnackbar', {
-      message: `拉取失败：${err.message || err}`,
+      message: `拉取失败：${errorMsg}`,
       type: 'error'
     })
+  }
+}
+
+// 预览仓库内容，使用 Vue Router 进行跳转
+const previewIde = (path) => {
+  if (path) {
+    const url = `${window.location.origin}/#/ide`
+    // 调用主进程打开新窗口
+    window.electron.openNewWindowIDE(url)
+  } else {
+    alert('请先打开一个仓库')
   }
 }
 
@@ -997,9 +1036,6 @@ pre {
 :deep(.v-card) {
   min-height: 200px;
 }
-:deep(.v-tabs) {
-  background: white;
-}
 :deep(.v-application) {
   height: 100%;
 }
@@ -1012,15 +1048,19 @@ body {
   height: 1000px !important;
   max-height: 1000px !important;
   overflow: auto;
-  background: #f8f8f8;
+  background: rgb(var(--v-theme-tertiary)) !important;
   :deep(.vue-treeselect__label) {
-    color: #292929;
-    background: #f8f8f8;
+    color: rgb(var(--v-theme-on-tertiary)) !important;
+    background: rgb(var(--v-theme-tertiary)) !important;
   }
 }
-:deep(.v-slide-group__container) {
-  background: #f4f4f4;
-  border-radius: 10px;
+:deep(.vue-treeselect__option--highlight) {
+  background: rgb(var(--v-theme-tertiary)) !important;
+  color: rgb(var(--v-theme-on-tertiary)) !important;
+}
+:deep(.vue-treeselect__control) {
+  background: rgb(var(--v-theme-tertiary)) !important;
+  color: rgb(var(--v-theme-on-tertiary)) !important;
 }
 .breadcrumb-container {
   overflow-x: auto;
@@ -1055,5 +1095,63 @@ body {
 .loading-svg {
   width: 80px;
   height: auto;
+}
+:deep(.v-slide-group__container, .v-tabs) {
+}
+:deep(.vue-treeselect--single .vue-treeselect__option--selected) {
+  background: rgb(var(--v-theme-on-surface-variant)) !important;
+  color: rgb(var(--v-theme-surface-variant)) !important;
+}
+/* 默认（亮色模式）的样式 */
+.hljs {
+  background-color: #f5f5f5; /* 亮色背景 */
+  color: #333333; /* 亮色文本 */
+}
+
+.hljs-keyword {
+  color: #1a73e8; /* 亮色模式下关键字颜色 */
+}
+
+.hljs-string {
+  color: #d14; /* 亮色模式下字符串颜色 */
+}
+
+.hljs-comment {
+  color: #888; /* 亮色模式下注释颜色 */
+}
+
+/* 暗黑模式的样式 */
+@media (prefers-color-scheme: dark) {
+  .hljs {
+    background-color: #000000; /* 暗色背景 */
+    color: #dcdcdc; /* 暗色文本 */
+  }
+
+  .hljs-keyword {
+    color: #ff6347; /* 暗色模式下关键字颜色 */
+  }
+
+  .hljs-string {
+    color: #32cd32; /* 暗色模式下字符串颜色 */
+  }
+
+  .hljs-comment {
+    color: #808080; /* 暗色模式下注释颜色 */
+  }
+}
+.preview-content pre {
+  /* 保持原有空格格式，不自动换行 */
+  white-space: pre;        /* 强制按照原始空白和换行显示 */
+  word-wrap: normal;       /* 禁用单词换行 */
+  word-break: normal;      /* 禁用任意字符换行 */
+
+  /* 横向滚动条，超出宽度时显示 */
+  overflow-x: auto;
+  overflow-y: hidden;      /* 可选：隐藏垂直滚动条 */
+
+  font-size: 0.8rem;
+}
+.preview-content code.hljs {
+  white-space: pre !important;
 }
 </style>
