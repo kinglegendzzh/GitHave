@@ -1,0 +1,43 @@
+<svg width="420" height="280" viewBox="0 0 420 280" xmlns="http://www.w3.org/2000/svg">
+  <!-- 整体背景 -->
+  <rect width="420" height="280" rx="10" ry="10" fill="#282c34" />
+
+  <!-- 顶部控制按钮 -->
+  <circle cx="25" cy="22" r="7" fill="#ff5f57" />
+  <circle cx="50" cy="22" r="7" fill="#febc2e" />
+  <circle cx="75" cy="22" r="7" fill="#28c840" />
+
+  <!-- 顶部标题占位 -->
+  <rect x="100" y="15" width="180" height="10" rx="2" ry="2" fill="#3a3f4b" class="pulse"/>
+
+  <!-- 编辑区背景 -->
+  <rect x="10" y="45" width="400" height="225" rx="5" ry="5" fill="#21252b"/>
+
+  <!-- 骨架行（多条不等长矩形模拟代码行） -->
+  <!-- 每行矩形用 class="pulse" 加动画 -->
+  <g fill="#3a3f4b" >
+    <rect x="30" y="65"  width="340" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="85"  width="300" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="105" width="360" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="125" width="320" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="145" width="380" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="165" width="290" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="185" width="350" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="205" width="310" height="8" rx="2" ry="2" class="pulse"/>
+    <rect x="30" y="225" width="330" height="8" rx="2" ry="2" class="pulse"/>
+  </g>
+
+  <!-- 动画定义 -->
+  <defs>
+    <style>
+      .pulse {
+      animation: pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes pulse {
+      0% { fill: #3a3f4b; }
+      50% { fill: #4b5263; }
+      100% { fill: #3a3f4b; }
+      }
+    </style>
+  </defs>
+</svg>
