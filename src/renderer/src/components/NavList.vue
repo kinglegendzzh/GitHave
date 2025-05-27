@@ -62,13 +62,13 @@ export default {
             { title: "深度搜索", to: "/search", icon: "mdi-book-search" },
             { title: "分析报告", to: "/report", icon: "mdi-microsoft-word" },
             { title: "代码审查", to: "/commits", icon: "mdi-robot-angry" },
-            { title: "智能推送（邮件｜企微）", to: "/sender", icon: "mdi-send" },
+            { title: "推送机器人", to: "/sender", icon: "mdi-send" },
             { title: "空间透镜", to: "/space", icon: "mdi-telescope" },
-            { title: "代码详情", to: "/finder", icon: "mdi-code-block-tags" },
+            { title: "代码视窗", to: "/finder", icon: "mdi-code-block-tags" },
           ]
         },
         {
-          title: "仓库配置",
+          title: "仓库管理",
           icon: "mdi-source-repository",
           expanded: false,
           children: [
@@ -77,7 +77,7 @@ export default {
           ]
         },
         {
-          title: "AI配置",
+          title: "配置中心",
           icon: "mdi-cogs",
           expanded: false,
           children: [
