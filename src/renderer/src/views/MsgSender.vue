@@ -1,31 +1,41 @@
 <template>
   <v-container
     style="height: 50vh; display: flex; flex-direction: column; justify-content: center; align-items: center;">
-    <div v-if="initialLoad" style="text-align: center;">
-      <!-- 显示占位符图像 -->
-      <img :src="placeholderImage" alt="Chart Placeholder" draggable="false"
-           style="width: 200px; height: auto; display: block; margin-bottom: 20px; user-select: none; pointer-events: none;" />
-
-      <!-- 仿 iOS 大开关 -->
-      <v-switch
-        v-model="isSwitched"
-        class="mt-5"
-        label="企业微信推送"
-        style="transform: scale(2);"
-        @change="handleSwitchChange"
-        :color="isSwitched ? 'green' : 'grey'"
-        :thumb-color="isSwitched ? 'white' : 'grey'"
-      >
-        <template v-slot:thumb>
-          <!-- 自定义开关的图标，替换默认的滑块 -->
-          <v-icon :color="isSwitched ? 'white' : 'grey'">mdi-power</v-icon>
-        </template>
-      </v-switch>
-
-      <!-- 状态描述 -->
-      <p v-if="botHealthState" style="margin-top: 20px;">
-        当前状态：{{ botHealthState }}
-      </p>
+    <div v-if="initialLoad">
+      <v-row align="center">
+        <!-- 显示占位符图像 -->
+        <img :src="placeholderImage" alt="Chart Placeholder" draggable="false"
+             style="width: 200px; height: auto; display: block; margin-bottom: 20px; user-select: none; pointer-events: none;" />
+      </v-row>
+      <v-row align="center">
+        <!-- 仿 iOS 大开关 -->
+        <v-switch
+          v-model="isSwitched"
+          class="mt-5"
+          label="企业微信推送"
+          style="transform: scale(2);"
+          @change="handleSwitchChange"
+          :color="isSwitched ? 'green' : 'grey'"
+          :thumb-color="isSwitched ? 'white' : 'grey'"
+        >
+          <template v-slot:thumb>
+            <!-- 自定义开关的图标，替换默认的滑块 -->
+            <v-icon :color="isSwitched ? 'white' : 'grey'">mdi-power</v-icon>
+          </template>
+        </v-switch>
+      </v-row>
+      <v-row align="center" style="margin-top: 20px;">
+        <!-- 状态描述 -->
+        <p v-if="botHealthState" class="mb-0 mr-4">
+          当前状态：{{ botHealthState }}
+        </p>
+      </v-row>
+      <v-row align="center" style="margin-top: 20px;">
+        <v-btn text variant="elevated">
+          <v-icon>mdi-send</v-icon>
+          请前往‘企业微信推送智能体’中进行配置
+        </v-btn>
+      </v-row>
     </div>
   </v-container>
 </template>
