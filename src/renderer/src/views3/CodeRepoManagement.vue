@@ -9,7 +9,7 @@
       <!-- 快速导入 -->
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="openImportDialog">
+          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="openImportDialog">
             <v-icon>mdi-download</v-icon>
             <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
           </v-btn>
@@ -19,7 +19,7 @@
       <!-- 本地导入 -->
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="openLocalImportDialog">
+          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="openLocalImportDialog">
             <v-icon>mdi-folder-open</v-icon>
             <span>本地导入</span>
           </v-btn>
@@ -28,7 +28,7 @@
       </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="fetchRepos">
+          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="fetchRepos">
             <v-icon>mdi-refresh</v-icon>
           </v-btn>
         </template>
@@ -36,7 +36,7 @@
       </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" class="mr-2" variant="outlined" @click="openNewRepoDialog">
+          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="openNewRepoDialog">
             <v-icon>mdi-plus</v-icon>
           </v-btn>
         </template>
@@ -46,8 +46,13 @@
 
     <!-- 卡片式仓库列表 -->
     <v-row class="mt-4 mr-4" justify="center">
-      <v-col v-for="repo in repos" :key="repo.id" cols="6">
-        <v-card class="id-card" elevation="2" style="display: block; width: 520px; height: 350px">
+      <v-col v-for="repo in repos" :key="repo.id"
+             cols="12"
+             sm="6"
+             md="6"
+             lg="5"
+      >
+        <v-card class="id-card" elevation="2" style="display: block">
           <div class="id-card-header">
             <span class="id-card-title">代码仓库身份证</span>
             <span class="id-card-subtitle">CODE REPOSITORY ID CARD</span>
@@ -68,49 +73,54 @@
               </div>
               <div class="info-item">
                 <span class="label">描述 / Desc</span>
-                <span class="value ellipsis">{{ omit(repo.desc, 40) }}</span>
+                <span class="value ellipsis">{{ omit(repo.desc, 14) }}</span>
               </div>
             </div>
           </div>
           <div class="id-card-footer">
-            <div class="id-number">仓库ID: {{ repo.id }}</div>
+            <div class="id-number">仓库ID:{{repo.id}}</div>
             <div class="action-buttons">
-              <v-tooltip text="编辑仓库">
+              <v-tooltip text="编辑">
                 <template #activator="{ props }">
                   <v-btn
                     v-bind="props"
                     small
-                    class="detail-btn mr-2"
+                    class="detail-btn mr-0"
                     color="primary"
                     variant="outlined"
                     @click="viewRepo(repo)"
                   >
                     <v-icon>mdi-pencil</v-icon>
-                    编辑仓库
+                    编辑
                   </v-btn>
                 </template>
               </v-tooltip>
-              <v-tooltip text="预览代码">
-                <template #activator="{ props }">
-                  <v-btn
-                    v-bind="props"
-                    small
-                    class="preview-btn mr-2"
-                    color="warning"
-                    variant="outlined"
-                    @click="previewRepo(repo)"
-                  >
-                    <v-icon>mdi-eye</v-icon>
-                    预览代码
-                  </v-btn>
-                </template>
-              </v-tooltip>
+              <v-btn
+                small
+                class="detail-btn mr-0"
+                color="purple"
+                variant="outlined"
+                @click="jumpToFm"
+              >
+                <v-icon>mdi-flash</v-icon>
+                索引
+              </v-btn>
+              <v-btn
+                small
+                class="preview-btn mr-0"
+                color="warning"
+                variant="outlined"
+                @click="previewRepo(repo)"
+              >
+                <v-icon>mdi-eye</v-icon>
+                进入
+              </v-btn>
               <v-tooltip text="删除仓库">
                 <template #activator="{ props }">
                   <v-btn
                     v-bind="props"
                     small
-                    class="delete-btn mr-2"
+                    class="delete-btn mr-0"
                     color="error"
                     variant="outlined"
                     @click="deleteRepoo(repo)"
@@ -169,16 +179,30 @@
                 />
               </div>
               <div class="info-item">
-                <v-select
-                  v-model="repoForm.branch"
-                  :items="branchOptions"
-                  label="分支 / Branch"
-                  density="compact"
-                  variant="outlined"
-                  bg-color="rgba(255,255,255,0.7)"
-                  hide-details
-                  class="custom-field"
-                />
+                <div v-if="selectedRepo === null">
+                  <span class="label">分支 / Branch</span>
+                  <v-text-field
+                    v-model="repoForm.branch"
+                    required
+                    density="compact"
+                    variant="outlined"
+                    bg-color="rgba(255,255,255,0.7)"
+                    hide-details
+                    class="custom-field"
+                  />
+                </div>
+                <div v-else>
+                  <v-select
+                    v-model="repoForm.branch"
+                    :items="branchOptions"
+                    label="分支 / Branch"
+                    density="compact"
+                    variant="outlined"
+                    bg-color="rgba(255,255,255,0.7)"
+                    hide-details
+                    class="custom-field"
+                  />
+                </div>
               </div>
               <div class="info-item">
                 <span class="label">本地路径 / Local Path</span>
@@ -186,13 +210,13 @@
                   v-model="repoForm.local_path"
                   required
                   :disabled="selectedRepo !== null"
-                  readonly
                   density="compact"
                   variant="outlined"
                   bg-color="rgba(255,255,255,0.7)"
                   hide-details
                   class="custom-field"
-                  @click="handleLocalPathClick"
+                  append-inner-icon="mdi-folder"
+                  @click:append-inner="handleLocalPathClick"
                 />
               </div>
               <div class="info-item">
@@ -236,35 +260,37 @@
         <div class="id-card-footer">
           <div class="id-number">{{ selectedRepo ? '编辑' : '新增' }}</div>
           <div class="action-buttons">
-            <v-tooltip text="取消">
-              <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  small
-                  class="cancel-btn mr-2"
-                  color="error"
-                  @click="closeDialog"
-                >
-                  <v-icon>mdi-close</v-icon>
-                  取消
-                </v-btn>
-              </template>
-            </v-tooltip>
-            <v-tooltip text="保存">
-              <template #activator="{ props }">
-                <v-btn
-                  v-bind="props"
-                  small
-                  class="save-btn"
-                  color="primary"
-                  :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)"
-                  @click="saveRepo"
-                >
-                  <v-icon>mdi-content-save</v-icon>
-                  {{ selectedRepo ? '保存并更新仓库' : '创建仓库' }}
-                </v-btn>
-              </template>
-            </v-tooltip>
+            <v-btn
+              small
+              size="small"
+              color="error"
+              outlined
+              @click="closeDialog"
+            >
+              <v-icon>mdi-close</v-icon>
+              取消
+            </v-btn>
+            <v-btn
+              small
+              size="small"
+              color="primary"
+              outlined
+              :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)"
+              @click="saveRepo"
+            >
+              <v-icon>mdi-content-save</v-icon>
+              {{ selectedRepo ? '保存并更新仓库' : '创建仓库' }}
+            </v-btn>
+            <v-btn
+              small
+              size="small"
+              outlined
+              color="purple"
+              @click="jumpToFm"
+            >
+              <v-icon>mdi-flash</v-icon>
+              构建AI索引
+            </v-btn>
           </div>
         </div>
       </v-card>
@@ -281,9 +307,9 @@
               label="本地仓库根目录"
               prepend-inner-icon="mdi-folder"
               placeholder="选择本地仓库路径"
-              readonly
               required
-              @click="selectLocalRepoPath"
+              append-inner-icon="mdi-folder"
+              @click:append-inner="selectLocalRepoPath"
             />
             <v-text-field
               v-model="localImportForm.name"
@@ -330,9 +356,9 @@
               label="本地路径"
               placeholder="选择或输入本地目录"
               prepend-inner-icon="mdi-folder"
-              readonly
               required
-              @click="selectImportLocalPath"
+              append-inner-icon="mdi-folder"
+              @click:append-inner="selectImportLocalPath"
             />
           </v-form>
         </v-card-text>
@@ -417,6 +443,7 @@ import { ref, reactive, watch, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { listRepos, getRepo, createRepo, updateRepo, deleteRepo, listBranches, switchBranch } from "../service/api";
+import { omit } from '../service/str'
 import { generateAvatar } from '../components/AvatarGenerator'
 import {
   VSelect, VSnackbar
@@ -569,13 +596,6 @@ async function applyBranch(repoID) {
 }
 
 
-function omit(str, limit) {
-  if (str.length > limit) {
-    return `${str.substring(0, limit)}...`
-  }
-  return str
-}
-
 const openLocalImportDialog = () => {
   Object.assign(localImportForm, {
     local_path: '',
@@ -630,15 +650,23 @@ const fetchRepos = async () => {
 // 预览仓库内容，使用 Vue Router 进行跳转
 const previewRepo = (item) => {
   const localPath = item.local_path
+  const rootPath = item.local_path
   const forceReplace = 'true'
   if (localPath) {
     router.push({
       name: 'finder',
-      params: { localPath, forceReplace }
+      params: { localPath, forceReplace, rootPath }
     })
   } else {
     alert('该仓库未配置本地路径')
   }
+}
+
+const jumpToFm = () => {
+  closeDialog()
+  router.push({
+    name: 'scan'
+  })
 }
 
 // 打开新增仓库对话框，同时重置表单
@@ -1019,10 +1047,11 @@ onMounted(() => {
 <style scoped>
 /* 身份证卡片样式 */
 .id-card {
-  width: 600px;
-  height: 360px;
-  margin: 10px;
-  padding: 20px;
+  width: 100%;
+  height: 100%;
+  margin: 10px 10px ;
+  padding: 20px 20px 40px;
+  font-size: calc(14px + 0.3vw); /* 随屏幕宽度变化字体大小 */
   background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
   position: relative;
   border-radius: 10px;
