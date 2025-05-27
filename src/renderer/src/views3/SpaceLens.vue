@@ -21,21 +21,62 @@
           color="purple"
           @focus="loadPathSuggestions"
         />
-        <div class="button-group-modern" style="width: 45%; height: 55px; font-size: 18px; display: flex; align-items: center; margin-top: 0px; gap: 8px;">
+        <div
+          class="button-group-modern"
+          style="
+            width: 45%;
+            height: 55px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            margin-top: 0px;
+            gap: 8px;
+          "
+        >
           <v-btn color="purple" class="mr-2 modern-btn" elevation="0" @click="applyLensPath">
             <v-icon color="white">mdi-line-scan</v-icon>
             <span style="color: white">深度扫描</span>
           </v-btn>
-          <v-btn ref="analysisBtn" variant="flat" color="indigo" class="mr-2 modern-btn" elevation="0" @click="toggleAnalysisDrawer">
+          <v-btn
+            ref="analysisBtn"
+            variant="flat"
+            color="indigo"
+            class="mr-2 modern-btn"
+            elevation="0"
+            @click="toggleAnalysisDrawer"
+          >
             <v-icon>mdi-file-document</v-icon>
             <span>生成代码分析报告</span>
           </v-btn>
-          <v-btn ref="architectureBtn" variant="flat" color="teal" class="modern-btn" elevation="0" @click="toggleArchitectureDrawer">
+          <v-btn
+            ref="architectureBtn"
+            variant="flat"
+            color="teal"
+            class="modern-btn"
+            elevation="0"
+            @click="toggleArchitectureDrawer"
+          >
             <v-icon>mdi-sitemap</v-icon>
             <span>生成架构流程图</span>
           </v-btn>
         </div>
       </v-row>
+<!--      <v-row>-->
+<!--        <div class="p-6">-->
+<!--          <h2 class="text-2xl mb-4">调试：代码分析报告弹窗</h2>-->
+<!--          <v-btn @click="openModal">-->
+<!--            打开调试弹窗-->
+<!--          </v-btn>-->
+
+<!--          &lt;!&ndash; 直接传入模拟数据 &ndash;&gt;-->
+<!--          <AnalysisReportModal-->
+<!--            v-model="isModalVisible"-->
+<!--            :repo-i-d="dummyRepoID"-->
+<!--            :target-path="dummyTargetPath"-->
+<!--            :scope-text="dummyScopeText"-->
+<!--          />-->
+<!--        </div>-->
+<!--      </v-row>-->
 
       <!-- 顶部工具栏：面包屑导航 -->
       <v-row>
@@ -90,9 +131,9 @@
                   v-for="item in legendItems"
                   :key="item.name"
                   style="cursor: pointer"
+                  class="modern-list-item"
                   @click="onLegendItemClick($event, item)"
                   @contextmenu="showContextMenu($event, item)"
-                  class="modern-list-item"
                 >
                   <template #prepend>
                     <v-avatar size="32">
@@ -131,7 +172,11 @@
     <FileContextMenu ref="contextMenu" :menu-items="menuItems" />
 
     <!-- 代码分析报告抽屉 -->
-    <div v-if="analysisDrawerVisible" class="modern-drawer analysis-drawer" :style="analysisDrawerStyle">
+    <div
+      v-if="analysisDrawerVisible"
+      class="modern-drawer analysis-drawer"
+      :style="analysisDrawerStyle"
+    >
       <v-card class="drawer-card-modern" elevation="2">
         <v-card-text>
           <div class="drawer-title">选择分析范围</div>
@@ -167,8 +212,23 @@
         </v-card-text>
       </v-card>
     </div>
+    <!-- 引入弹窗 -->
+    <AnalysisReportModal
+      v-model="analysisReportDrawerVisible"
+      :repo-i-d="modalRepoID"
+      :target-path="modalTargetPath"
+      :scope-text="modalScopeText"
+      :whole-repo="wholeRepo"
+      :api="apiType"
+    />
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000" rounded="pill" elevation="2">
+    <v-snackbar
+      v-model="snackbar.show"
+      :color="snackbar.color"
+      :timeout="3000"
+      rounded="pill"
+      elevation="2"
+    >
       {{ snackbar.message }}
     </v-snackbar>
   </v-container>
@@ -180,6 +240,28 @@ import * as d3 from 'd3'
 import FileContextMenu from '../components/FileContextMenu.vue'
 import { listRepos } from '../service/api'
 import grassSVG from '../assets/透镜.svg'
+
+// 父组件内部 state
+const analysisReportDrawerVisible = ref(false)
+const modalRepoID = ref('')
+const modalTargetPath = ref('')
+const modalScopeText = ref('')
+const wholeRepo = ref(false)
+const apiType = ref('')
+
+// 控制弹窗显隐
+const isModalVisible = ref(false)
+
+// 模拟传给子组件的 props
+const dummyRepoID = ref('demo-repo-123')
+const dummyTargetPath = ref('/src/components')
+const dummyScopeText = ref('调试模式')
+
+// 打开弹窗
+function openModal() {
+  // 你也可以在这里先改 markdownContent 进行更灵活的模拟
+  isModalVisible.value = true
+}
 
 // Electron 内置模块（使用 top-level await）
 const fs = window.electron.fs
@@ -247,6 +329,7 @@ const contextMenu = ref(null)
 // 路由与 store（假设项目中已配置 vue-router 与 vuex）
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
+import AnalysisReportModal from '../components/ai/AnalysisReportModal.vue'
 const router = useRouter()
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
@@ -257,7 +340,7 @@ const viewFileDetails = () => {
     console.log('跳转到文件浏览器页面，文件路径：', selectedFile.value.fullPath)
     router.push({
       name: 'finder',
-      params: { localPath: selectedFile.value.fullPath, forceDeep: true, forceReplace: true }
+      params: { localPath: selectedFile.value.fullPath, forceDeep: true, forceReplace: 'true', rootPath: rootPath.value }
     })
   }
 }
@@ -287,15 +370,35 @@ const generateFileAnalysisReport = async () => {
     isProcessing.value = true
     try {
       const targetPath = selectedFile.value.fullPath
-      console.log(`生成文件代码分析报告，路径：${targetPath}`)
+      const scopeText = '单点文件集'
+
+      console.log(`生成文件代码分析报告，范围：${scopeText}，路径：${targetPath}`)
 
       // 这里可以调用后端API生成报告
-      // 示例：await window.electron.ipcRenderer.invoke('generate-analysis-report', targetPath)
+      const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
+      if (selectedItem) {
+        const repoID = selectedItem.id
+        console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在为文件生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
-        color: 'info'
-      })
+        // 给 ref 赋值，Vue 才能通知模板更新 props
+        modalRepoID.value = selectedItem.id.toString()
+        modalTargetPath.value = targetPath
+        modalScopeText.value = scopeText
+        apiType.value = 'deepResearch'
+        wholeRepo.value = false
+
+        // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+        analysisReportDrawerVisible.value = true
+
+        console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
+
+        store.dispatch('snackbar/showSnackbar', {
+          message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
+          color: 'info'
+        })
+      } else {
+        console.warn('未找到匹配的仓库路径')
+      }
     } catch (error) {
       console.error('生成代码分析报告失败:', error)
       store.dispatch('snackbar/showSnackbar', {
@@ -308,22 +411,44 @@ const generateFileAnalysisReport = async () => {
   }
 }
 
+
 // 为文件夹生成架构流程图
 const generateFolderArchitectureMap = async () => {
-  if (selectedFile.value && selectedFile.value.fullPath && selectedFile.value.isDirectory) {
+  if (
+    selectedFile.value &&
+    selectedFile.value.fullPath
+    // selectedFile.value.isDirectory
+  ) {
     architectureDrawerVisible.value = false
     isProcessing.value = true
     try {
       const targetPath = selectedFile.value.fullPath
+      const scopeText = '单点文件集'
       console.log(`生成文件夹架构流程图，路径：${targetPath}`)
 
       // 这里可以调用后端API生成架构图
-      // 示例：await window.electron.ipcRenderer.invoke('generate-architecture-map', targetPath)
+      const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
+      if (selectedItem) {
+        const repoID = selectedItem.id
+        console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在为文件夹梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
-        color: 'info'
-      })
+        // 给 ref 赋值，Vue 才能通知模板更新 props
+        modalRepoID.value = selectedItem.id.toString()
+        modalTargetPath.value = targetPath
+        modalScopeText.value = scopeText
+        apiType.value = 'flowChart'
+        wholeRepo.value = false
+
+        // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+        analysisReportDrawerVisible.value = true
+        store.dispatch('snackbar/showSnackbar', {
+          message: `正在为文件夹梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
+          color: 'info'
+        })
+      } else {
+        console.warn('未找到匹配的仓库路径')
+      }
+
     } catch (error) {
       console.error('生成架构流程图失败:', error)
       store.dispatch('snackbar/showSnackbar', {
@@ -352,13 +477,13 @@ const menuItems = computed(() => {
   })
 
   // 如果是文件夹，添加生成架构流程图选项
-  if (selectedFile.value && selectedFile.value.isDirectory) {
+  // if (selectedFile.value && selectedFile.value.isDirectory) {
     baseItems.push({
       title: '生成架构流程图',
       icon: 'mdi-sitemap',
       action: generateFolderArchitectureMap
     })
-  }
+  // }
 
   return baseItems
 })
@@ -424,6 +549,7 @@ const toggleArchitectureDrawer = () => {
 
 // 生成代码分析报告
 const generateAnalysisReport = async () => {
+  analysisReportDrawerVisible.value = false
   analysisDrawerVisible.value = false
   isProcessing.value = true
   try {
@@ -436,12 +562,38 @@ const generateAnalysisReport = async () => {
     console.log(`生成代码分析报告，范围：${scopeText}，路径：${targetPath}`)
 
     // 这里可以调用后端API生成报告
-    // 示例：await window.electron.ipcRenderer.invoke('generate-analysis-report', targetPath)
+    const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
+    if (selectedItem) {
+      const repoID = selectedItem.id
+      console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-    store.dispatch('snackbar/showSnackbar', {
-      message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
-      color: 'info'
-    })
+      // 给 ref 赋值，Vue 才能通知模板更新 props
+      modalRepoID.value = selectedItem.id.toString()
+      modalTargetPath.value = targetPath
+      modalScopeText.value = scopeText
+      apiType.value = 'deepResearch'
+
+      // 如果为整个仓库，则wholeRepo设置为true
+      wholeRepo.value = analysisScope.value !== 'current'
+      // 如果当前层级为项目根目录，则视为整个仓库
+      // if (currentFocus.value.data.fullPath === rootPath.value) {
+      //   console.log('当前层级为项目根目录，视为整个仓库')
+      //   wholeRepo.value = true
+      // }
+      console.log('wholeRepo', wholeRepo.value)
+
+      // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+      analysisReportDrawerVisible.value = true
+
+      console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
+        color: 'info'
+      })
+    } else {
+      console.warn('未找到匹配的仓库路径')
+    }
   } catch (error) {
     console.error('生成代码分析报告失败:', error)
     store.dispatch('snackbar/showSnackbar', {
@@ -466,13 +618,36 @@ const generateArchitectureMap = async () => {
 
     console.log(`生成架构流程图，范围：${scopeText}，路径：${targetPath}`)
 
-    // 这里可以调用后端API生成架构图
-    // 示例：await window.electron.ipcRenderer.invoke('generate-architecture-map', targetPath)
+    // 这里可以调用后端API生成报告
+    const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
+    if (selectedItem) {
+      const repoID = selectedItem.id
+      console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-    store.dispatch('snackbar/showSnackbar', {
-      message: `正在为${scopeText}梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
-      color: 'info'
-    })
+      // 给 ref 赋值，Vue 才能通知模板更新 props
+      modalRepoID.value = selectedItem.id.toString()
+      modalTargetPath.value = targetPath
+      modalScopeText.value = scopeText
+      apiType.value = 'flowChart'
+
+      // 如果为整个仓库，则wholeRepo设置为true
+      wholeRepo.value = analysisScope.value !== 'current'
+      // 如果当前层级为项目根目录，则视为整个仓库
+      if (currentFocus.value.data.fullPath === rootPath.value) {
+        console.log('当前层级为项目根目录，视为整个仓库')
+        wholeRepo.value = true
+      }
+      console.log('wholeRepo', wholeRepo.value)
+      // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+      analysisReportDrawerVisible.value = true
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: `正在为${scopeText}梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
+        color: 'info'
+      })
+    } else {
+      console.warn('未找到匹配的仓库路径')
+    }
   } catch (error) {
     console.error('生成架构流程图失败:', error)
     store.dispatch('snackbar/showSnackbar', {
@@ -738,7 +913,8 @@ const loadPathSuggestions = async () => {
     if (!response.data || !Array.isArray(response.data)) return
     pathSuggestions.value = response.data.map((repo) => ({
       value: repo.local_path,
-      title: `${repo.desc}(${repo.name})`
+      title: `${repo.desc}(${repo.name})`,
+      id: repo.id
     }))
   } catch (err) {
     console.error('获取仓库数据失败:', err)
@@ -939,7 +1115,7 @@ const drawChartWithAnimation = () => {
       .on('contextmenu', handleContextMenu)
       .on('mouseover', (event, d) => {
         if (d.data.isDirectory) {
-          tooltipContent.value = `${d.data.name}: ${d.value} 个子项`
+          tooltipContent.value = `${d.data.name}: ${formatSize(d.value)}`
         } else {
           tooltipContent.value = `${d.data.name}: ${formatSize(d.value)}`
         }
@@ -1007,7 +1183,6 @@ onMounted(() => {
   overflow-y: auto;
   overflow-x: hidden;
   background-color: #eeefef;
-  color: #333;
 }
 
 .directory-list::-webkit-scrollbar {
@@ -1046,14 +1221,16 @@ onMounted(() => {
 }
 
 /* Autocomplete and Buttons */
-.v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line .v-field {
+.v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line
+  .v-field {
   border-radius: 20px !important; /* Rounded like DeepSearch input */
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-.v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line .v-field:focus-within {
-  box-shadow: 0 6px 16px rgba(0,0,0,0.12) !important;
+.v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line
+  .v-field:focus-within {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
   border: 1px solid rgba(var(--v-theme-primary), 0.6) !important;
 }
 
@@ -1066,7 +1243,7 @@ onMounted(() => {
 
 .button-group-modern .modern-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Toolbar and Breadcrumbs */
@@ -1113,7 +1290,9 @@ onMounted(() => {
 }
 
 .modern-list-item {
-  transition: background-color 0.2s ease, transform 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    transform 0.2s ease;
   border-radius: 8px;
   margin: 4px 0; /* Add some spacing */
 }
@@ -1129,12 +1308,15 @@ onMounted(() => {
 
 /* Tooltip */
 .tooltip-card-modern {
-  background-color: rgba(var(--v-theme-surface-rgb), 0.9) !important; /* Match DeepSearch dropdown */
+  background-color: rgba(
+    var(--v-theme-surface-rgb),
+    0.9
+  ) !important; /* Match DeepSearch dropdown */
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   border-radius: 8px !important;
   padding: 10px 14px !important;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.12) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12) !important;
 }
 
 .tooltip-card-modern .v-icon {
@@ -1154,7 +1336,7 @@ onMounted(() => {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   animation: fadeIn 0.3s ease-out; /* Use fadeIn for drawers */
 }
@@ -1190,24 +1372,39 @@ onMounted(() => {
 
 /* Keyframe animations (from DeepSearch.vue) */
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes slideDown {
-  from { transform: translateY(-15px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(-15px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(15px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(15px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 /* Ensure initial state for animations if not handled by v-if */
 .v-row:first-child, /* Top controls row */
-.v-row:nth-child(2) /* Breadcrumbs row */
-{
+.v-row:nth-child(2) /* Breadcrumbs row */ {
   animation: slideDown 0.5s ease-out;
 }
 
