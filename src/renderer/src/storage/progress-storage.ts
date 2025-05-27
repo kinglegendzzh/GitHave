@@ -18,7 +18,7 @@ export function saveRepoProgress(id: number, p: RepoProgress): void {
   try {
     localStorage.setItem(getKey(id), JSON.stringify(p));
   } catch (e) {
-    console.error('保存索引进度到 localStorage 失败', e);
+    console.error('保存AI索引进度到 localStorage 失败', e);
   }
 }
 
