@@ -13,10 +13,10 @@
           class="placeholder-image"
           style="max-width: 300px; opacity: 0.8"
         />
-<!--        <v-btn color="primary" class="mt-6 research-button" elevation="0" @click="selectDirectory">-->
-<!--          <v-icon left>mdi-folder-open</v-icon>-->
-<!--          初始化指定存储目录-->
-<!--        </v-btn>-->
+        <!--        <v-btn color="primary" class="mt-6 research-button" elevation="0" @click="selectDirectory">-->
+        <!--          <v-icon left>mdi-folder-open</v-icon>-->
+        <!--          初始化指定存储目录-->
+        <!--        </v-btn>-->
       </div>
 
       <!-- 文件列表展示 -->
@@ -25,10 +25,10 @@
           <h2>
             枢纽 <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
           </h2>
-<!--          <v-btn class="refresh-button" elevation="0" @click="selectDirectory">-->
-<!--            <v-icon left>mdi-refresh</v-icon>-->
-<!--            刷新-->
-<!--          </v-btn>-->
+          <!--          <v-btn class="refresh-button" elevation="0" @click="selectDirectory">-->
+          <!--            <v-icon left>mdi-refresh</v-icon>-->
+          <!--            刷新-->
+          <!--          </v-btn>-->
         </div>
 
         <!-- 文件类型标签页 -->
@@ -49,70 +49,86 @@
                 <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
                 <div class="text-body-1 mt-2">暂无代码分析报告</div>
               </div>
-              <v-list v-else lines="two">
-                <v-list-item
-                  v-for="file in files"
-                  :key="file.path"
-                  @click="previewFile(file)"
+              <recycle-scroller
+                v-else
+                :items="files.slice(0, visibleCount)"
+                :item-size="72"
+                key-field="path"
+                class="file-scroller"
+              >
+                <template #default="{ item: file }">
+                  <v-list-item @click="previewFile(file)">
+                    <template #prepend>
+                      <v-icon :color="getFileIconColor(file.type)" size="large">
+                        {{ getFileIcon(file.type) }}
+                      </v-icon>
+                    </template>
+                    <v-list-item-title class="text-subtitle-1 font-weight-medium">
+                      {{ file.name }}
+                    </v-list-item-title>
+                    <v-list-item-subtitle>
+                      <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                      <v-chip
+                        size="x-small"
+                        class="ml-2"
+                        :color="getFileTypeColor(file.type)"
+                        text-color="white"
+                      >
+                        {{ file.type.toUpperCase() || 'UNKNOWN' }}
+                      </v-chip>
+                      <v-chip
+                        v-for="(main_tag, tIndex) in file.main_tags"
+                        :key="'tag-' + tIndex"
+                        size="x-small"
+                        class="ml-2"
+                        color="green"
+                        text-color="white"
+                      >
+                        {{ main_tag }}
+                      </v-chip>
+                      <v-chip
+                        v-for="(tag, tIndex) in file.tags"
+                        :key="'tag-' + tIndex"
+                        size="x-small"
+                        class="ml-2"
+                        color="grey"
+                        text-color="white"
+                      >
+                        {{ tag }}
+                      </v-chip>
+                    </v-list-item-subtitle>
+                    <template #append>
+                      <v-btn
+                        icon="mdi-open-in-new"
+                        variant="text"
+                        size="small"
+                        @click.stop="openFile(file)"
+                      ></v-btn>
+                      <v-btn
+                        icon="mdi-delete"
+                        variant="text"
+                        size="small"
+                        color="error"
+                        @click.stop="removeFile(file)"
+                      ></v-btn>
+                    </template>
+                  </v-list-item>
+                </template>
+              </recycle-scroller>
+              <!-- 加载更多 -->
+              <div v-if="files.length > visibleCount" class="text-center py-4">
+                <v-btn
+                  color="primary"
+                  class="load-more-button"
+                  variant="text"
+                  elevation="0"
+                  @click="visibleCount += 20"
                 >
-                  <template #prepend>
-                    <v-icon :color="getFileIconColor(file.type)" size="large">
-                      {{ getFileIcon(file.type) }}
-                    </v-icon>
-                  </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">
-                    {{ file.name }}
-                  </v-list-item-title>
-                  <v-list-item-subtitle>
-                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                    <v-chip
-                      size="x-small"
-                      class="ml-2"
-                      :color="getFileTypeColor(file.type)"
-                      text-color="white"
-                    >
-                      {{ file.type.toUpperCase() || 'UNKNOWN' }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(main_tag, tIndex) in file.main_tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="green"
-                      text-color="white"
-                    >
-                      {{ main_tag }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(tag, tIndex) in file.tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="grey"
-                      text-color="white"
-                    >
-                      {{ tag }}
-                    </v-chip>
-                  </v-list-item-subtitle>
-                  <template #append>
-                    <v-btn
-                      icon="mdi-open-in-new"
-                      variant="text"
-                      size="small"
-                      @click.stop="openFile(file)"
-                    ></v-btn>
-                    <v-btn
-                      icon="mdi-delete"
-                      variant="text"
-                      size="small"
-                      color="error"
-                      @click.stop="removeFile(file)"
-                    ></v-btn>
-                  </template>
-                </v-list-item>
-              </v-list>
+                  <v-icon left>mdi-arrow-down</v-icon>
+                  加载更多
+                </v-btn>
+              </div>
             </div>
-
             <!-- 仓库提交贡献榜 -->
             <div v-else-if="activeTab === 'contributionChart'">
               <div v-if="contributionChartFiles.length === 0" class="text-center py-4">
@@ -347,7 +363,7 @@
         </v-card>
 
         <!-- 文件预览对话框 -->
-        <v-dialog v-model="previewDialog" max-width="98%" >
+        <v-dialog v-model="previewDialog" max-width="98%">
           <v-card>
             <v-card-title class="d-flex align-center">
               <span>{{ selectedFile?.name || '文件预览' }}</span>
@@ -402,20 +418,26 @@
 </template>
 
 <script>
+import { RecycleScroller } from 'vue-virtual-scroller'
+import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import SVG from '../assets/report.svg'
 import { deepResearchFiles, deleteFile } from '../service/api'
 import MarkdownIt from 'markdown-it'
 // 新增路径处理和自定义工具
 import path from 'path-browserify'
-import store from "../store";
+import store from '../store'
 import { mapState } from 'vuex'
-import hljs from "highlight.js";
+import hljs from 'highlight.js'
 import 'highlight.js/styles/docco.css'
 
 export default {
   name: 'GitResearch',
+  components: {
+    RecycleScroller
+  },
   data() {
     return {
+      visibleCount: 10,
       initialLoad: true, // 初次加载标识
       placeholderImage: SVG, // 外部矢量图路径
       selectedDirectory: '', // 选中的目录路径
@@ -440,7 +462,7 @@ export default {
         '.vue': { darwin: 'code', win32: 'code', linux: 'code' },
         '.go': { darwin: 'code', win32: 'code', linux: 'code' },
         '.sh': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-        '.md': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
+        '.md': { darwin: 'code', win32: 'notepad', linux: 'gedit' },// todo Windows打开md文件报错修复一下
         '.markdown': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
         '.yml': { darwin: 'code', win32: 'code', linux: 'code' },
         '.yaml': { darwin: 'code', win32: 'code', linux: 'code' },
@@ -448,7 +470,7 @@ export default {
         '.xml': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
         '.html': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
         '.css': { darwin: 'code', win32: 'notepad', linux: 'gedit' }
-      },
+      }
     }
   },
   computed: {
@@ -519,7 +541,7 @@ export default {
         // 2. 再调用后端接口拿到实际报告
         const res = await deepResearchFiles()
         // 假设 res.data 就是文件数组
-        const apiFiles = res.data.map(item => {
+        const apiFiles = res.data.map((item) => {
           const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
           const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
           const tags = ext === 'md' ? ['可预览'] : []
@@ -530,12 +552,12 @@ export default {
             modifiedTime: new Date(item.updated_at.Time),
             main_tags: ['来源于空间透镜'],
             tags,
-            raw: item,
+            raw: item
           }
         })
 
         // 3. 把静态示例文件也映射成同样的结构
-        const exampleFiles = examples.map(file => {
+        const exampleFiles = examples.map((file) => {
           const extMatch = file.name.match(/\.([a-zA-Z0-9]+)$/)
           const ext = extMatch ? extMatch[1] : ''
           const tags = ext === 'md' ? ['可预览'] : []
@@ -544,17 +566,14 @@ export default {
             path: file.path,
             type: ext,
             modifiedTime: new Date(file.creationDate),
-            main_tags: ['示例文件'],   // 可以改成你需要的标签
+            main_tags: ['示例文件'], // 可以改成你需要的标签
             tags,
-            raw: file,
+            raw: file
           }
         })
 
         // 4. 合并两部分到 this.files
-        this.files = [
-          ...apiFiles,
-          ...exampleFiles,
-        ]
+        this.files = [...apiFiles, ...exampleFiles]
       } catch (error) {
         console.error('获取代码分析报告失败：', error)
       }
@@ -701,14 +720,14 @@ export default {
         } catch (err) {
           console.error('加载 Markdown 失败：', err)
         }
-        return   // 读取完就返回，不走后续模拟逻辑
+        return // 读取完就返回，不走后续模拟逻辑
       }
 
       // 2. 其它类型继续原有模拟逻辑
       setTimeout(() => {
         if (file.type === 'csv') {
           // … CSV 处理（保持原有代码）
-        } else if (['png','jpg','jpeg'].includes(file.type)) {
+        } else if (['png', 'jpg', 'jpeg'].includes(file.type)) {
           this.fileContent = file.path
         } else {
           this.fileContent = `无法读取${file.type}格式文件的内容，通过外部打开`
@@ -839,7 +858,7 @@ export default {
       const m = String(d.getUTCMinutes()).padStart(2, '0')
 
       return `${Y}-${M}-${D} ${h}:${m}`
-    },
+    }
   }
 }
 </script>
@@ -1034,12 +1053,12 @@ export default {
 
 .markdown-preview {
   font-family: 'Roboto Mono', monospace;
-  word-wrap: normal;       /* 禁用单词换行 */
-  word-break: normal;      /* 禁用任意字符换行 */
+  word-wrap: normal; /* 禁用单词换行 */
+  word-break: normal; /* 禁用任意字符换行 */
 
   /* 横向滚动条，超出宽度时显示 */
   overflow-x: auto;
-  overflow-y: hidden;      /* 可选：隐藏垂直滚动条 */
+  overflow-y: hidden; /* 可选：隐藏垂直滚动条 */
 
   font-size: 0.8rem;
 }
@@ -1089,5 +1108,8 @@ pre {
 }
 .preview-content code.hljs {
   white-space: pre !important;
+}
+.research-container {
+  animation: fadeIn 1.5s ease-in-out;
 }
 </style>
