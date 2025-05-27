@@ -1,42 +1,72 @@
 <template>
-  <v-dialog v-model="visible" max-width="1200" max-height="100vh">
+  <v-dialog v-model="visible" max-width="1200" max-height="90vh" persistent>
     <div
       class="bg-white bg-opacity-90 rounded-2xl shadow-lg w-11/12 max-w-3xl max-h-[70vh] flex flex-col"
-      style="padding: 10px; margin: 10px; border-radius: 5px; "
+      style=" margin: 10px; border-radius: 5px; "
     >
       <!-- Header -->
-      <v-btn @click="close" class="text-gray-500 hover:text-gray-800" color="white">
+      <v-btn
+        @click="close"
+        class="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
+        color="white"
+      >
         <v-icon>mdi-close</v-icon>
       </v-btn>
       <div class="flex items-center justify-between px-6 py-4 border-b">
         <h3 v-if="props.api  === 'deepResearch'" class="text-xl font-semibold">代码分析报告</h3>
-        <h3 v-else class="text-xl font-semibold">流程图</h3>
+        <h3 v-else class="text-xl font-semibold">架构流程图</h3>
       </div>
 
       <!-- Status -->
       <div class="flex items-center px-6 py-2 space-x-2 border-b">
         <template v-if="isProcessing">
-          <div class="w-5 h-5 border-2 border-t-2 border-gray-300 rounded-full animate-spin"></div>
-          <span class="text-gray-600"><span class="text-cyan">{{ scopeText }}</span><v-icon color="warning">mdi-reload</v-icon> 生成中：</span>
+          <div class="w-5 h-5 border-2 border-t-2 border-gray-300 rounded-full animate-spin mt-2 mb-2">
+            <v-row>
+              <span class="text-gray-600"><span class="text-deep-orange-accent-4">{{ scopeText }}</span>
+                <v-progress-circular indeterminate color="warning"></v-progress-circular>
+                生成中：
+              </span>
+            </v-row>
+            <v-row>
+              <span class="text-grey-darken-2">(为该仓库提前构建全量索引，可以大幅提升AI分析的速度和质量哦)</span>
+            </v-row>
+            <v-row>
+              <span class="text-grey-lighten-1">(如果你第一次分析该路径，系统会花费较长时间为路径构建索引，请耐心等待...)</span>
+            </v-row>
+          </div>
         </template>
         <template v-else-if="success">
-          <span class="text-green-600"> <span class="text-green">{{ scopeText }}</span><v-icon color="green">mdi-check-circle</v-icon> 文件生成成功！请前往'枢纽'查看！</span>
+          <span class="text-green-darken-3">{{ scopeText }}</span><v-icon color="green">mdi-check-circle</v-icon>
+          <div v-if="props.api === 'deepResearch'" class="ml-auto flex space-x-2">
+            <span class="text-green-600"> 更多更详细的分析报告已生成，请前往'枢纽'查看！</span>
+            <router-link :to="{ name: 'report' }">
+              <v-btn color="primary" @click="close" size="small">前往枢纽</v-btn>
+            </router-link>
+            <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
+          </div>
+          <div v-else class="ml-auto flex space-x-2">
+            <span class="text-green-600"> 架构流程图已生成成功！</span>
+            <v-btn color="error" variant="outlined" size="small" @click="restartStreaming">不满意?重新生成</v-btn>
+            <v-btn variant="outlined" size="small" @click="exportDiagram">
+              <v-icon>mdi-download</v-icon> 导出
+            </v-btn>
+          </div>
         </template>
         <template v-else>
-          <span class="text-gray-500"><v-icon color="gray">mdi-account-hard-hat</v-icon>等待生成...</span>
+          <span class="text-gray-500"><v-icon color="gray">mdi-account-hard-hat</v-icon> 等待生成...</span>
         </template>
       </div>
 
       <!-- Content: flex-1 + min-h-0 + overflow-auto -->
-      <div class="flex-1 min-h-0 overflow-auto px-6 py-4 prose max-w-none" style="max-height: 70vh;">
+      <div class="flex-1 min-h-0 overflow-auto px-6 py-4 prose max-w-none" style="max-height: 70vh; max-width: 90vw;">
         <div v-if="props.api === 'deepResearch'">
           <div v-html="renderedMarkdown"></div>
         </div>
         <div v-else>
           <div class="flowchart-toolbar mb-2">
-            <v-btn variant="outlined" @click="zoomIn"><v-icon>mdi-magnify</v-icon>放大</v-btn>
-            <v-btn variant="outlined" @click="zoomOut"><v-icon>mdi-magnify-minus</v-icon>缩小</v-btn>
-            <v-btn variant="outlined" @click="resetZoom"><v-icon>mdi-refresh</v-icon>重置</v-btn>
+            <v-btn variant="outlined" size="small" @click="zoomIn"><v-icon>mdi-magnify</v-icon> 放大</v-btn>
+            <v-btn variant="outlined" size="small" @click="zoomOut"><v-icon>mdi-magnify-minus</v-icon> 缩小</v-btn>
+            <v-btn variant="outlined" size="small" @click="resetZoom"><v-icon>mdi-refresh</v-icon> 重置</v-btn>
           </div>
           <div ref="mermaidContainer" class="prose max-w-none"></div>
         </div>
@@ -57,9 +87,12 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
-import { deepResearch, flowChart } from '../../service/api.js'
-import { useStore } from "vuex"
+import { deepResearch, flowChart, deleteFile } from '../../service/api.js'
+import { useStore } from 'vuex'
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs'
+import { useRouter } from 'vue-router'
+import html2canvas from 'html2canvas'
+
 const mermaidContainer = ref<HTMLElement|null>(null)
 const zoomLevel = ref(1)
 function applyZoom() {
@@ -75,6 +108,7 @@ function resetZoom(){ zoomLevel.value = 1; applyZoom() }
 
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
+const router = useRouter()
 
 const props = defineProps<{
   modelValue: boolean
@@ -94,67 +128,45 @@ const visible = computed({
 const markdownContent = ref('')
 const isProcessing = ref(false)
 const success = ref(false)
-const scopeText = ref('(' + props.scopeText + ')')
+const scopeText = ref('')
 const lastEndIndex = ref(-1)
 const isRendering = ref(false)
+let fileIds = []
 
 // —— 1. 初始化 Mermaid ——
-// 关闭 startOnLoad，由手动触发渲染
 mermaid.initialize({ startOnLoad: false, theme: 'default' })
 
 // —— 2. 配置 MarkdownIt ——
-// 支持 HTML、关闭默认链接跳转
 const md = new MarkdownIt({ html: true, linkify: false })
-
-// 重写 fence 渲染：遇到 mermaid 代码块，输出 <div class="mermaid">…</div>
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
-  const info = token.info.trim()  // 语言标识
+  const info = token.info.trim()
   if (info === 'mermaid') {
     const code = token.content.trim()
     return `<div class="mermaid">${code}</div>`
   }
-  // 其他语言走默认
   return self.renderToken(tokens, idx, options)
 }
-
 const renderedMarkdown = computed(() => md.render(markdownContent.value))
 
-// —— 3. 每次 Markdown 渲染完毕后，如果是 flowChart，就触发 Mermaid 渲染 ——
+// —— 3. Mermaid 渲染观察 ——
 watch(renderedMarkdown, async () => {
   if (props.api !== 'flowChart') return
-
-  // 等待 DOM 更新
   await nextTick()
-
   try {
-    // 更新容器内容
     mermaidContainer.value!.innerHTML = renderedMarkdown.value
-
-    const md = renderedMarkdown.value
+    const mdStr = renderedMarkdown.value
     const openTag = '<div class="mermaid">'
     const closeTag = '</div>'
-
-    // 只找第一个开标签和第一个闭标签
-    const startIndex = md.indexOf(openTag)
-    const endIndex = md.indexOf(closeTag)
-
-    console.log('Mermaid 渲染范围：', startIndex, endIndex)
+    const startIndex = mdStr.indexOf(openTag)
+    const endIndex = mdStr.indexOf(closeTag)
     if (
-      startIndex !== -1 &&
-      endIndex !== -1 &&
-      startIndex < endIndex &&
-      endIndex === lastEndIndex.value
-      && !isRendering.value
+      startIndex !== -1 && endIndex !== -1 && startIndex < endIndex
+      && endIndex === lastEndIndex.value && !isRendering.value
     ) {
-      // 有完整 mermaid 块且还没渲染过
       mermaid.init(undefined, '.prose .mermaid')
       applyZoom()
-      console.log('Mermaid 渲染成功', md)
       isRendering.value = true
-    } else {
-      // lastEndIndex.value =  endIndex
-      console.log('跳过 Mermaid 渲染：未检测到完整的 <div class="mermaid">…</div> 块，或已渲染过')
     }
   } catch (e) {
     console.error('Mermaid 渲染失败：', e)
@@ -166,13 +178,59 @@ watch(visible, (val) => {
   else reset()
 })
 
+async function exportDiagram() {
+  if (!mermaidContainer.value) return
+
+  // html2canvas 会把 div（包含 SVG）渲染成一张图片
+  const canvas = await html2canvas(mermaidContainer.value, {
+    scale: 2,            // 可选：提高分辨率
+    backgroundColor: 'white' // 不保留透明背景
+  })
+  canvas.toBlob(blob => {
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = scopeText.value + '.png'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  })
+}
+
 const reset = () => {
-  scopeText.value = '(' + props.scopeText + ')'
+  scopeText.value = ''
   markdownContent.value = ''
   isProcessing.value = false
   success.value = false
   lastEndIndex.value = -1
   isRendering.value = false
+  fileIds = []
+}
+
+async function restartStreaming() {
+  reset()
+  await startStreaming()
+}
+
+async function deleteReport() {
+  //二次确认
+  if (!confirm('确定要删除报告吗？')) return
+  for (let fileIdsKey in fileIds) {
+    console.log('delete ', fileIds[fileIdsKey])
+    await deleteFile(fileIds[fileIdsKey]).then(
+      () => {
+        store.dispatch('snackbar/showSnackbar', { message: '文件删除成功', color: 'success' })
+        close()
+      },
+      (error) => {
+        store.dispatch('snackbar/showSnackbar', { message: '文件删除失败', color: 'error' })
+      }
+    )
+  }
+  reset()
+  store.dispatch('snackbar/showSnackbar', { message: '报告已删除', color: 'info' })
 }
 
 async function renderingMermaid() {
@@ -182,7 +240,6 @@ async function renderingMermaid() {
     mermaidContainer.value!.innerHTML = renderedMarkdown.value
     mermaid.init(undefined, '.prose .mermaid')
     applyZoom()
-    console.log('Mermaid 渲染成功', renderedMarkdown.value)
   } catch (e) {
     console.error('Mermaid 渲染失败：', e)
   }
@@ -194,18 +251,15 @@ async function startStreaming() {
   try {
     const repoID = parseInt(props.repoID)
     const without_code = props.wholeRepo
-
     let response
     if (props.api  === 'deepResearch') {
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText.value}生成代码分析报告…`,
-        color: 'info'
+        message: `正在异步${scopeText.value}生成代码分析报告…`, color: 'info'
       })
       response = await deepResearch(repoID, props.targetPath, without_code, true)
     } else {
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText.value}生成流程图…`,
-        color: 'info'
+        message: `正在异步${scopeText.value}生成流程图…`, color: 'info'
       })
       response = await flowChart(repoID, props.targetPath, without_code, true)
     }
@@ -223,12 +277,9 @@ async function startStreaming() {
       const events = buffer.split('\n\n')
       buffer = events.pop() || ''
       for (const evt of events) {
-        const raw = evt
-          .split('\n')
-          .filter(line => line.startsWith('data:'))
+        const raw = evt.split('\n').filter(line => line.startsWith('data:'))
           .map(line => line.slice(5)).join('')
         if (!raw) continue
-
         const data = JSON.parse(raw)
         if (data.title) {
           scopeText.value += data.title
@@ -238,16 +289,24 @@ async function startStreaming() {
         }
         if (data.status === 200) {
           await renderingMermaid()
+          if (data.data.md_file_id !== 0) {
+            console.log('md_file_id', data.data.md_file_id)
+            fileIds.push(data.data.md_file_id)
+          }
+          if (data.data.doc_file_id !== 0) {
+            console.log('doc_file_id', data.data.doc_file_id)
+            fileIds.push(data.data.doc_file_id)
+          }
           success.value = true
           isProcessing.value = false
           reader.cancel()
+          console.log('finished!')
           break
         }
       }
       if (!isProcessing.value) break
     }
 
-    // 处理残余
     if (buffer.trim()) {
       const data = JSON.parse(buffer.trim())
       if (data.answer) markdownContent.value += data.answer
@@ -267,6 +326,13 @@ async function startStreaming() {
 }
 
 function close() {
+  if (isProcessing.value == true) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请等待当前任务完成',
+      color: 'error'
+    })
+    return
+  }
   visible.value = false
 }
 </script>
