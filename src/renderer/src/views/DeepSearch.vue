@@ -5,7 +5,7 @@
   >
     <div v-cloak class="search-container">
       <div class="search-header">
-        <h2>
+        <h2 style="user-select: none">
           搜索关于
           <span class="repo-selector text-grey" @click="toggleRepoDropdown">
             {{ selectedRepo.show }}
@@ -43,11 +43,11 @@
       <div class="search-input-container">
         <div class="search-input-wrapper">
           <input
+            ref="searchInput"
             v-model="searchQuery"
             type="text"
             class="search-input"
             :placeholder="placeholderText"
-            @keyup.enter="handleSearch"
             @focus="handleFocus"
             @blur="handleBlur"
           />
@@ -79,6 +79,20 @@
         </v-btn>
       </div>
 
+      <!-- 猜你所想 标签区 -->
+      <div v-if="tags.length" class="tags-container">
+        <v-chip
+          v-for="(tag, idx) in tags"
+          :key="idx"
+          class="tag-chip"
+          :style="{ animationDelay: idx * 0.1 + 's' }"
+          outlined
+          small
+        >
+          {{ tag }}
+        </v-chip>
+      </div>
+
       <!-- 搜索结果展示区域 -->
       <div v-if="searchResults.length" class="search-results-container">
         <div
@@ -103,9 +117,15 @@
         transition="fade-transition"
         overlay-color="rgba(0, 0, 0, 0.5)"
       >
-        <v-card class="pa-4">
+        <v-card class="pa-4" :style="{ 'min-height': '80vh' }">
           <v-card-title class="headline">
-            {{ selectedResult.name }} — {{ selectedResult.file }}
+            <v-btn icon color="primary" variant="text" @click="viewFileDetails">
+              <v-icon right>mdi-open-in-new</v-icon>
+            </v-btn>
+            {{ selectedResult.name }} —
+            <span style="white-space: nowrap; overflow: visible; text-overflow: clip">
+              {{ selectedResult.file }}
+            </span>
           </v-card-title>
           <v-card-text>
             <div v-if="selectedResult.isJsonDesc" class="detail-section">
@@ -127,12 +147,20 @@
 
             <div v-if="selectedResult.code_snippet" class="detail-section">
               <h3>代码片段</h3>
-              <pre><code class="language-javascript">{{ selectedResult.code_snippet }}</code></pre>
+              <pre>
+                  <code
+                    :class="`hljs ${path.extname(selectedResult.file).slice(1)}`"
+                    v-html="highlightCode(selectedResult.code_snippet, path.extname(selectedResult.file))"></code>
+                </pre>
             </div>
           </v-card-text>
           <v-card-actions>
             <v-spacer />
             <v-btn text @click="dialog = false">关闭</v-btn>
+            <v-btn color="primary" variant="outlined" size="small" @click="viewFileDetails">
+              <v-icon left>mdi-file-document</v-icon>
+              查看代码文件详情
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -144,6 +172,10 @@
 import SVG from '../assets/search.svg'
 import { listRepos, searchCode } from '../service/api'
 import { omit } from '../service/str'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/mono-blue.css'
+import path from 'path-browserify'
+import router from '../router'
 
 export default {
   name: 'DeepSearch',
@@ -160,56 +192,134 @@ export default {
       searchResults: [],
       dialog: false,
       selectedResult: {},
-      searchType: 'semantic' // 新增搜索类型
+      searchType: 'semantic',
+      tags: []
     }
   },
   computed: {
+    path() {
+      return path
+    },
     placeholderText() {
       switch (this.searchType) {
         case 'keyword':
           return '基于大模型意图识别关键词的精确搜索'
         case 'hybrid':
-          return '基于大模型联想关键词并融合RAG檢索增強生成的混合搜索'
+          return '基于RAG檢索增強生成的混合搜索'
         default:
           return '基于向量检索的自然语义相似度搜索'
       }
     }
   },
-  created() {
-    console.log('DeepSearch created')
-    listRepos().then(async (res) => {
-      if (res.status === 200 && res.data.length > 0) {
-        for (const repo of res.data) {
-          const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(repo.local_path)
-          if (hasDb && !indexing) {
-            repo.tag = 'yes'
-            repo.tag_label = ''
-            repo.color = 'green'
-          } else if (indexing) {
-            repo.tag = 'ing'
-            repo.tag_label = '(正在构建索引..)'
-            repo.color = 'orange'
-          } else {
-            repo.tag = 'no'
-            repo.tag_label = '(未构建索引)'
-            repo.color = 'grey'
-          }
-          repo.show = `${repo.name}/${repo.branch}(${omit(repo.desc, 12)})`
-        }
-        this.repositories = res.data
-        const lsRepo = localStorage.getItem('selectedRepo')
-        console.log('lsRepo:', JSON.stringify(lsRepo))
-        if (lsRepo) {
-          var find = this.repositories.find((repo) => repo.local_path === lsRepo)
-          this.selectedRepo = find === undefined ? this.repositories[0] : find
-        } else {
-          this.selectedRepo = this.repositories[0]
-        }
-        console.log('repositories:', this.repositories)
+  mounted() {
+    // 全局监听键盘
+    window.addEventListener('keydown', this.onKeydown)
+    // 页面载入后自动聚焦
+    this.$nextTick(() => {
+      if (this.$refs.searchInput) {
+        this.$refs.searchInput.focus()
       }
     })
   },
+  beforeUnmount() {
+    // 卸载时移除监听
+    window.removeEventListener('keydown', this.onKeydown)
+  },
+  created() {
+    console.log('DeepSearch created')
+    this.listRepos()
+  },
   methods: {
+    listRepos() {
+      listRepos().then(async (res) => {
+        if (res.status === 200 && res.data.length > 0) {
+          for (const repo of res.data) {
+            const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(repo.local_path)
+            if (hasDb && !indexing) {
+              repo.tag = 'yes'
+              repo.tag_label = ''
+              repo.color = 'green'
+            } else if (indexing) {
+              repo.tag = 'ing'
+              repo.tag_label = '(正在构建索引..)'
+              repo.color = 'orange'
+            } else {
+              repo.tag = 'no'
+              repo.tag_label = '(未构建索引)'
+              repo.color = 'grey'
+            }
+            if (repo.desc === '' || repo.desc === null) {
+              repo.show = `${repo.name}/${repo.branch}`
+            } else {
+              repo.show = `${repo.name}/${repo.branch}(${omit(repo.desc, 12)})`
+            }
+          }
+          this.repositories = res.data
+          const lsRepo = localStorage.getItem('selectedRepo')
+          console.log('lsRepo:', JSON.stringify(lsRepo))
+          if (lsRepo) {
+            var find = this.repositories.find((repo) => repo.local_path === lsRepo)
+            this.selectedRepo = find === undefined ? this.repositories[0] : find
+          } else {
+            this.selectedRepo = this.repositories[0]
+          }
+          console.log('repositories:', this.repositories)
+        }
+      })
+    },
+    viewFileDetails() {
+      console.log('viewFileDetails', this.selectedRepo.local_path, this.selectedResult.file)
+      const url = `${this.selectedRepo.local_path}/${this.selectedResult.file}`
+      console.log('跳转到文件浏览器页面，文件路径：', url)
+      router.push({
+        name: 'finder',
+        params: { localPath: url, forceDeep: true, forceReplace: 'true' }
+      })
+      this.dialog = false
+    },
+    highlightCode(code, ext) {
+      const language = ext.slice(1)
+      const validLang = hljs.getLanguage(language) ? language : 'plaintext'
+      return hljs.highlight(code, { language: validLang }).value
+    },
+    onKeydown(event) {
+      // 回车键触发搜索
+      if (event.key === 'Enter') {
+        this.$nextTick(() => {
+          if (this.$refs.searchInput) {
+            this.$refs.searchInput.focus()
+          }
+        })
+        this.handleSearch()
+      }
+      // Cmd + 1/2/3 切换搜索类型
+      if (event.metaKey) {
+        if (
+          event.key === 'I' ||
+          event.key === 'i' ||
+          event.key === 'F' ||
+          event.key === 'f' ||
+          event.key === 'K' ||
+          event.key === 'k'
+        ) {
+          console.log('聚焦搜索')
+          this.$nextTick(() => {
+            if (this.$refs.searchInput) {
+              this.$refs.searchInput.focus()
+            }
+          })
+        } else if (event.key === '1') {
+          console.log('切换搜索类型为语义搜索')
+          this.searchType = 'semantic'
+        } else if (event.key === '2') {
+          console.log('切换搜索类型为关键词搜索')
+          this.searchType = 'keyword'
+        } else if (event.key === '3') {
+          console.log('切换搜索类型为混合搜索')
+          this.searchType = 'hybrid'
+        }
+      }
+    },
     openDialog(result) {
       this.selectedResult = result
       this.dialog = true
@@ -230,8 +340,13 @@ export default {
             30
           )
           this.isSearching = false
-          if (res.status === 200 && res.data.code === 0 && res.data.data.length) {
-            this.searchResults = res.data.data.map((item) => {
+          if (res.status === 200 && res.data.code === 0) {
+            this.tags = res.data.data.tags || []
+            console.log('猜你所想:', this.tags)
+            if (res.data.data.func_res === null || res.data.data.func_res.length === 0) {
+              this.searchResults = []
+            }
+            this.searchResults = res.data.data.func_res.map((item) => {
               let isJson = false
               let descSummary = ''
               let processList = []
@@ -242,15 +357,21 @@ export default {
                 if (
                   obj &&
                   typeof obj === 'object' &&
-                  'description' in obj &&
-                  'process' in obj &&
-                  Array.isArray(obj.process)
+                  'description' in obj
                 ) {
+                  // 不管process是数组还是对象都支持
                   isJson = true
                   descSummary = obj.description
-                  processList = obj.process
+                  // 如果是数组直接使用，如果是对象则包装成数组
+                  processList = Array.isArray(obj.process)
+                    ? obj.process
+                    : [obj.process]
                 }
-              } catch (e) {}
+                // eslint-disable-next-line no-unused-vars
+              } catch (e) {
+                console.log('解析 JSON 失败:', e)
+                /* empty */
+              }
 
               return {
                 name: item.name,
@@ -274,7 +395,13 @@ export default {
         const msg = indexing
           ? `${this.selectedRepo.show} 正在构建索引，请稍后再试。`
           : `无法使用 ${this.selectedRepo.show} 的搜索功能，请先构建索引。`
-        window.confirm(msg)
+        // 如果用户点击确定
+        if (window.confirm(msg)) {
+          console.log('跳转到扫描页面')
+          router.push({
+            name: 'scan'
+          })
+        }
       }
     },
     handleFocus() {
@@ -286,6 +413,8 @@ export default {
     toggleRepoDropdown() {
       this.dropdownOpen = !this.dropdownOpen
       if (this.dropdownOpen) {
+        console.log('toggleRepoDropdown')
+        this.listRepos()
         setTimeout(() => {
           document.addEventListener('click', this.closeDropdownOnClickOutside)
         }, 0)
@@ -361,7 +490,7 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   width: 450px;
-  max-height: 800px;
+  max-height: 500px;
   overflow-y: auto;
   margin-top: 8px;
   background: rgba(var(--v-theme-surface-rgb), 0.95);
@@ -756,5 +885,46 @@ export default {
   to {
     opacity: 1;
   }
+}
+/* 猜你所想 标签区 */
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(var(--v-theme-surface-rgb), 0.4);
+  padding: 8px 16px;
+  border-radius: 24px;
+  animation: fadeIn 0.4s ease-out forwards;
+}
+.tag-chip {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+.detail-section pre {
+  /* 保持原有空格格式，不自动换行 */
+  white-space: pre; /* 强制按照原始空白和换行显示 */
+  word-wrap: normal; /* 禁用单词换行 */
+  word-break: normal; /* 禁用任意字符换行 */
+
+  /* 横向滚动条，超出宽度时显示 */
+  overflow-x: auto;
+  overflow-y: hidden; /* 可选：隐藏垂直滚动条 */
+
+  font-size: 0.8rem;
+  background: #f5f5f5;
+}
+.detail-section code.hljs {
+  white-space: pre !important;
+}
+.headline {
+  overflow-x: auto;
+  word-break: break-all;
+}
+:deep(.v-card-title) {
+  text-overflow: clip;
 }
 </style>
