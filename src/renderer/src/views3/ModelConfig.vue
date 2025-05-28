@@ -53,7 +53,7 @@
               <template v-else>
                 <v-icon color="red" small>mdi-close-circle</v-icon>
                 <span class="ml-1">未安装</span>
-                <v-btn text small color="primary" @click="openPythonWebsite">前往官网下载</v-btn>
+                <v-btn text small variant="plain" color="primary" @click="openPythonWebsite">前往官网下载</v-btn>
               </template>
             </v-col>
 
@@ -76,7 +76,7 @@
               <template v-else>
                 <v-icon color="red" small>mdi-close-circle</v-icon>
                 <span class="ml-1">未检测到 Pandoc</span>
-                <v-btn text small color="primary" class="ml-2" @click="openPandocWebsite">
+                <v-btn text small variant="plain" color="primary" class="ml-2" @click="openPandocWebsite">
                   前往下载安装
                 </v-btn>
               </template>
@@ -101,7 +101,7 @@
               <template v-else>
                 <v-icon color="red" small>mdi-close-circle</v-icon>
                 <span class="ml-1">未检测到 Git</span>
-                <v-btn text small color="primary" class="ml-2" @click="openGitWebsite">
+                <v-btn text small variant="plain" color="primary" class="ml-2" @click="openGitWebsite">
                   前往下载安装
                 </v-btn>
               </template>
@@ -109,15 +109,20 @@
           </v-row>
         </v-card-text>
       </v-card>
-
+      <v-card class="pa-4" outlined>
+        <v-card-title class="headline">2. 模型是否配置（二选一）</v-card-title>
+      </v-card>
       <!-- 本地模型安装状态 -->
-      <v-card class="pa-4 mb-4" outlined>
-        <v-card-title class="headline">2.1. 本地模型环境及服务是否配置（二选一）</v-card-title>
+      <v-card class="pa-4" outlined>
+        <v-card-title class="headline">
+          2.1. 本地模型
+          <v-btn text small variant="plain" color="primary" @click="selectedTab = 'local'">前往设置</v-btn>
+        </v-card-title>
         <v-card-text>
           <v-row>
             <!-- Ollama 状态 -->
             <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Ollama 框架状态：</span>
+              <span class="mr-2">Ollama 环境状态：</span>
 
               <!-- 检测中 -->
               <template v-if="ollamaInstalled === null || ollamaRunning === null">
@@ -134,14 +139,14 @@
               <template v-else-if="ollamaInstalled && !ollamaRunning">
                 <v-icon color="orange" small>mdi-alert-circle</v-icon>
                 <span class="ml-1">已安装但未运行</span>
-                <v-btn text small color="primary" @click="retryOllama">一键启动</v-btn>
+                <v-btn text small variant="plain" color="primary" @click="retryOllama">一键启动</v-btn>
               </template>
 
               <!-- 未安装 -->
               <template v-else>
                 <v-icon color="red" small>mdi-close-circle</v-icon>
                 <span class="ml-1">未安装 Ollama</span>
-                <v-btn text small color="primary" @click="openOllamaWebsite">前往官网下载</v-btn>
+                <v-btn text small variant="plain" color="primary" @click="openOllamaWebsite">前往官网下载</v-btn>
               </template>
             </v-col>
           </v-row>
@@ -164,8 +169,10 @@
               <template v-else>
                 <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
                 <span class="ml-1">未安装</span>
-                <v-btn text small color="primary" class="ml-2" @click="retryNomic"
-                >重试检测</v-btn
+                <v-btn icon small variant="plain" color="primary" class="ml-2" @click="retryNomic"
+                >
+                <v-icon>mdi-refresh</v-icon>
+                </v-btn
                 >
               </template>
             </v-col>
@@ -188,7 +195,9 @@
               <template v-else>
                 <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
                 <span class="ml-1">未安装</span>
-                <v-btn text small color="primary" class="ml-2" @click="retryRwkv">重试检测</v-btn>
+                <v-btn icon small variant="plain" color="primary" class="ml-2" @click="retryRwkv">
+                  <v-icon>mdi-refresh</v-icon>
+                </v-btn>
               </template>
             </v-col>
           </v-row>
@@ -211,7 +220,10 @@
         </v-card-actions>
       </v-card>
       <v-card class="pa-4 mb-4" outlined>
-        <v-card-title class="headline">2.2. 云端模型是否配置（二选一）</v-card-title>
+        <v-card-title class="headline">
+          2.2. 云端模型
+          <v-btn text small variant="plain" color="primary" @click="selectedTab = 'remote'">前往设置</v-btn>
+        </v-card-title>
       </v-card>
     </div>
     <!-- 本地模型主区域 -->
@@ -382,6 +394,14 @@
       <v-container>
         <v-card class="pa-4" outlined>
           <v-card-title class="headline">☁️ 云端模型</v-card-title>
+          <v-card-text>
+            <span style="color: #9c1a1c; border: 10px">一键订阅</span>
+            功能正在有序开发中，敬请期待，你可以先在
+            <v-btn text small variant="plain" style="color: #647eff" @click="selectedTab = 'conf'"
+              >高级配置</v-btn
+            >
+            中手动配置云端模型的API。
+          </v-card-text>
           <!-- 自定义模型配置 -->
           <v-card-text>
             <v-form ref="form" v-model="valid">
