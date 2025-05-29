@@ -35,9 +35,12 @@
     </v-bottom-navigation>
     <div v-if="selectedTab === 'env'" class="bottom-nav-padding">
       <!-- 环境检测模块 -->
-      <v-card class="pa-4 mb-4" outlined>
-        <v-card-title class="headline">1. 必要基础环境是否具备</v-card-title>
-        <v-card-text>
+      <v-card class="pa-2 mb-4 env-card-compact" outlined>
+        <v-card-title class="d-flex align-center">
+          <v-icon color="primary" small class="mr-2">mdi-briefcase</v-icon>
+          <span class="font-weight-bold">1. 必要基础环境是否具备</span>
+        </v-card-title>
+        <v-card-text class="text-compact">
           <v-row>
             <!-- Python 状态 -->
             <v-col cols="12" md="6" class="d-flex align-center">
@@ -57,23 +60,16 @@
                 >
               </template>
             </v-col>
-
-            <!-- —— 新增：Pandoc 状态 —— -->
+            <!-- Pandoc 状态 -->
             <v-col cols="12" md="6" class="d-flex align-center">
               <span class="mr-2">Pandoc：</span>
-
-              <!-- 检测中 -->
               <template v-if="pandocInstalled === null">
                 <span>正在检测...</span>
               </template>
-
-              <!-- 已安装 -->
               <template v-else-if="pandocInstalled">
                 <v-icon color="green" small>mdi-check-circle</v-icon>
                 <span class="ml-1">已安装</span>
               </template>
-
-              <!-- 未安装 -->
               <template v-else>
                 <v-icon color="red" small>mdi-close-circle</v-icon>
                 <span class="ml-1">未检测到 Pandoc</span>
@@ -84,28 +80,20 @@
                   color="primary"
                   class="ml-2"
                   @click="openPandocWebsite"
+                  >前往下载安装</v-btn
                 >
-                  前往下载安装
-                </v-btn>
               </template>
             </v-col>
-
-            <!-- —— 新增：Git 状态 —— -->
+            <!-- Git 状态 -->
             <v-col cols="12" md="6" class="d-flex align-center">
               <span class="mr-2">Git：</span>
-
-              <!-- 检测中 -->
               <template v-if="gitInstalled === null">
                 <span>正在检测...</span>
               </template>
-
-              <!-- 已安装 -->
               <template v-else-if="gitInstalled">
                 <v-icon color="green" small>mdi-check-circle</v-icon>
                 <span class="ml-1">已安装</span>
               </template>
-
-              <!-- 未安装 -->
               <template v-else>
                 <v-icon color="red" small>mdi-close-circle</v-icon>
                 <span class="ml-1">未检测到 Git</span>
@@ -116,291 +104,236 @@
                   color="primary"
                   class="ml-2"
                   @click="openGitWebsite"
+                  >前往下载安装</v-btn
                 >
-                  前往下载安装
-                </v-btn>
               </template>
             </v-col>
           </v-row>
         </v-card-text>
       </v-card>
-      <v-card class="pa-4" outlined>
-        <v-card-title class="headline d-flex align-center" style="background: linear-gradient(90deg, #e3f2fd 60%, #fff 100%); border-left: 6px solid #1976d2;">
+      <v-card class="pa-4 mb-4" outlined>
+        <v-card-title
+          class="d-flex align-center dark-text-force"
+          style="
+            background: linear-gradient(90deg, #e3f2fd 60%, #fff 100%);
+            border-left: 6px solid #1976d2;
+          "
+        >
           <v-icon color="primary" class="mr-2">mdi-alert-decagram</v-icon>
           2. 模型是否配置（二选一）
         </v-card-title>
-        <v-card-text class="d-flex flex-wrap justify-space-between align-center" style="background: #f5f7fa; border-radius: 8px; border: 2px dashed #1976d2;">
-          <v-row class="w-100" align="center" justify="center">
-            <!-- 本地模型卡片 -->
-            <v-col cols="12" md="10">
-              <v-card outlined class="elevation-3 pa-4" style="border: 2px solid #1976d2; background: #e3f2fd;">
-                <v-card-title class="d-flex align-center">
-                  <v-icon color="primary" class="mr-2">mdi-harddisk</v-icon>
-                  <span class="font-weight-bold" style="font-size: 1.2em;">本地模型</span>
-                  <v-chip color="primary" class="ml-2" label>推荐</v-chip>
+        <v-card-text
+          class="d-flex flex-wrap justify-space-between align-center"
+          style="background: #f5f7fa; border-radius: 8px; border: 2px dashed #1976d2"
+        >
+          <v-row class="w-100 dark-text-force" align="center" justify="center">
+            <!-- 云端模型卡片 -->
+            <v-col cols="12" md="5">
+              <v-card
+                outlined
+                class="elevation-3 pa-4 mt-4 dark-text-force"
+                style="border: 2px solid #42a5f5; background: #e3f2fd"
+              >
+                <v-card-title class="d-flex align-center dark-text-force">
+                  <v-icon color="info" class="mr-2">mdi-cloud</v-icon>
+                  <span class="font-weight-bold dark-text-force" style="font-size: 1.2em"
+                    >云端模型</span
+                  >
+                  <v-chip color="info" class="ml-2" label>灵活</v-chip>
+                  <v-chip color="info" class="ml-2" label>快速体验</v-chip>
                 </v-card-title>
-                <v-card-text>
-                  <div class="mb-2">无需联网，数据本地安全，适合隐私场景。</div>
-                  <v-btn text small variant="plain" color="primary" @click="selectedTab = 'local'">前往设置</v-btn>
-                </v-card-text>
-                <v-card-text>
-                  <v-row>
-                    <!-- Ollama 状态 -->
-                    <v-col cols="12" md="6" class="d-flex align-center">
-                      <span class="mr-2">Ollama 环境状态：</span>
-
-                      <!-- 检测中 -->
-                      <template v-if="ollamaInstalled === null || ollamaRunning === null">
-                        <span>正在检测...</span>
+                <v-card-text class="dark-text-force">
+                  <div class="mb-2 dark-text-force">无需本地部署，随时体验最新AI能力。</div>
+                  <!-- 新增：云端模型配置检测信息 -->
+                  <div class="mb-2">
+                    <v-alert type="info" variant="outlined" colored-border class="pa-2 mb-2">
+                      <template #prepend>
+                        <v-icon color="info">mdi-information-outline</v-icon>
                       </template>
-
-                      <!-- 已安装且运行 -->
-                      <template v-else-if="ollamaInstalled && ollamaRunning">
-                        <v-icon color="green" small>mdi-check-circle</v-icon>
-                        <span class="ml-1">已安装且运行中 (pid: {{ ollamaPid }})</span>
-                      </template>
-
-                      <!-- 已安装但未运行 -->
-                      <template v-else-if="ollamaInstalled && !ollamaRunning">
-                        <v-icon color="orange" small>mdi-alert-circle</v-icon>
-                        <span class="ml-1">已安装但未运行</span>
-                        <v-btn text small variant="plain" color="primary" @click="retryOllama"
-                          >一键启动</v-btn
+                      <div class="dark-text-force">
+                        <v-icon v-if="cloudApiCount !== 0" color="green" small
+                          >mdi-check-circle</v-icon
                         >
-                      </template>
-
-                      <!-- 未安装 -->
-                      <template v-else>
-                        <v-icon color="red" small>mdi-close-circle</v-icon>
-                        <span class="ml-1">未安装 Ollama</span>
-                        <v-btn text small variant="plain" color="primary" @click="openOllamaWebsite"
-                          >前往官网下载</v-btn
-                        >
-                      </template>
-                    </v-col>
-                  </v-row>
-                  <v-row>
-                    <!-- nomic-embed-text -->
-                    <v-col cols="12" md="6" class="d-flex align-center">
-                      <div>
-                        <div class="font-weight-medium">nomic-embed-text/bge-large-zh/text2vec-large</div>
-                        <div class="text--secondary text-caption">
-                          <span class="text-grey">(大约需要1.1GB)</span>构建代码知识库与智能AI索引
-                        </div>
+                        <v-icon v-else color="red" small>mdi-close-circle</v-icon>
+                        <span class="font-weight-bold dark-text-force">当前已配置API数量：</span>
+                        <span class="text-primary">{{ cloudApiCount }}</span>
+                        <span class="ml-3 font-weight-bold dark-text-force">涉及提供商：</span>
+                        <span class="text-info">{{ cloudVendors.join('，') || '无' }}</span>
                       </div>
-                      <template v-if="nomicInstalled === null">
-                        <span class="ml-2">检测中...</span>
-                      </template>
-                      <template v-else-if="nomicInstalled">
-                        <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
-                        <span class="ml-1">已安装</span>
-                      </template>
-                      <template v-else>
-                        <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
-                        <span class="ml-1">未安装</span>
-                        <v-btn icon small variant="plain" color="primary" class="ml-2" @click="retryNomic">
-                          <v-icon>mdi-refresh</v-icon>
-                        </v-btn>
-                      </template>
-                    </v-col>
-
-                    <!-- rwkv-7 -->
-                    <v-col cols="12" md="6" class="d-flex align-center">
-                      <div>
-                        <div class="font-weight-medium">qwen2.5-coder:1.5B,3B,7B</div>
-                        <div class="text--secondary text-caption">
-                          <span class="text-grey">(大约需要5.7GB)</span>意图识别与快速摘要
-                        </div>
-                      </div>
-                      <template v-if="llmInstalled === null">
-                        <span class="ml-2">检测中...</span>
-                      </template>
-                      <template v-else-if="llmInstalled">
-                        <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
-                        <span class="ml-1">已安装</span>
-                      </template>
-                      <template v-else>
-                        <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
-                        <span class="ml-1">未安装</span>
-                        <v-btn icon small variant="plain" color="primary" class="ml-2" @click="retryRwkv">
-                          <v-icon>mdi-refresh</v-icon>
-                        </v-btn>
-                      </template>
-                    </v-col>
-                  </v-row>
+                    </v-alert>
+                  </div>
+                  <v-btn text small variant="tonal" color="info" @click="selectedTab = 'remote'"
+                    >前往设置</v-btn
+                  >
                 </v-card-text>
-                <v-card-text v-if="deploymentInProgressNec" class="py-1">
-                  <v-progress-linear
-                    v-model="deploymentProgressNec"
-                    :value="deploymentProgressNec"
-                    color="success"
-                    height="8"
-                    striped
-                    class="mt-2"
-                    :indeterminate="false"
-                  />
-                  <div class="text-caption mt-1">进度：{{ deploymentProgressNec }}%</div>
-                </v-card-text>
-                <v-card-actions v-if="!(nomicInstalled && llmInstalled)">
-                  <v-spacer />
-                  <v-btn color="primary" @click="installNecessaryModels">一键安装缺失模型</v-btn>
-                </v-card-actions>
               </v-card>
             </v-col>
             <!-- 二选一提示 -->
             <v-col cols="12" md="auto" class="d-flex flex-column align-center justify-center">
               <v-icon color="primary" size="36">mdi-swap-horizontal-bold</v-icon>
-              <div class="font-weight-bold text-primary">二选一</div>
+              <div class="font-weight-bold text-primary dark-text-force">二选一</div>
             </v-col>
-            <!-- 云端模型卡片 -->
-            <v-col cols="12" md="6">
-              <v-card outlined class="elevation-3 pa-4" style="border: 2px solid #42a5f5; background: #e3f2fd;">
-                <v-card-title class="d-flex align-center">
-                  <v-icon color="info" class="mr-2">mdi-cloud</v-icon>
-                  <span class="font-weight-bold" style="font-size: 1.2em;">云端模型</span>
-                  <v-chip color="info" class="ml-2" label>灵活</v-chip>
+            <!-- 本地模型卡片 -->
+            <v-col cols="12" md="50">
+              <v-card
+                outlined
+                class="elevation-3 pa-4 mt-4 dark-text-force"
+                style="border: 2px solid #1976d2; background: #e3f2fd"
+              >
+                <v-card-title class="d-flex align-center dark-text-force">
+                  <v-icon color="primary" class="mr-2">mdi-harddisk</v-icon>
+                  <span class="font-weight-bold dark-text-force" style="font-size: 1.2em"
+                    >本地模型</span
+                  >
+                  <v-chip color="primary" class="ml-2" label>离线</v-chip>
+                  <v-chip color="primary" class="ml-2" label>安全可控</v-chip>
                 </v-card-title>
-                <v-card-text>
-                  <div class="mb-2">无需本地部署，随时体验最新AI能力。</div>
-                  <!-- 新增：云端模型配置检测信息 -->
-                  <div class="mb-2">
-                    <v-alert type="info" variant="outlined" border="left" colored-border class="pa-2 mb-2">
-                      <template #prepend>
-                        <v-icon color="info">mdi-information-outline</v-icon>
-                      </template>
-                      <div>
-                        <span class="font-weight-bold">当前已配置API数量：</span>
-                        <span class="text-primary">{{ cloudApiCount }}</span>
-                        <span class="ml-3 font-weight-bold">涉及提供商：</span>
-                        <span class="text-info">{{ cloudVendors.join('，') || '无' }}</span>
-                      </div>
-                    </v-alert>
-                  </div>
-                  <v-btn text small variant="plain" color="info" @click="selectedTab = 'remote'">前往设置</v-btn>
+                <v-card-text class="dark-text-force">
+                  <div class="mb-2 dark-text-force">无需联网，数据本地安全，适合隐私场景。</div>
                 </v-card-text>
+                <v-alert type="info" variant="outlined" colored-border class="pa-2 mb-2">
+                  <template #prepend>
+                    <v-icon color="info">mdi-information-outline</v-icon>
+                  </template>
+                  <v-card-text class="dark-text-force">
+                    <v-row>
+                      <!-- Ollama 状态 -->
+                      <v-col cols="12" md="6" class="d-flex align-center">
+                        <span class="mr-2 dark-text-force">Ollama 环境状态：</span>
+
+                        <!-- 检测中 -->
+                        <template v-if="ollamaInstalled === null || ollamaRunning === null">
+                          <span class="dark-text-force">正在检测...</span>
+                        </template>
+
+                        <!-- 已安装且运行 -->
+                        <template v-else-if="ollamaInstalled && ollamaRunning">
+                          <v-icon color="green" small>mdi-check-circle</v-icon>
+                          <span class="ml-1 dark-text-force"
+                            >已安装且运行中 (pid: {{ ollamaPid }})</span
+                          >
+                        </template>
+
+                        <!-- 已安装但未运行 -->
+                        <template v-else-if="ollamaInstalled && !ollamaRunning">
+                          <v-icon color="orange" small>mdi-alert-circle</v-icon>
+                          <span class="ml-1 dark-text-force">已安装但未运行</span>
+                          <v-btn text small variant="plain" color="primary" @click="retryOllama"
+                            >一键启动</v-btn
+                          >
+                        </template>
+
+                        <!-- 未安装 -->
+                        <template v-else>
+                          <v-icon color="red" small>mdi-close-circle</v-icon>
+                          <span class="ml-1 dark-text-force">未安装 Ollama</span>
+                          <v-btn
+                            text
+                            small
+                            variant="plain"
+                            color="primary"
+                            @click="openOllamaWebsite"
+                            >前往官网下载</v-btn
+                          >
+                        </template>
+                      </v-col>
+                    </v-row>
+                    <v-row>
+                      <!-- nomic-embed-text -->
+                      <v-col cols="12" md="6" class="d-flex align-center">
+                        <div>
+                          <div class="font-weight-medium dark-text-force">
+                            nomic-embed-text/bge-large-zh/text2vec-large
+                          </div>
+                          <div class="text--secondary text-caption dark-text-force">
+                            <span class="text-grey">(大约需要1.1GB)</span
+                            >构建代码知识库与智能AI索引
+                          </div>
+                        </div>
+                        <template v-if="nomicInstalled === null">
+                          <span class="ml-2 dark-text-force">检测中...</span>
+                        </template>
+                        <template v-else-if="nomicInstalled">
+                          <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
+                          <span class="ml-1 dark-text-force">已安装</span>
+                        </template>
+                        <template v-else>
+                          <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
+                          <span class="ml-1 dark-text-force">未安装</span>
+                          <v-btn
+                            icon
+                            small
+                            variant="plain"
+                            color="primary"
+                            class="ml-2"
+                            @click="retryNomic"
+                          >
+                            <v-icon>mdi-refresh</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-col>
+
+                      <!-- rwkv-7 -->
+                      <v-col cols="12" md="6" class="d-flex align-center">
+                        <div>
+                          <div class="font-weight-medium dark-text-force">
+                            qwen2.5-coder:1.5B,3B,7B
+                          </div>
+                          <div class="text--secondary text-caption dark-text-force">
+                            <span class="text-grey">(大约需要5.7GB)</span
+                            >意图识别与快速摘要
+                          </div>
+                        </div>
+                        <template v-if="llmInstalled === null">
+                          <span class="ml-2 dark-text-force">检测中...</span>
+                        </template>
+                        <template v-else-if="llmInstalled">
+                          <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
+                          <span class="ml-1 dark-text-force">已安装</span>
+                        </template>
+                        <template v-else>
+                          <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
+                          <span class="ml-1 dark-text-force">未安装</span>
+                          <v-btn
+                            icon
+                            small
+                            variant="plain"
+                            color="primary"
+                            class="ml-2"
+                            @click="retryRwkv"
+                          >
+                            <v-icon>mdi-refresh</v-icon>
+                          </v-btn>
+                        </template>
+                      </v-col>
+                    </v-row>
+                  </v-card-text>
+                  <v-card-text v-if="deploymentInProgressNec" class="py-1">
+                    <v-progress-linear
+                      v-model="deploymentProgressNec"
+                      :value="deploymentProgressNec"
+                      color="success"
+                      height="8"
+                      striped
+                      class="mt-2"
+                      :indeterminate="false"
+                    />
+                    <div class="text-caption mt-1 dark-text-force">
+                      进度：{{ deploymentProgressNec }}%
+                    </div>
+                  </v-card-text>
+                  <v-card-actions v-if="!(nomicInstalled && llmInstalled)">
+                    <v-spacer />
+                    <v-btn color="primary" @click="installNecessaryModels">一键安装缺失模型</v-btn>
+                  </v-card-actions>
+                </v-alert>
+                <v-btn text small variant="tonal" color="primary" @click="selectedTab = 'local'"
+                  >前往设置</v-btn
+                >
               </v-card>
             </v-col>
           </v-row>
         </v-card-text>
-      </v-card>
-      <!-- 本地模型安装状态 -->
-      <v-card class="pa-4" outlined>
-        <v-card-title class="headline">
-          2.1. 本地模型
-          <v-btn text small variant="plain" color="primary" @click="selectedTab = 'local'"
-            >前往设置</v-btn
-          >
-        </v-card-title>
-        <v-card-text>
-          <v-row>
-            <!-- Ollama 状态 -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Ollama 环境状态：</span>
-
-              <!-- 检测中 -->
-              <template v-if="ollamaInstalled === null || ollamaRunning === null">
-                <span>正在检测...</span>
-              </template>
-
-              <!-- 已安装且运行 -->
-              <template v-else-if="ollamaInstalled && ollamaRunning">
-                <v-icon color="green" small>mdi-check-circle</v-icon>
-                <span class="ml-1">已安装且运行中 (pid: {{ ollamaPid }})</span>
-              </template>
-
-              <!-- 已安装但未运行 -->
-              <template v-else-if="ollamaInstalled && !ollamaRunning">
-                <v-icon color="orange" small>mdi-alert-circle</v-icon>
-                <span class="ml-1">已安装但未运行</span>
-                <v-btn text small variant="plain" color="primary" @click="retryOllama"
-                  >一键启动</v-btn
-                >
-              </template>
-
-              <!-- 未安装 -->
-              <template v-else>
-                <v-icon color="red" small>mdi-close-circle</v-icon>
-                <span class="ml-1">未安装 Ollama</span>
-                <v-btn text small variant="plain" color="primary" @click="openOllamaWebsite"
-                  >前往官网下载</v-btn
-                >
-              </template>
-            </v-col>
-          </v-row>
-          <v-row>
-            <!-- nomic-embed-text -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <div>
-                <div class="font-weight-medium">nomic-embed-text/bge-large-zh/text2vec-large</div>
-                <div class="text--secondary text-caption">
-                  <span class="text-grey">(大约需要1.1GB)</span>构建代码知识库与智能AI索引
-                </div>
-              </div>
-              <template v-if="nomicInstalled === null">
-                <span class="ml-2">检测中...</span>
-              </template>
-              <template v-else-if="nomicInstalled">
-                <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else>
-                <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
-                <span class="ml-1">未安装</span>
-                <v-btn icon small variant="plain" color="primary" class="ml-2" @click="retryNomic">
-                  <v-icon>mdi-refresh</v-icon>
-                </v-btn>
-              </template>
-            </v-col>
-
-            <!-- rwkv-7 -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <div>
-                <div class="font-weight-medium">qwen2.5-coder:1.5B,3B,7B</div>
-                <div class="text--secondary text-caption">
-                  <span class="text-grey">(大约需要5.7GB)</span>意图识别与快速摘要
-                </div>
-              </div>
-              <template v-if="llmInstalled === null">
-                <span class="ml-2">检测中...</span>
-              </template>
-              <template v-else-if="llmInstalled">
-                <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else>
-                <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
-                <span class="ml-1">未安装</span>
-                <v-btn icon small variant="plain" color="primary" class="ml-2" @click="retryRwkv">
-                  <v-icon>mdi-refresh</v-icon>
-                </v-btn>
-              </template>
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-card-text v-if="deploymentInProgressNec" class="py-1">
-          <v-progress-linear
-            v-model="deploymentProgressNec"
-            :value="deploymentProgressNec"
-            color="success"
-            height="8"
-            striped
-            class="mt-2"
-            :indeterminate="false"
-          />
-          <div class="text-caption mt-1">进度：{{ deploymentProgressNec }}%</div>
-        </v-card-text>
-        <v-card-actions v-if="!(nomicInstalled && llmInstalled)">
-          <v-spacer />
-          <v-btn color="primary" @click="installNecessaryModels">一键安装缺失模型</v-btn>
-        </v-card-actions>
-      </v-card>
-      <v-card class="pa-4 mb-4" outlined>
-        <v-card-title class="headline">
-          2.2. 云端模型
-          <v-btn text small variant="plain" color="primary" @click="selectedTab = 'remote'"
-            >前往设置</v-btn
-          >
-        </v-card-title>
       </v-card>
     </div>
     <!-- 本地模型主区域 -->
@@ -571,14 +504,11 @@
       <v-container>
         <v-card class="pa-4" outlined>
           <v-card-title class="headline">☁️ 云端模型</v-card-title>
-          <v-card-text>
-            <span style="color: #9c1a1c; border: 10px">一键订阅</span>
-            功能正在有序开发中，敬请期待，你可以先在这里手动配置云端模型的API。
-          </v-card-text>
           <!-- 新增：统一云端模型配置展示区 -->
           <v-card-text>
             <v-alert type="info" variant="outlined" colored-border class="mb-4">
-              这里可以统一查看和编辑所有云端模型配置，支持一键批量设置和保存。
+              <span style="color: #9c1a1c; border: 10px">一键订阅</span>
+              功能正在有序开发中，敬请期待，你可以先在这里手动配置云端模型的API。
             </v-alert>
             <v-btn color="primary" variant="tonal" class="mr-2 mt-2" @click="applyToAllCloudConfigs"
               >一键设置（以第一个为准）</v-btn
@@ -1969,7 +1899,7 @@ const cloudApiCount = computed(() => {
   // 统计所有云端模型配置中已填写API的数量
   let count = 0
   // config.custom
-  Object.values(config.custom).forEach(cfg => {
+  Object.values(config.custom).forEach((cfg) => {
     if (cfg.api && cfg.api.trim()) count++
   })
   // fmConfig.embedding_cloud_model
@@ -1977,7 +1907,7 @@ const cloudApiCount = computed(() => {
   // fmConfig.default_cloud_model
   if (fmConfig.default_cloud_model.api && fmConfig.default_cloud_model.api.trim()) count++
   // fmConfig.model_configs
-  fmConfig.model_configs.forEach(model => {
+  fmConfig.model_configs.forEach((model) => {
     if (model.cloud_model && model.cloud_model.api && model.cloud_model.api.trim()) count++
   })
   return count
@@ -1985,13 +1915,16 @@ const cloudApiCount = computed(() => {
 const cloudVendors = computed(() => {
   // 统计所有云端模型配置中涉及的type/供应商
   const vendors = new Set()
-  Object.values(config.custom).forEach(cfg => {
+  Object.values(config.custom).forEach((cfg) => {
     if (cfg.type && cfg.type.trim()) vendors.add(cfg.type)
   })
-  if (fmConfig.embedding_cloud_model.type && fmConfig.embedding_cloud_model.type.trim()) vendors.add(fmConfig.embedding_cloud_model.type)
-  if (fmConfig.default_cloud_model.type && fmConfig.default_cloud_model.type.trim()) vendors.add(fmConfig.default_cloud_model.type)
-  fmConfig.model_configs.forEach(model => {
-    if (model.cloud_model && model.cloud_model.type && model.cloud_model.type.trim()) vendors.add(model.cloud_model.type)
+  if (fmConfig.embedding_cloud_model.type && fmConfig.embedding_cloud_model.type.trim())
+    vendors.add(fmConfig.embedding_cloud_model.type)
+  if (fmConfig.default_cloud_model.type && fmConfig.default_cloud_model.type.trim())
+    vendors.add(fmConfig.default_cloud_model.type)
+  fmConfig.model_configs.forEach((model) => {
+    if (model.cloud_model && model.cloud_model.type && model.cloud_model.type.trim())
+      vendors.add(model.cloud_model.type)
   })
   return Array.from(vendors)
 })
@@ -2088,5 +2021,33 @@ onMounted(async () => {
   border: 1px dashed #1976d2;
   background-color: rgba(25, 118, 210, 0.05);
   transition: background-color 0.2s;
+}
+
+/* 强制黑色文本样式，在黑夜模式下保持黑色 */
+.dark-text-force {
+  color: #000000 !important;
+}
+
+/* 紧凑风格样式，参考AgentConfig.vue */
+.card-title-compact {
+  padding: 8px 0 8px 8px;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+}
+.icon-compact {
+  font-size: 18px;
+  margin-right: 4px;
+}
+.title-compact {
+  font-size: 15px;
+  font-weight: 600;
+}
+.text-compact {
+  font-size: 13px;
+}
+.env-card-compact {
+  margin: 8px 0;
+  border-radius: 8px;
 }
 </style>
