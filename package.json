@@ -22,6 +22,7 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@electron/remote": "^2.1.2",
     "@mdi/font": "^7.4.47",
+    "adm-zip": "^0.5.16",
     "axios": "^1.8.4",
     "chart.js": "^4.4.8",
     "chartjs-plugin-dragdata": "^2.3.1",
