@@ -31,7 +31,7 @@
         </p>
       </v-row>
       <v-row align="center" style="margin-top: 20px;">
-        <v-btn text variant="elevated">
+        <v-btn text variant="elevated" style="margin-left: -80px; width: 400px" @click="jump">
           <v-icon>mdi-send</v-icon>
           请前往‘企业微信推送智能体’中进行配置
         </v-btn>
@@ -42,6 +42,7 @@
 
 <script>
 import SVG from '../assets/sender.svg';
+import router from "../router";
 
 export default {
   name: 'MsgSender',
@@ -72,6 +73,11 @@ export default {
     }
   },
   methods: {
+    jump() {
+      router.push({
+        name: 'agent'
+      })
+    },
     async handleSwitchChange() {
       // 触发开关状态变化时，调用相应的 IPC 方法
       if (this.isSwitched) {
