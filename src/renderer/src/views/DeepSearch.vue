@@ -51,6 +51,9 @@
             @focus="handleFocus"
             @blur="handleBlur"
           />
+          <div class="reset-index-icon-container" v-tooltip="'有异常？点我重置索引'" @click="handleResetIndex">
+            <v-icon color="grey" icon="mdi-help-circle-outline" class="reset-index-icon"></v-icon>
+          </div>
           <div class="search-icon-container">
             <v-icon
               v-if="!isSearching"
@@ -103,11 +106,11 @@
           @click="openDialog(result)"
         >
           <div class="result-header">
-            <h3 class="result-name">{{ result.name }}</h3>
+            <h3 class="result-name">{{ result.name }} - {{ result.shortFilePath }}</h3>
             <span class="result-score">{{ (result.score * 100).toFixed(1) }}%</span>
           </div>
-          <p class="result-file">{{ result.package }} - {{ result.file }}</p>
-          <p class="result-description">{{ result.truncatedDescription }}</p>
+          <p class="result-file text-grey">{{ result.package }}</p>
+          <p class="result-description">{{ result.parsedDescription }}</p>
         </div>
       </div>
 
@@ -170,7 +173,7 @@
 
 <script>
 import SVG from '../assets/search.svg'
-import { listRepos, searchCode } from '../service/api'
+import { listRepos, searchCode, resetIndexApi } from '../service/api'
 import { omit } from '../service/str'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/mono-blue.css'
@@ -205,7 +208,7 @@ export default {
         case 'keyword':
           return '基于大模型意图识别关键词的精确搜索'
         case 'hybrid':
-          return '基于RAG檢索增強生成的混合搜索'
+          return '基于RAG检索增強生成的混合搜索'
         default:
           return '基于向量检索的自然语义相似度搜索'
       }
@@ -351,6 +354,7 @@ export default {
               let descSummary = ''
               let processList = []
               const fullDesc = item.description
+              let parsedDescription = fullDesc
 
               try {
                 const obj = JSON.parse(item.description)
@@ -362,6 +366,7 @@ export default {
                   // 不管process是数组还是对象都支持
                   isJson = true
                   descSummary = obj.description
+                  parsedDescription = descSummary
                   // 如果是数组直接使用，如果是对象则包装成数组
                   processList = Array.isArray(obj.process)
                     ? obj.process
@@ -373,12 +378,24 @@ export default {
                 /* empty */
               }
 
+              // 处理文件路径，如果过长则省略中间部分
+              const filePath = item.file
+              let shortFilePath = filePath
+              if (filePath.length > 30) {
+                const parts = filePath.split('/')
+                if (parts.length > 3) {
+                  shortFilePath = parts[0] + '/.../' + parts[parts.length - 1]
+                }
+              }
+
               return {
                 name: item.name,
                 package: item.package,
                 file: item.file,
+                shortFilePath: shortFilePath,
                 score: item.score,
                 fullDescription: fullDesc,
+                parsedDescription: parsedDescription,
                 truncatedDescription: omit(fullDesc, 30),
                 code_snippet: item.code_snippet || '',
                 isJsonDesc: isJson,
@@ -435,6 +452,33 @@ export default {
       if (dropdown && !dropdown.contains(event.target) && !selector.contains(event.target)) {
         this.dropdownOpen = false
         document.removeEventListener('click', this.closeDropdownOnClickOutside)
+      }
+    },
+    async handleResetIndex() {
+      if (!this.selectedRepo || !this.selectedRepo.local_path) {
+        // window.alert('请先选择一个仓库')
+        return
+      }
+
+      if (window.confirm(`确定要重置 ${this.selectedRepo.show} 的索引吗？
+      (重置不会删除你的索引内容。)`)) {
+        try {
+          this.isSearching = true
+          const res = await resetIndexApi(this.selectedRepo.local_path)
+          this.isSearching = false
+          
+          if (res.status === 200) {
+            window.alert('索引重置成功。')
+            // 刷新仓库状态
+            this.listRepos()
+          } else {
+            window.alert('索引重置失败，请稍后再试。')
+          }
+        } catch (error) {
+          this.isSearching = false
+          console.error('重置索引出错:', error)
+          window.alert('重置索引出错，请稍后再试。')
+        }
       }
     }
   }
@@ -651,6 +695,30 @@ export default {
   color: rgba(var(--v-theme-on-surface-rgb), 0.6);
   width: 24px;
   height: 24px;
+}
+
+.reset-index-icon-container {
+  position: absolute;
+  right: 50px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.5);
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reset-index-icon-container:hover {
+  color: rgba(var(--v-theme-primary-rgb), 0.8);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.reset-index-icon {
+  font-size: 20px;
 }
 
 .search-button {
