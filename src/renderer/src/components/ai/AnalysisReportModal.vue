@@ -1,17 +1,21 @@
 <template>
-  <v-dialog v-model="visible" max-width="1200" max-height="90vh" persistent>
+  <v-dialog v-model="visible" max-height="90vh" persistent>
     <div
-      class="bg-white bg-opacity-90 rounded-2xl shadow-lg w-11/12 max-w-3xl max-h-[70vh] flex flex-col"
+      class="bg-white bg-opacity-90 rounded-2xl shadow-lg w-11/12 max-w-3xl max-h-[90vh] flex flex-col"
       style=" margin: 10px; border-radius: 5px; "
     >
       <!-- Header -->
-      <v-btn
-        @click="close"
-        class="absolute top-2 right-2 text-gray-500 hover:text-gray-800"
-        color="white"
-      >
-        <v-icon>mdi-close</v-icon>
-      </v-btn>
+      <div style="position: absolute; top: 12px; right: 16px; z-index: 10;">
+        <v-btn
+          icon
+          size="small"
+          variant="text"
+          @click="close"
+          class="text-gray-500 hover:text-gray-800"
+        >
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </div>
       <div class="flex items-center justify-between px-6 py-4 border-b">
         <h3 v-if="props.api  === 'deepResearch'" class="text-xl font-semibold">代码分析报告</h3>
         <h3 v-else class="text-xl font-semibold">架构流程图</h3>
@@ -23,7 +27,7 @@
           <div class="w-5 h-5 border-2 border-t-2 border-gray-300 rounded-full animate-spin mt-2 mb-2">
             <v-row>
               <span class="text-gray-600"><span class="text-deep-orange-accent-4">{{ scopeText }}</span>
-                <v-progress-circular indeterminate color="warning"></v-progress-circular>
+                <v-progress-circular indeterminate color="primary"></v-progress-circular>
                 生成中：
               </span>
             </v-row>
@@ -38,9 +42,9 @@
         <template v-else-if="success">
           <span class="text-green-darken-3">{{ scopeText }}</span><v-icon color="green">mdi-check-circle</v-icon>
           <div v-if="props.api === 'deepResearch'" class="ml-auto flex space-x-2">
-            <span class="text-green-600"> 更多更详细的分析报告已生成，请前往'枢纽'查看！</span>
+            <span class="text-green-600"> 更多更详细的分析报告已生成，请前往'文件枢纽'查看！</span>
             <router-link :to="{ name: 'report' }">
-              <v-btn color="primary" @click="close" size="small">前往枢纽</v-btn>
+              <v-btn color="primary" @click="close" size="small">文件枢纽</v-btn>
             </router-link>
             <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
           </div>
@@ -92,6 +96,7 @@ import { useStore } from 'vuex'
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs'
 import { useRouter } from 'vue-router'
 import html2canvas from 'html2canvas'
+import { loadRepoProgress } from "../../storage/progress-storage";
 
 const mermaidContainer = ref<HTMLElement|null>(null)
 const zoomLevel = ref(1)
@@ -222,13 +227,13 @@ async function deleteReport() {
     await deleteFile(fileIds[fileIdsKey]).then(
       () => {
         store.dispatch('snackbar/showSnackbar', { message: '文件删除成功', color: 'success' })
-        close()
       },
       (error) => {
         store.dispatch('snackbar/showSnackbar', { message: '文件删除失败', color: 'error' })
       }
     )
   }
+  close()
   reset()
   store.dispatch('snackbar/showSnackbar', { message: '报告已删除', color: 'info' })
 }
@@ -253,11 +258,39 @@ async function startStreaming() {
     const without_code = props.wholeRepo
     let response
     if (props.api  === 'deepResearch') {
+      const saved = loadRepoProgress(repoID);
+      if (saved != null) {
+        console.log('从 localStorage 读取进度', saved);
+        const progress = saved.indexProgress;
+        if (progress < 75) {
+          const confirmed = window.confirm(
+            `检测到你对该仓库构建的索引量少于75%，这可能会花费不少时间，确定要继续吗？`
+          )
+          if (!confirmed) {
+            visible.value = false
+            return
+          }
+        }
+      }
       store.dispatch('snackbar/showSnackbar', {
         message: `正在异步${scopeText.value}生成代码分析报告…`, color: 'info'
       })
       response = await deepResearch(repoID, props.targetPath, without_code, true)
     } else {
+      const saved = loadRepoProgress(repoID);
+      if (saved != null) {
+        console.log('从 localStorage 读取进度', saved);
+        const progress = saved.indexProgress;
+        if (progress < 75) {
+          const confirmed = window.confirm(
+            `检测到你对该仓库构建的索引量少于75%，这可能会花费不少时间，确定要继续吗？`
+          )
+          if (!confirmed) {
+            visible.value = false
+            return
+          }
+        }
+      }
       store.dispatch('snackbar/showSnackbar', {
         message: `正在异步${scopeText.value}生成流程图…`, color: 'info'
       })
