@@ -62,7 +62,7 @@ const router = createRouter({
     {
       path: '/report',
       name: 'report',
-      meta: { title: '枢纽' },
+      meta: { title: '文件枢纽' },
       component: () => import('../views/GitResearch.vue')
     },
     {
@@ -72,8 +72,9 @@ const router = createRouter({
       component: () => import('../views3/FileBrowser.vue'),
       props: route => ({
         localPath: route.params.localPath,
-        rootPath: route.params.rootPath,
-        forceReplace: route.params.forceReplace,
+        rootPath: route.query.rootPath,
+        forceReplace: route.query.forceReplace,
+        forceDeep: route.query.forceDeep,
       })
     },
     {
@@ -86,8 +87,9 @@ const router = createRouter({
       component: () => import('../views3/IDE.vue'),
       props: route => ({
         localPath: route.params.localPath,
-        rootPath: route.params.rootPath,
-        forceReplace: route.params.forceReplace,
+        rootPath: route.query.rootPath,
+        forceReplace: route.query.forceReplace,
+        forceDeep: route.query.forceDeep,
       })
     },
     {
