@@ -5,6 +5,7 @@ const path = require('path')
 const installProgressCallbacks = new Set()
 
 async function getFileStats(filePath) {
+  // eslint-disable-next-line no-useless-catch
   try {
     const stats = await fs.promises.stat(filePath)
     // 返回一个 plain object，用于在渲染进程中直接使用
@@ -164,10 +165,9 @@ const api = {
   listModels: async () => await ipcRenderer.invoke('list-models'),
   checkModelInstalled: (model) => ipcRenderer.invoke('check-model-installed', model),
   // 在 writeConfig 旁边添加
-  saveFile: async (filePath, data) =>
-    await ipcRenderer.invoke('save-file', filePath, data),
+  saveFile: async (filePath, data) => await ipcRenderer.invoke('save-file', filePath, data),
 
-// 启动 fm_http 进程
+  // 启动 fm_http 进程
   startFmHttp: async (configPath) => {
     try {
       const result = await ipcRenderer.invoke('start-fm_http', configPath)
@@ -179,7 +179,7 @@ const api = {
     }
   },
 
-// 停止 fm_http 进程
+  // 停止 fm_http 进程
   stopFmHttp: async () => {
     try {
       const result = await ipcRenderer.invoke('stop-fm_http')
@@ -191,11 +191,13 @@ const api = {
     }
   },
 
-// 检查 fm_http 健康状态
+  // 检查 fm_http 健康状态
   checkFmHttpHealth: () => ipcRenderer.invoke('check-fm_http-health'),
 
   checkMemoryFlashStatus: async (localPath) => {
-    const { exists, indexing, hasDb } = await ipcRenderer.invoke('check-memory-flash', { local_path: localPath })
+    const { exists, indexing, hasDb } = await ipcRenderer.invoke('check-memory-flash', {
+      local_path: localPath
+    })
     return { exists, indexing, hasDb }
   },
 
@@ -208,7 +210,34 @@ const api = {
     return await ipcRenderer.invoke('checkGitIPC')
   },
 
-  getStaticFileList: (dirPath, subPath) => ipcRenderer.invoke('get-static-file-list', dirPath, subPath),
+  getStaticFileList: (dirPath, subPath, isDir) =>
+    ipcRenderer.invoke('get-static-file-list', dirPath, subPath, isDir),
+
+  // 包管理接口
+  checkDependenciesStatus: () => ipcRenderer.invoke('check-dependencies-status'),
+  installRequiredPackages: () => ipcRenderer.invoke('install-required-packages'),
+  installPackage: (pkgName) => ipcRenderer.invoke('install-package', pkgName),
+
+  // 检查 Homebrew 是否安装
+  checkBrewInstalled: () => ipcRenderer.invoke('check-brew-installed'),
+  checkBrewInstalledIPC: () => ipcRenderer.invoke('check-brew-installed'),
+
+  zipFiles: (dirPath, output) => ipcRenderer.invoke('zip-files', dirPath, output),
+  unzipFile: (zipFile, outputDir) => ipcRenderer.invoke('unzip-file', zipFile, outputDir),
+  /**
+   * Get file stats (size in bytes) for a given path.
+   * Usage: window.electron.stat('/path/to/file')
+   * Returns: { size: number } or throws on error
+   */
+  stat: (filePath) => {
+    try {
+      const stats = fs.statSync(filePath)
+      return { size: stats.size }
+    } catch (err) {
+      console.error('stat error:', err)
+      return { size: -1, error: err.message }
+    }
+  }
 }
 
 // 使用 contextBridge 向渲染进程暴露安全 API，对外命名为 electron
