@@ -107,7 +107,6 @@
               item-key="path"
               :load-options="loadDirectoryOptions"
               :multiple="false"
-              :searchable="true"
               :clearable="true"
               :auto-load-root-options="true"
               :always-open="true"
@@ -235,7 +234,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useStore } from 'vuex'
 import mammoth from 'mammoth'
 import { LOAD_ROOT_OPTIONS, LOAD_CHILDREN_OPTIONS, ASYNC_SEARCH } from 'vue3-treeselect'
@@ -248,6 +247,7 @@ import 'highlight.js/styles/docco.css'
 import * as XLSX from 'xlsx'
 import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo } from '../service/api.js'
+import { omit } from '../service/str'
 import dynamicLoadingSvg from '../assets/load.svg'
 import router from "../router";
 // Vuex store（假定已配置）
@@ -298,6 +298,7 @@ const placeholderImage = codeSVG
 const newRootPath = ref('')
 const pathSuggestions = ref([])
 const openNodes = ref([])
+// 初始化时目录树为空，不自动加载根目录
 const treeData = ref([])
 
 // 常量配置
@@ -336,7 +337,8 @@ const allowedExtensions = [
   '.xlsx',
   '.doc',
   '.docx',
-  '.sql'
+  '.sql',
+  '.conf',
 ]
 const blacklistedExtensions = [
   '.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk',
@@ -374,6 +376,27 @@ const isCodeFile = computed(() => {
   return allowedExtensions.includes(ext) && !isMarkdown(selectedFileName.value)
 })
 
+// 懒加载大文件：滚动时加载更多
+async function loadMoreLines(selectedPath, loadedLines = 1000, step = 1000) {
+  try {
+    const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
+    let content = ''
+    let lineCount = 0
+    let lines = []
+    for await (const chunk of stream) {
+      content += chunk
+      lines = content.split(/\r?\n/)
+      if (lines.length >= loadedLines + step) {
+        break
+      }
+    }
+    const moreContent = lines.slice(0, loadedLines + step).join('\n') + (lines.length > loadedLines + step ? '\n...\n(继续加载更多)' : '')
+    updateFileState(selectedPath, { fileContent: moreContent, isLargeFile: true, loadedLines: loadedLines + step })
+  } catch (err) {
+    updateFileState(selectedPath, { fileContent: `读取文件失败：${err.message}` })
+  }
+}
+
 // 以下为各个辅助方法，均使用 Composition API 写法
 
 // 处理链接点击（支持 Electron 调用）
@@ -410,8 +433,6 @@ async function initialize(initialPath) {
   if (props.forceReplace == 'true' && initialPath) {
     newRootPath.value = initialPath
     rootDir = isFilePath(initialPath) ? path.dirname(initialPath) : initialPath
-  } else {
-    rootDir = await window.electron.homeDir
   }
   if (rootDir) {
     fileContent.value = ''
@@ -489,7 +510,7 @@ async function loadFileByType(selectedPath) {
   const extLower = path.extname(selectedPath).toLowerCase()
   if (blacklistedExtensions.includes(extLower)) {
     store.dispatch('snackbar/showSnackbar', {
-      message: `暂不支持在线预览 “${extLower}” 文件`,
+      message: `暂不支持在线预览 " ${extLower} " 文件`,
       type: 'warning'
     })
     return // ⛔ 直接跳过，绝不 readFile
@@ -511,8 +532,32 @@ async function loadFileByType(selectedPath) {
       const arrayBuffer = convertBuffer(buffer)
       updateFileState(selectedPath, { renderedXlsx: renderXlsx(arrayBuffer) })
     } else {
-      const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' })
-      updateFileState(selectedPath, { fileContent: content })
+      // 判断文件大小，超过8MB则懒加载
+      try {
+        const stat = await window.electron.stat(selectedPath)
+        const maxSize = 1 * 1024 * 1024 // 1MB
+        if (stat.size > maxSize) {
+          // 懒加载逻辑：先加载前1000行
+          const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
+          let content = ''
+          let lineCount = 0
+          const maxLines = 1000
+          for await (const chunk of stream) {
+            content += chunk
+            let lines = content.split(/\r?\n/)
+            if (lines.length >= maxLines) {
+              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前1000行，滚动可继续加载)'
+              break
+            }
+          }
+          updateFileState(selectedPath, { fileContent: content, isLargeFile: true, loadedLines: maxLines, totalSize: stat.size })
+        } else {
+          const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' })
+          updateFileState(selectedPath, { fileContent: content, isLargeFile: false })
+        }
+      } catch (err) {
+        updateFileState(selectedPath, { fileContent: `读取文件失败：${err.message}` })
+      }
     }
   } catch (err) {
     console.error('加载文件失败：', err)
@@ -564,17 +609,16 @@ function addOrSwitchTab(tabData) {
 
 function loadDirectoryOptions({ action, parentNode, searchQuery, callback }) {
   if (action === LOAD_ROOT_OPTIONS) {
-    // 使用 normalizePath 处理路径，避免不同系统路径分隔符问题
-    const rootPath = props.localPath || window.electron.homeDirPromise
+    const rootPath = props.localPath
     fetchChildren(rootPath)
-      .then((children) => {
+      .then(() => {
         callback()
       })
       .catch((error) => callback(error))
   } else if (action === LOAD_CHILDREN_OPTIONS) {
     fetchChildren(parentNode)
-      .then((children) => {
-        parentNode.children = children
+      .then((result) => {
+        parentNode.children = result
         callback()
       })
       .catch((error) => callback(error))
@@ -624,6 +668,7 @@ function findNodeByPath(nodes, targetPath) {
   return null
 }
 
+// 懒加载节点点击时递归加载
 async function handleNodeSelection(activeItems) {
   if (!activeItems.length) return
   const selectedPath = activeItems[activeItems.length - 1]
@@ -631,9 +676,20 @@ async function handleNodeSelection(activeItems) {
   if (!node) return
   if (node.isDirectory) {
     if (node.children === null) {
-      await fetchChildren(node)
+      // 懒加载：递归加载该节点，深度从当前节点层级起
+      const currentDepth = selectedPath.split(path.sep).length - treeData.value[0].path.split(path.sep).length + 1
+      node.children = await getDirectoryTree(node.path, currentDepth, MAX_TREE_DEPTH)
     }
   } else {
+    // 只允许打开指定后缀的文件
+    const ext = path.extname(node.name).toLowerCase()
+    if (!ext || !allowedExtensions.includes(ext)) {
+      store.dispatch('snackbar/showSnackbar', {
+        message: '该文件类型不支持预览',
+        type: 'warning'
+      })
+      return
+    }
     await loadFileByType(node.path)
     const breadcrumbPath = buildBreadcrumb(node.path)
     addOrSwitchTab({
@@ -680,8 +736,8 @@ function removeTab(index) {
   fileContent.value = ''
 }
 
-function highlightCode(code, ext) {
-  const language = ext.slice(1)
+function highlightCode(code, extension) {
+  const language = extension ? extension.slice(1) : ''
   const validLang = hljs.getLanguage(language) ? language : 'plaintext'
   return hljs.highlight(code, { language: validLang }).value
 }
@@ -713,7 +769,6 @@ async function fetchChildren(item) {
     return []
   }
 }
-
 
 function convertBuffer(buffer) {
   if (buffer instanceof ArrayBuffer) return buffer
@@ -777,18 +832,8 @@ async function expandToPath(targetPath) {
   handleNodeSelection([currentNode.path])
 }
 
-async function getAppPath(appName) {
-  try {
-    const appPath = await window.electron.getAppPathIPC(appName)
-    if (!appPath) throw new Error(`获取的应用路径为空: ${appName}`)
-    return appPath
-  } catch (err) {
-    console.error('获取应用路径失败:', err)
-  }
-}
-
 async function openOutside(breadcrumbsArray, shouldFile) {
-  if (!breadcrumbsArray || breadcrumbsArray.length === 0) {
+  if ((!breadcrumbsArray || breadcrumbsArray.length === 0) && !shouldFile) {
     store.dispatch('snackbar/showSnackbar', {
       message: '请先预览一个文件',
       type: 'error'
@@ -798,7 +843,7 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   let url = breadcrumbsArray[breadcrumbsArray.length - 1].path
   if (url !== null) {
     const isFile = isFilePath(url)
-    // 只有在非 Windows 上才加 “/”
+    // 只有在非 Windows 上才加 " / "
     const platform = await window.electron.platform
     if (platform !== 'win32') {
       url = '/' + url
@@ -809,28 +854,28 @@ async function openOutside(breadcrumbsArray, shouldFile) {
       .then(async (exists) => {
         if (exists) {
           if (!shouldFile) {
-            const ext = path.extname(targetPath).toLowerCase()
-            const mapping = customAppMapping[ext]
-            if (mapping) {
-              const platform = await window.electron.platform
-              const appName = mapping[platform]
-              if (appName) {
-                try {
-                  const appPath = await getAppPath(appName)
-                  await window.electron.openPathWithApp(targetPath, appPath).then((error) => {
-                    if (error) {
-                      store.dispatch('snackbar/showSnackbar', {
-                        message: `打开文件失败: ${error}`,
-                        type: 'error'
-                      })
-                    }
-                  })
-                  return
-                } catch (error) {
-                  console.error('未找到应用程序:', appName, error)
-                }
-              }
-            }
+            // const ext = path.extname(targetPath).toLowerCase()
+            // const mapping = customAppMapping[ext]
+            // if (mapping) {
+            //   const platform = await window.electron.platform
+            //   const appName = mapping[platform]
+            //   if (appName) {
+            //     try {
+            //       const appPath = await getAppPath(appName)
+            //       await window.electron.openPathWithApp(targetPath, appPath).then((error) => {
+            //         if (error) {
+            //           store.dispatch('snackbar/showSnackbar', {
+            //             message: `打开文件失败: ${error}`,
+            //             type: 'error'
+            //           })
+            //         }
+            //       })
+            //       return
+            //     } catch (error) {
+            //       console.error('未找到应用程序:', appName, error)
+            //     }
+            //   }
+            // }
           }
           await window.electron.shell.openPath(targetPath).then((error) => {
             if (error) {
@@ -860,32 +905,62 @@ function isFilePath(filePath) {
   // 先通过树结构判断：若找到节点，就以节点的isDirectory为准
   const node = findNodeByPath(treeData.value, filePath)
   if (node) {
-    return !node.isDirectory
+    if (node.isDirectory) return false
+    // 只有允许的文本后缀才允许打开
+    const ext = path.extname(node.name).toLowerCase()
+    return ext && allowedExtensions.includes(ext)
   }
   // 回退到后缀判断
   const ext = path.extname(filePath).toLowerCase()
-  return allowedExtensions.includes(ext)
+  return ext && allowedExtensions.includes(ext)
 }
 
+// 最大递归深度（可根据实际需求调整）
+const MAX_TREE_DEPTH = 50
+
+// 递归获取目录树，带深度阈值
+async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH) {
+  if (depth >= maxDepth) {
+    return null // 达到阈值，children=null，前端可懒加载
+  }
+  let root
+  try {
+    root = await window.electron.readDirectory(targetPath)
+  } catch (e) {
+    return [] // 目录不可读
+  }
+  const filteredRoot = root.filter(child => !child.name.startsWith('.'))
+  return await Promise.all(filteredRoot.map(async child => {
+    if (child.isDirectory) {
+      const children = await getDirectoryTree(child.fullPath, depth + 1, maxDepth)
+      return {
+        name: child.name,
+        path: child.fullPath,
+        isDirectory: true,
+        children: children // 可能为 null
+      }
+    } else {
+      return {
+        name: child.name,
+        path: child.fullPath,
+        isDirectory: false,
+        children: undefined
+      }
+    }
+  }))
+}
+
+// 重置目录树：仅在用户选定路径后调用
 async function resetTree(newPath) {
   const targetPath = isFilePath(newPath) ? path.dirname(newPath) : newPath
   try {
-    const root = await window.electron.readDirectory(targetPath)
-    root.sort((a, b) => b.mtime - a.mtime)
-    const filteredRoot = root.filter((child) => !child.name.startsWith('.'))
-    treeData.value = [
-      {
-        name: path.basename(targetPath),
-        path: targetPath,
-        isDirectory: true,
-        children: filteredRoot.map((child) => ({
-          name: child.name,
-          path: child.fullPath,
-          isDirectory: child.isDirectory,
-          children: child.isDirectory ? null : undefined
-        }))
-      }
-    ]
+    const children = await getDirectoryTree(targetPath, 0, MAX_TREE_DEPTH)
+    treeData.value = [{
+      name: path.basename(targetPath),
+      path: targetPath,
+      isDirectory: true,
+      children: children
+    }]
     openNodes.value = [targetPath]
   } catch (e) {
     console.error('路径加载失败:', e)
@@ -900,7 +975,7 @@ async function loadPathSuggestions() {
       }
       pathSuggestions.value = response.data.map((repo) => ({
         value: repo.local_path,
-        title: `${repo.desc}(${repo.name})`,
+        title: `${omit(repo.desc, 10)}(${repo.name})`,
         repo_url: repo.local_path,
         branch: repo.branch,
         local_path: repo.local_path,
