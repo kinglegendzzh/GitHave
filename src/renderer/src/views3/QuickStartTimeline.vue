@@ -144,7 +144,7 @@ const steps = ref([
   },
   {
     title: '1. 安装必要环境，部署模型服务',
-    description: '需要安装一些必要环境，并部署模型服务。',
+    description: '',
     icon: 'mdi-cog',
     color: 'info',
     branches: [
@@ -156,7 +156,7 @@ const steps = ref([
   },
   {
     title: '2. 配置代码仓库和索引',
-    description: '从任何公网的GitHub、Gitee，或公司内网的GitLab，将代码仓库导入到这里，并为仓库生成索引以提升AI的理解和分析能力',
+    description: '从任何公网的GitHub、Gitee，或公司内网的GitLab，将代码仓库导入到这里，并为仓库生成索引',
     icon: 'mdi-source-repository',
     color: 'success',
     currentStep: 1,
@@ -168,7 +168,7 @@ const steps = ref([
         description: '为你的代码仓库创建唯一身份标识，便于应用中心和各智能体之间的后续管理和追踪'
       },
       {
-        title: '生成AI索引',
+        title: '生成索引',
         icon: 'mdi-memory',
         description: '基于仓库内容生成AI索引，用于构建智能AI索引，提升AI理解和分析能力'
       }
@@ -211,6 +211,11 @@ const steps = ref([
     color: 'red',
     branches: [
       {
+        title: '文件枢纽',
+        value: '/report',
+        icon: 'mdi-microsoft-word'
+      },
+      {
         title: '深度搜索',
         value: '/search',
         icon: 'mdi-book-search'
@@ -222,7 +227,7 @@ const steps = ref([
       },
       {
         title: '代码视窗',
-        to: '/finder',
+        value: '/finder',
         icon: 'mdi-code-block-tags'
       },
       {
@@ -234,11 +239,6 @@ const steps = ref([
         title: '推送机器人',
         value: '/sender',
         icon: 'mdi-send'
-      },
-      {
-        title: '枢纽',
-        value: '/report',
-        icon: 'mdi-microsoft-word'
       },
     ]
   }
