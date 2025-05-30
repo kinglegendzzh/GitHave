@@ -23,22 +23,22 @@
       <div v-else class="research-content">
         <div class="research-header">
           <h2>
-            枢纽 <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
+            文件枢纽 <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
           </h2>
-          <!--          <v-btn class="refresh-button" elevation="0" @click="selectDirectory">-->
-          <!--            <v-icon left>mdi-refresh</v-icon>-->
-          <!--            刷新-->
-          <!--          </v-btn>-->
+          <v-btn class="refresh-button" elevation="0" @click="fetchCodeReports">
+            <v-icon left>mdi-refresh</v-icon>
+            刷新
+          </v-btn>
         </div>
 
         <!-- 文件类型标签页 -->
         <v-tabs v-model="activeTab" background-color="transparent" color="primary" class="mb-4">
           <v-tab value="codeReport">代码分析报告</v-tab>
-          <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
-          <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
-          <v-tab value="weekly">代码仓库周刊</v-tab>
-          <v-tab value="commitDetails">提交记录修改明细</v-tab>
-          <v-tab value="commitAnalysis">提交记录分析报告</v-tab>
+          <v-tab value="contributionChart" disabled>仓库提交贡献榜</v-tab>
+          <v-tab value="activityHeatmap" disabled>提交活跃度·热力图</v-tab>
+          <v-tab value="weekly" disabled>代码仓库周刊</v-tab>
+          <v-tab value="commitDetails" disabled>提交记录修改明细</v-tab>
+          <v-tab value="commitAnalysis" disabled>提交记录分析报告</v-tab>
         </v-tabs>
 
         <v-card class="content-card" variant="flat">
@@ -122,7 +122,7 @@
                   class="load-more-button"
                   variant="text"
                   elevation="0"
-                  @click="visibleCount += 20"
+                  @click="visibleCount += 40"
                 >
                   <v-icon left>mdi-arrow-down</v-icon>
                   加载更多
@@ -462,7 +462,7 @@ export default {
         '.vue': { darwin: 'code', win32: 'code', linux: 'code' },
         '.go': { darwin: 'code', win32: 'code', linux: 'code' },
         '.sh': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-        '.md': { darwin: 'code', win32: 'notepad', linux: 'gedit' },// todo Windows打开md文件报错修复一下
+        '.md': { darwin: 'code', win32: 'notepad', linux: 'gedit' }, // todo Windows打开md文件报错修复一下
         '.markdown': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
         '.yml': { darwin: 'code', win32: 'code', linux: 'code' },
         '.yaml': { darwin: 'code', win32: 'code', linux: 'code' },
@@ -541,7 +541,7 @@ export default {
         // 2. 再调用后端接口拿到实际报告
         const res = await deepResearchFiles()
         // 假设 res.data 就是文件数组
-        const apiFiles = res.data.map((item) => {
+        let apiFiles = res.data.map((item) => {
           const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
           const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
           const tags = ext === 'md' ? ['可预览'] : []
@@ -555,6 +555,8 @@ export default {
             raw: item
           }
         })
+        // 过滤掉状态不为success的文件
+        apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
 
         // 3. 把静态示例文件也映射成同样的结构
         const exampleFiles = examples.map((file) => {
@@ -762,25 +764,26 @@ export default {
         }
 
         // 4. 如果有自定义应用映射，优先调用指定应用打开
-        const ext = path.extname(targetPath).toLowerCase()
-        const mapping = this.customAppMapping[ext]
-        if (mapping) {
-          const appName = mapping[platform]
-          if (appName) {
-            try {
-              const appPath = await this.getAppPath(appName)
-              const error = await window.electron.openPathWithApp(targetPath, appPath)
-              if (error) {
-                if (!confirm(`打开文件失败: ${error}`)) return
-              }
-              return
-            } catch (err) {
-              console.error('未找到应用程序:', appName, err)
-            }
-          }
-        }
+        // const ext = path.extname(targetPath).toLowerCase()
+        // const mapping = this.customAppMapping[ext]
+        // if (mapping) {
+        //   const appName = mapping[platform]
+        //   if (appName) {
+        //     try {
+        //       const appPath = await this.getAppPath(appName)
+        //       const error = await window.electron.openPathWithApp(targetPath, appPath)
+        //       if (error) {
+        //         if (!confirm(`打开文件失败: ${error}`)) return
+        //       }
+        //       return
+        //     } catch (err) {
+        //       console.error('未找到应用程序:', appName, err)
+        //     }
+        //   }
+        // }
 
         // 5. 默认调用系统方式打开
+        console.log('targetPath', targetPath)
         const error = await window.electron.shell.openPath(targetPath)
         if (error) {
           if (!confirm(`打开文件失败: ${error}`)) return
