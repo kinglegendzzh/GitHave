@@ -54,7 +54,7 @@
 
       <!-- 仓库周刊智能体 -->
       <v-col cols="12" md="4">
-        <v-card outlined class="agent-card-compact" :elevation="hoveredCard === 'weekly' ? 6 : 1" @click="openAgentDialog('weekly')" @mouseover="hoveredCard = 'weekly'" @mouseleave="hoveredCard = null">
+        <v-card disabled outlined class="agent-card-compact" :elevation="hoveredCard === 'weekly' ? 6 : 1" @click="openAgentDialog('weekly')" @mouseover="hoveredCard = 'weekly'" @mouseleave="hoveredCard = null">
           <v-card-title class="card-title-compact">
             <v-icon small class="icon-compact">mdi-calendar-text</v-icon>
             <span class="tag-compact">[内置]</span>
@@ -176,7 +176,7 @@
                             />
                             <v-switch
                               v-model="config.files.save.heatmap"
-                              label="保存备份到'枢纽'"
+                              label="保存备份到'文件枢纽'"
                             />
                           </v-card>
                         </v-menu>
@@ -214,7 +214,7 @@
                             />
                             <v-switch
                               v-model="config.files.save.research"
-                              label="保存备份到'枢纽'"
+                              label="保存备份到'文件枢纽'"
                             />
                           </v-card>
                         </v-menu>
@@ -250,7 +250,7 @@
                             />
                             <v-switch
                               v-model="config.files.save.csv"
-                              label="保存备份到'枢纽'"
+                              label="保存备份到'文件枢纽'"
                             />
                           </v-card>
                         </v-menu>
