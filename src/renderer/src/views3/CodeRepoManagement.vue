@@ -279,7 +279,7 @@
               @click="saveRepo"
             >
               <v-icon>mdi-content-save</v-icon>
-              {{ selectedRepo ? '保存并更新仓库' : '创建仓库' }}
+              {{ selectedRepo ? '保存仓库' : '创建仓库' }}
             </v-btn>
             <v-btn
               small
