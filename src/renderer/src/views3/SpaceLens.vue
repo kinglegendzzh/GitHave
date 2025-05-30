@@ -39,7 +39,7 @@
           </v-btn>
           <v-btn
             ref="analysisBtn"
-            variant="flat"
+            variant="outlined"
             color="indigo"
             class="mr-2 modern-btn"
             elevation="0"
@@ -50,7 +50,7 @@
           </v-btn>
           <v-btn
             ref="architectureBtn"
-            variant="flat"
+            variant="outlined"
             color="teal"
             class="modern-btn"
             elevation="0"
@@ -61,22 +61,22 @@
           </v-btn>
         </div>
       </v-row>
-<!--      <v-row>-->
-<!--        <div class="p-6">-->
-<!--          <h2 class="text-2xl mb-4">调试：代码分析报告弹窗</h2>-->
-<!--          <v-btn @click="openModal">-->
-<!--            打开调试弹窗-->
-<!--          </v-btn>-->
+      <!--      <v-row>-->
+      <!--        <div class="p-6">-->
+      <!--          <h2 class="text-2xl mb-4">调试：代码分析报告弹窗</h2>-->
+      <!--          <v-btn @click="openModal">-->
+      <!--            打开调试弹窗-->
+      <!--          </v-btn>-->
 
-<!--          &lt;!&ndash; 直接传入模拟数据 &ndash;&gt;-->
-<!--          <AnalysisReportModal-->
-<!--            v-model="isModalVisible"-->
-<!--            :repo-i-d="dummyRepoID"-->
-<!--            :target-path="dummyTargetPath"-->
-<!--            :scope-text="dummyScopeText"-->
-<!--          />-->
-<!--        </div>-->
-<!--      </v-row>-->
+      <!--          &lt;!&ndash; 直接传入模拟数据 &ndash;&gt;-->
+      <!--          <AnalysisReportModal-->
+      <!--            v-model="isModalVisible"-->
+      <!--            :repo-i-d="dummyRepoID"-->
+      <!--            :target-path="dummyTargetPath"-->
+      <!--            :scope-text="dummyScopeText"-->
+      <!--          />-->
+      <!--        </div>-->
+      <!--      </v-row>-->
 
       <!-- 顶部工具栏：面包屑导航 -->
       <v-row>
@@ -94,10 +94,59 @@
         </v-col>
       </v-row>
 
+      <!-- 色卡模板弹窗 -->
+      <v-dialog v-model="showPaletteDialog" max-width="420">
+        <v-card>
+          <v-card-title>选择配色方案</v-card-title>
+          <v-card-text>
+            <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+              <div v-for="(palette, idx) in presetPalettes" :key="idx" style="cursor: pointer;" @click="applyPalette(palette)">
+                <div style="display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 2px solid #eee;">
+                  <div v-for="(color, i) in palette" :key="i" :style="{width: '32px', height: '32px', background: color}"></div>
+                </div>
+              </div>
+            </div>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn text @click="showPaletteDialog = false">关闭</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <!-- 主体内容：左侧图表、右侧目录列表 -->
       <v-row>
         <!-- 图表区域 -->
         <v-col cols="8">
+          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-icon v-bind="props" small class="ml-1">mdi-help-circle-outline</v-icon>
+              </template>
+              <span>
+                1. 透镜路径：选择要分析的代码仓库路径，点击按钮，开始扫描代码。<br />
+                2. 与左侧多级饼图交互：可以直观地查看代码仓库的结构，以及文件分布，也可以快速跳转到任意目录；点击饼图的中心图标返回上一级目录；右键点击饼图部分，通过弹出菜单项对文件进行操作。<br />
+                3. 与右侧目录列表交互：通过面包屑导航快速跳转到任意目录；右键点击文件夹或左键点击代码文件，通过弹出菜单项对文件进行操作。<br />
+                4. 【弹出菜单项】你可以预览代码详情、复制路径、在本地目录打开、生成分析报告、生成架构流程图。
+              </span>
+            </v-tooltip>
+            <v-btn-toggle variant="outlined" v-model="renderMode" mandatory density="compact" color="purple" class="ml-2 mr-2">
+              <v-btn value="count">按子数量展示</v-btn>
+              <v-btn value="size">按文件大小展示</v-btn>
+            </v-btn-toggle>
+            <!-- 新增：色系选择器和色卡模板按钮 -->
+            <div style="display: flex; align-items: center; gap: 12px;" class="mr-2 ml-2">
+              <v-btn size="small" color="primary" variant="outlined" @click="showPaletteDialog = true" class="mr-2">配色</v-btn>
+              <input type="color" v-model="colorRange[0]" style="width: 32px; height: 32px; border: none; background: none;" />
+              <span>→</span>
+              <input type="color" v-model="colorRange[1]" style="width: 32px; height: 32px; border: none; background: none;" />
+              <span>→</span>
+              <input type="color" v-model="colorRange[2]" style="width: 32px; height: 32px; border: none; background: none;" />
+              <v-btn icon size="small" variant="plain" @click="refreshChart">
+                <v-icon>mdi-refresh</v-icon>
+              </v-btn>
+            </div>
+          </div>
           <div ref="chart" :key="chartKey" class="chart" style="position: relative">
             <div v-if="initialLoad" style="text-align: center">
               <img
@@ -235,11 +284,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import * as d3 from 'd3'
 import FileContextMenu from '../components/FileContextMenu.vue'
 import { listRepos } from '../service/api'
 import grassSVG from '../assets/透镜.svg'
+import { omit } from '../service/str'
 
 // 父组件内部 state
 const analysisReportDrawerVisible = ref(false)
@@ -272,7 +322,6 @@ const isProcessing = ref(false)
 const selectedFile = ref(null)
 const fileTree = ref(null)
 const legendItems = ref([])
-const colorScale = ref(null)
 const rootPath = ref('')
 const chartLoading = ref(false)
 const legendLoading = ref(false)
@@ -330,6 +379,7 @@ const contextMenu = ref(null)
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import AnalysisReportModal from '../components/ai/AnalysisReportModal.vue'
+import { loadRepoProgress } from "../storage/progress-storage";
 const router = useRouter()
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
@@ -340,7 +390,12 @@ const viewFileDetails = () => {
     console.log('跳转到文件浏览器页面，文件路径：', selectedFile.value.fullPath)
     router.push({
       name: 'finder',
-      params: { localPath: selectedFile.value.fullPath, forceDeep: true, forceReplace: 'true', rootPath: rootPath.value }
+      params: {
+        localPath: selectedFile.value.fullPath,
+        forceDeep: true,
+        forceReplace: 'true',
+        rootPath: rootPath.value
+      }
     })
   }
 }
@@ -379,6 +434,12 @@ const generateFileAnalysisReport = async () => {
       if (selectedItem) {
         const repoID = selectedItem.id
         console.log('找到匹配的仓库ID:', repoID, targetPath)
+        
+        const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+        if (indexing) {
+          window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
+          return
+        }
 
         // 给 ref 赋值，Vue 才能通知模板更新 props
         modalRepoID.value = selectedItem.id.toString()
@@ -386,14 +447,19 @@ const generateFileAnalysisReport = async () => {
         modalScopeText.value = scopeText
         apiType.value = 'deepResearch'
         wholeRepo.value = false
-
         // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
         analysisReportDrawerVisible.value = true
 
-        console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
+        console.log(
+          'yep',
+          modalRepoID,
+          modalTargetPath,
+          modalScopeText,
+          analysisReportDrawerVisible
+        )
 
         store.dispatch('snackbar/showSnackbar', {
-          message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
+          message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在'文件枢纽'中查看...`,
           color: 'info'
         })
       } else {
@@ -410,7 +476,6 @@ const generateFileAnalysisReport = async () => {
     }
   }
 }
-
 
 // 为文件夹生成架构流程图
 const generateFolderArchitectureMap = async () => {
@@ -432,6 +497,12 @@ const generateFolderArchitectureMap = async () => {
         const repoID = selectedItem.id
         console.log('找到匹配的仓库ID:', repoID, targetPath)
 
+        const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+        if (indexing) {
+          window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
+          return
+        }
+
         // 给 ref 赋值，Vue 才能通知模板更新 props
         modalRepoID.value = selectedItem.id.toString()
         modalTargetPath.value = targetPath
@@ -442,13 +513,12 @@ const generateFolderArchitectureMap = async () => {
         // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
         analysisReportDrawerVisible.value = true
         store.dispatch('snackbar/showSnackbar', {
-          message: `正在为文件夹梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
+          message: `正在为文件夹梳理架构流程图，请稍等片刻后在'文件枢纽'中查看...`,
           color: 'info'
         })
       } else {
         console.warn('未找到匹配的仓库路径')
       }
-
     } catch (error) {
       console.error('生成架构流程图失败:', error)
       store.dispatch('snackbar/showSnackbar', {
@@ -478,11 +548,11 @@ const menuItems = computed(() => {
 
   // 如果是文件夹，添加生成架构流程图选项
   // if (selectedFile.value && selectedFile.value.isDirectory) {
-    baseItems.push({
-      title: '生成架构流程图',
-      icon: 'mdi-sitemap',
-      action: generateFolderArchitectureMap
-    })
+  baseItems.push({
+    title: '生成架构流程图',
+    icon: 'mdi-sitemap',
+    action: generateFolderArchitectureMap
+  })
   // }
 
   return baseItems
@@ -567,6 +637,12 @@ const generateAnalysisReport = async () => {
       const repoID = selectedItem.id
       console.log('找到匹配的仓库ID:', repoID, targetPath)
 
+      const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+      if (indexing) {
+        window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
+        return
+      }
+
       // 给 ref 赋值，Vue 才能通知模板更新 props
       modalRepoID.value = selectedItem.id.toString()
       modalTargetPath.value = targetPath
@@ -588,7 +664,7 @@ const generateAnalysisReport = async () => {
       console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
 
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在‘枢纽’中查看...`,
+        message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在'文件枢纽'中查看...`,
         color: 'info'
       })
     } else {
@@ -624,6 +700,12 @@ const generateArchitectureMap = async () => {
       const repoID = selectedItem.id
       console.log('找到匹配的仓库ID:', repoID, targetPath)
 
+      const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+      if (indexing) {
+        window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
+        return
+      }
+
       // 给 ref 赋值，Vue 才能通知模板更新 props
       modalRepoID.value = selectedItem.id.toString()
       modalTargetPath.value = targetPath
@@ -633,16 +715,16 @@ const generateArchitectureMap = async () => {
       // 如果为整个仓库，则wholeRepo设置为true
       wholeRepo.value = analysisScope.value !== 'current'
       // 如果当前层级为项目根目录，则视为整个仓库
-      if (currentFocus.value.data.fullPath === rootPath.value) {
-        console.log('当前层级为项目根目录，视为整个仓库')
-        wholeRepo.value = true
-      }
+      // if (currentFocus.value.data.fullPath === rootPath.value) {
+      //   console.log('当前层级为项目根目录，视为整个仓库')
+      //   wholeRepo.value = true
+      // }
       console.log('wholeRepo', wholeRepo.value)
       // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
       analysisReportDrawerVisible.value = true
 
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在为${scopeText}梳理架构流程图，请稍等片刻后在‘枢纽’中查看...`,
+        message: `正在为${scopeText}梳理架构流程图，请稍等片刻后在'文件枢纽'中查看...`,
         color: 'info'
       })
     } else {
@@ -909,11 +991,10 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
 const loadPathSuggestions = async () => {
   try {
     const response = await listRepos()
-    console.log('loadPathSuggestions', JSON.stringify(response.data))
     if (!response.data || !Array.isArray(response.data)) return
     pathSuggestions.value = response.data.map((repo) => ({
       value: repo.local_path,
-      title: `${repo.desc}(${repo.name})`,
+      title: `${omit(repo.desc, 25)}(${repo.name})`,
       id: repo.id
     }))
   } catch (err) {
@@ -923,6 +1004,78 @@ const loadPathSuggestions = async () => {
 
 // 绘制图表并添加动画与交互
 const chart = ref(null)
+const renderMode = ref('count') // 'size' 或 'count'
+watch(renderMode, () => {
+  if (fileTree.value) {
+    drawChartWithAnimation()
+  }
+})
+
+// 支持三色渐变，默认蓝-紫
+const colorRange = ref(['#b98eff', '#7C4DFF', '#4a04ff'])
+
+// 色卡弹窗控制
+const showPaletteDialog = ref(false)
+
+// 预设色卡模板
+const presetPalettes = [
+  ['#b98eff', '#7C4DFF', '#4a04ff'], // 蓝-紫
+  ['#FCE38A', '#F38181', '#EAFFD0'], // 浅黄-粉-浅绿
+  ['#FFDEE9', '#B5FFFC', '#A1C4FD'], // 粉-浅蓝-蓝
+  ['#43E97B', '#38F9D7', '#3B82F6'], // 绿-青-蓝
+  ['#FFB75E', '#ED8F03', '#A770EF'], // 橙-金-紫
+  ['#F7971E', '#FFD200', '#21D4FD'], // 橙-黄-蓝
+  ['#43C6AC', '#191654', '#6D5BBA'], // 绿-深蓝-紫
+]
+
+// 应用色卡
+function applyPalette(palette) {
+  colorRange.value = [...palette]
+  showPaletteDialog.value = false
+  refreshChart()
+}
+
+// 刷新图表（手动触发 assignColors 并重绘）
+function refreshChart() {
+  if (fileTree.value) {
+    drawChartWithAnimation()
+  }
+}
+
+// 生成同级渐变色（支持三色渐变）
+function getSiblingColors(range, count) {
+  // range: [color1, color2, color3]
+  const colors = []
+  if (count === 1) {
+    colors.push(range[1])
+    return colors
+  }
+  for (let i = 0; i < count; i++) {
+    const t = i / (count - 1)
+    let color
+    if (t <= 0.5) {
+      // 前半段 color1→color2
+      color = d3.interpolateHsl(range[0], range[1])(t * 2)
+    } else {
+      // 后半段 color2→color3
+      color = d3.interpolateHsl(range[1], range[2])((t - 0.5) * 2)
+    }
+    colors.push(color)
+  }
+  return colors
+}
+
+// 递归分配颜色，支持三色渐变
+function assignColors(node, range = colorRange.value) {
+  node.data._color = range[0]
+  if (!node.children || node.children.length === 0) return
+  const colors = getSiblingColors(range, node.children.length)
+  node.children.forEach((child, idx) => {
+    // 子节点继续用当前色到终点色递进
+    assignColors(child, [colors[idx], range[1], range[2]])
+  })
+}
+
 const drawChartWithAnimation = () => {
   if (!fileTree.value) return
   initialLoad.value = false
@@ -931,16 +1084,17 @@ const drawChartWithAnimation = () => {
     height = 600
   const radius = Math.min(width, height) / 2
   const innerRadius = 60
-  const topLevelNames = fileTree.value.children ? fileTree.value.children.map((d) => d.name) : []
-  colorScale.value = d3.scaleOrdinal().domain(topLevelNames).range(d3.schemeCategory10)
-  legendItems.value = topLevelNames.map((name) => {
-    const child = fileTree.value.children.find((child) => child.name === name)
-    return {
-      name,
-      color: colorScale.value(name),
-      fullPath: child?.fullPath || ''
-    }
-  })
+  // 递归分配颜色，传递 colorRange
+  root.value = d3.hierarchy(fileTree.value)
+  assignColors(root.value, colorRange.value)
+  assignValueByMode(root.value)
+  currentFocus.value = root.value
+  // legendItems 也用 _color
+  legendItems.value = (fileTree.value.children || []).map((child) => ({
+    name: child.name,
+    color: child._color,
+    fullPath: child.fullPath
+  }))
   const svg = d3.select(chart.value).append('svg').attr('width', width).attr('height', height)
   const g = svg.append('g').attr('transform', `translate(${width / 2}, ${height / 2})`)
   const diameter = innerRadius * 2.5
@@ -990,13 +1144,7 @@ const drawChartWithAnimation = () => {
     .style('fill', '#3B00EB')
     .style('text-shadow', '2px 2px 4px rgba(0, 0, 0, 0.5)')
   root.value = d3.hierarchy(fileTree.value)
-  root.value.each((node) => {
-    if (node.data.isDirectory) {
-      node.value = node.data.children ? node.data.children.length : 0
-    } else {
-      node.value = node.data.size
-    }
-  })
+  assignValueByMode(root.value)
   currentFocus.value = root.value
 
   const handleContextMenu = (event, d) => {
@@ -1014,7 +1162,12 @@ const drawChartWithAnimation = () => {
   const updateSunburstFunc = (focusNode) => {
     if (!focusNode) return
     updateSunburst.value = updateSunburstFunc
-    const rootHierarchy = d3.hierarchy(focusNode.data).sum((d) => d.size)
+    // 递归分配颜色，传递 colorRange
+    const rootHierarchy = d3.hierarchy(focusNode.data)
+    assignColors(rootHierarchy, [focusNode.data._color || colorRange.value[0], colorRange.value[1], colorRange.value[2]])
+    rootHierarchy.each((node) => {
+      assignValueByMode(node)
+    })
     d3.partition().size([2 * Math.PI, rootHierarchy.height + 1])(rootHierarchy)
     const focusDepth = focusNode.height
     const ringThickness = (radius - innerRadius) / (focusDepth > 0 ? focusDepth : 1)
@@ -1049,22 +1202,21 @@ const drawChartWithAnimation = () => {
         this._current = i(0)
         return (t) => arcGen(i(t))
       })
+    // legendItems 也用 _color
     if (focusNode.children && focusNode.children.length > 0) {
-      const childrenNames = focusNode.children.map((child) => child.data.name)
-      colorScale.value = d3.scaleOrdinal().domain(childrenNames).range(d3.schemeCategory10)
       const directories = focusNode.children.filter((child) => child.data.isDirectory)
       const files = focusNode.children.filter((child) => !child.data.isDirectory)
       legendItems.value = [
         ...directories.map((dir) => ({
           name: dir.data.name,
-          color: colorScale.value(dir.data.name),
+          color: dir.data._color,
           fullPath: dir.data.fullPath,
           isDirectory: true,
           icon: 'mdi-folder'
         })),
         ...files.map((file) => ({
           name: file.data.name,
-          color: colorScale.value(file.data.name),
+          color: file.data._color,
           fullPath: file.data.fullPath,
           isDirectory: false
         }))
@@ -1078,19 +1230,7 @@ const drawChartWithAnimation = () => {
     const newArcs = arcs
       .enter()
       .append('path')
-      .attr('fill', (d) => {
-        if (d.depth === 1) {
-          return colorScale.value(d.data.name)
-        } else {
-          let ancestor = d
-          while (ancestor.depth > 1) {
-            ancestor = ancestor.parent
-          }
-          const baseColor = d3.color(colorScale.value(ancestor.data.name))
-          const lighten = (d.depth - 1) * 0.2
-          return baseColor.brighter(lighten).toString()
-        }
-      })
+      .attr('fill', (d) => d.data._color)
       .attr('stroke', 'none')
       .attr('stroke-width', 1)
       .each(function (d) {
@@ -1114,11 +1254,8 @@ const drawChartWithAnimation = () => {
       })
       .on('contextmenu', handleContextMenu)
       .on('mouseover', (event, d) => {
-        if (d.data.isDirectory) {
-          tooltipContent.value = `${d.data.name}: ${formatSize(d.value)}`
-        } else {
-          tooltipContent.value = `${d.data.name}: ${formatSize(d.value)}`
-        }
+        const size = renderMode.value === 'size' ? formatSize(d.value) : d.value + ' 项'
+        tooltipContent.value = `${d.data.name}: ${size}`
         tooltipVisible.value = true
       })
       .on('mousemove', (event) => {
@@ -1143,6 +1280,21 @@ const drawChartWithAnimation = () => {
     chartLoading.value = false
   }
   updateSunburstFunc(currentFocus.value)
+}
+
+function assignValueByMode(node) {
+  if (!node.data.isDirectory) {
+    node.value = renderMode.value === 'size' ? node.data.size : 1
+    return node.value
+  }
+  let sum = 0
+  if (node.children) {
+    for (const child of node.children) {
+      sum += assignValueByMode(child)
+    }
+  }
+  node.value = sum
+  return node.value
 }
 
 onMounted(() => {
