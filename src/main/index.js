@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, protocol, shell, dialog } = require('electron')
+const { app, BrowserWindow, ipcMain, protocol, shell, dialog, session } = require('electron')
 const installExtension = require('electron-devtools-installer').default
 const { VUEJS_DEVTOOLS } = require('electron-devtools-installer')
 const { spawn, exec, spawnSync } = require('child_process')
@@ -16,9 +16,14 @@ const killPort = require('kill-port')
 const winston = require('winston')
 const { format, transports } = winston
 const fsPromises = fs.promises
-const { readdir, stat } = require('fs/promises');
-const semver = require('semver');
-const { copyFile, mkdir, readFile, writeFile } = fs.promises;
+const { readdir, stat } = require('fs/promises')
+const semver = require('semver')
+const { copyFile, mkdir, readFile, writeFile } = fs.promises
+const AdmZip = require('adm-zip')
+
+const env = process.env
+
+console.log('platform', process.platform)
 
 remoteMain.initialize()
 const BOT_PORT = 19150
@@ -175,7 +180,7 @@ function getResourcePath(fileName) {
 
 function getUserResourcePath(fileName) {
   if (app.isPackaged) {
-    const p = path.join(app.getPath('userData'), fileName);
+    const p = path.join(app.getPath('userData'), fileName)
     return p
   }
   const p = path.join(app.getAppPath(), 'bin', fileName)
@@ -304,6 +309,343 @@ async function clearOccupiedPorts() {
 
 /* IPC 事件及处理 */
 
+// 安装状态跟踪
+const installationStatus = {
+  python: { installed: false, installing: false, progress: 0, name: 'Python' },
+  git: { installed: false, installing: false, progress: 0, name: 'Git' },
+  pandoc: { installed: false, installing: false, progress: 0, name: 'Pandoc' }
+}
+
+// 检查命令是否可用（如果是Windows，则直接执行对应指令来判断）
+async function checkCommand(command) {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      switch (command) {
+        case 'python':
+          exec(`python --version`, (error, stdout) => {
+            console.log(`python --version: ${stdout}`)
+            resolve(!error || !error.code ? stdout.trim() : null)
+          })
+          return // 防止继续执行Unix命令
+        case 'python3':
+          exec(`python3 --version`, (error, stdout) => {
+            console.log(`python3 --version: ${stdout}`)
+            resolve(!error || !error.code ? stdout.trim() : null)
+          })
+          return // 防止继续执行Unix命令
+        case 'git':
+          exec(`git --version`, (error, stdout) => {
+            console.log(`git --version: ${stdout}`)
+            resolve(!error || !error.code ? stdout.trim() : null)
+          })
+          return // 防止继续执行Unix命令
+        case 'pandoc':
+          exec(`pandoc --version`, (error, stdout) => {
+            console.log(`pandoc --version: ${stdout}`)
+            resolve(!error || !error.code ? stdout.trim() : null)
+          })
+          return // 防止继续执行Unix命令
+      }
+    }
+    // 只在非Windows系统上执行
+    exec(`command -v ${command}`, (error, stdout) => {
+      console.log(`command -v ${command}: ${stdout}`)
+      resolve(!error || !error.code ? stdout.trim() : null)
+    })
+  })
+}
+
+// 获取系统架构
+async function getSystemArchitecture() {
+  try {
+    // 先获取当前进程架构
+    const { stdout: processArch } = await execAsync('/usr/bin/uname -m')
+    console.log(`当前进程架构: ${processArch.trim()}`)
+
+    // 检查是否支持 arm64 执行
+    try {
+      // 尝试使用 arch -arm64 运行一个简单命令
+      await execAsync('/usr/bin/arch -arm64 echo "Testing arm64 support"')
+      console.log('系统支持 arm64 执行')
+
+      // 如果能够运行 arm64 命令，则说明系统上有 arm64 支持
+      // 这通常表示这是一台 Apple Silicon Mac
+      if (processArch.trim() === 'x86_64') {
+        console.log('检测到在 Apple Silicon 上使用 Rosetta 2 运行')
+      }
+
+      // 即使当前在 Rosetta 下运行，也返回 arm64，以使用适当的 Homebrew 路径
+      return 'arm64'
+    } catch (error) {
+      // 如果不能运行 arm64 命令，说明这是一台 Intel Mac
+      console.log('系统不支持 arm64 执行，可能是 Intel Mac')
+      return 'x86_64'
+    }
+  } catch (error) {
+    console.error('获取系统架构失败:', error)
+    // 当无法确定时，根据 process.arch 来决定
+    return process.arch.includes('arm') ? 'arm64' : 'x86_64'
+  }
+}
+
+let globalBrewPath = null
+
+async function initBrewPath() {
+  const arch = await getSystemArchitecture()
+  // 检查默认路径
+  const defaultBrewPath = arch === 'arm64' ? '/opt/homebrew/bin/brew' : '/usr/local/bin/brew'
+  if (fs.existsSync(defaultBrewPath)) {
+    console.log(`找到 Homebrew 的默认路径: ${defaultBrewPath}, 架构: ${arch}`)
+    globalBrewPath = defaultBrewPath
+    return
+  }
+
+  // 如果默认路径不存在，尝试使用 command -v 来找
+  const brewPath = await checkCommand('brew')
+  if (brewPath) {
+    console.log(`找到 Homebrew 的路径: ${brewPath}`)
+    globalBrewPath = brewPath
+    return
+  }
+
+  // 检查另一个可能的路径 (架构不同的路径)
+  const alternativePath = arch === 'arm64' ? '/usr/local/bin/brew' : '/opt/homebrew/bin/brew'
+  if (fs.existsSync(alternativePath)) {
+    console.log(`找到 Homebrew 的替代路径: ${alternativePath}, 架构: ${arch}`)
+    globalBrewPath = alternativePath
+    return
+  }
+  // 找不到 Homebrew
+  console.log(`未找到 Homebrew, 架构: ${arch}`)
+  return null
+}
+
+// 根据架构获取 Homebrew 路径
+async function getBrewPath() {
+  return globalBrewPath
+}
+
+// 检查 Homebrew 是否安装
+async function checkBrewInstalled() {
+  try {
+    const brewPath = await getBrewPath()
+
+    // 如果找到了 Homebrew 路径，获取版本信息
+    if (brewPath) {
+      const { stdout } = await execAsync(`${brewPath} --version`)
+      const version = stdout.trim()
+      const arch = await getSystemArchitecture()
+
+      return {
+        installed: true,
+        version: version,
+        path: brewPath,
+        architecture: arch
+      }
+    }
+
+    // 找不到 Homebrew
+    return {
+      installed: false,
+      version: null,
+      path: null
+    }
+  } catch (error) {
+    console.error('检查 Homebrew 安装状态失败:', error)
+    return {
+      installed: false,
+      error: error.message
+    }
+  }
+}
+
+// 检查所有依赖的状态
+async function checkDependenciesStatus() {
+  const results = {}
+  for (const [pkg, status] of Object.entries(installationStatus)) {
+    const isInstalled = await checkCommand(pkg === 'python' ? 'python3' : pkg)
+    status.installed = isInstalled !== null
+    status.progress = isInstalled ? 100 : 0
+    results[pkg] = { ...status }
+  }
+  return results
+}
+
+// 安装单个包
+async function installPackage(pkgName) {
+  if (process.platform !== 'win32') {
+    const brewPath = await getBrewPath()
+
+    if (!brewPath) {
+      return { success: false, message: 'Homebrew 未安装，无法继续安装包' }
+    }
+
+    if (installationStatus[pkgName]?.installing) {
+      return { success: false, message: `${pkgName} is already being installed` }
+    }
+
+    installationStatus[pkgName].installing = true
+    installationStatus[pkgName].progress = 10
+    installationStatus[pkgName].installed = false
+
+    // 获取当前架构信息
+    const processArch = await execAsync('/usr/bin/uname -m').then(({ stdout }) => stdout.trim())
+    const isAppleSilicon = brewPath.includes('/opt/homebrew')
+    const runningUnderRosetta = isAppleSilicon && processArch === 'x86_64'
+
+    console.log(
+      `安装 ${pkgName}: 进程架构=${processArch}, 是否在 Rosetta 下运行=${runningUnderRosetta}`
+    )
+
+    return new Promise((resolve) => {
+      let brewInstall
+
+      // 如果在 Apple Silicon 上使用 Rosetta 2 运行，需要使用 arch -arm64 来强制以 ARM 模式运行 brew
+      if (runningUnderRosetta) {
+        console.log(
+          `使用 arch -arm64 强制以 ARM 模式运行: ${brewPath} install ${pkgName === 'python' ? 'python@3.11' : pkgName}`
+        )
+        brewInstall = spawn('/usr/bin/arch', [
+          '-arm64',
+          brewPath,
+          'install',
+          pkgName === 'python' ? 'python@3.11' : pkgName
+        ])
+      } else {
+        console.log(
+          `正常运行: ${brewPath} install ${pkgName === 'python' ? 'python@3.11' : pkgName}`
+        )
+        brewInstall = spawn(brewPath, ['install', pkgName === 'python' ? 'python@3.11' : pkgName])
+      }
+
+      brewInstall.stdout.on('data', (data) => {
+        console.log(`[${pkgName} install] ${data}`)
+        installationStatus[pkgName].progress = Math.min(
+          installationStatus[pkgName].progress + 30,
+          90
+        )
+      })
+
+      brewInstall.stderr.on('data', (data) => {
+        console.error(`[${pkgName} install error] ${data}`)
+      })
+
+      brewInstall.on('close', (code) => {
+        const success = code === 0
+        installationStatus[pkgName].installing = false
+        installationStatus[pkgName].installed = success
+        installationStatus[pkgName].progress = success ? 100 : 0
+
+        if (success) {
+          console.log(`${pkgName} installation completed successfully`)
+        } else {
+          console.error(`${pkgName} installation failed with code ${code}`)
+        }
+
+        resolve({ success, code })
+      })
+    })
+  } else {
+    // Windows 安装部分
+    if (installationStatus[pkgName]?.installing) {
+      return { success: false, message: `${pkgName} is already being installed` }
+    }
+
+    installationStatus[pkgName].installing = true
+    installationStatus[pkgName].progress = 10
+    installationStatus[pkgName].installed = false
+
+    console.log(`开始在 Windows 上安装 ${pkgName}`)
+
+    return new Promise((resolve) => {
+      let installCommand, installArgs
+
+      switch (pkgName) {
+        case 'python':
+        case 'python3':
+          installCommand = 'winget'
+          installArgs = ['install', '--id', 'Python.Python.3', '-e']
+          break
+        case 'git':
+          installCommand = 'winget'
+          installArgs = ['install', '--id', 'Git.Git', '-e']
+          break
+        case 'pandoc':
+          installCommand = 'winget'
+          installArgs = [
+            'install',
+            '--source',
+            'winget',
+            '--exact',
+            '--id',
+            'JohnMacFarlane.Pandoc'
+          ]
+          break
+        default:
+          installationStatus[pkgName].installing = false
+          return resolve({ success: false, message: `Unknown package: ${pkgName}` })
+      }
+
+      const installProcess = spawn(installCommand, installArgs, { shell: true })
+
+      installProcess.stdout.on('data', (data) => {
+        console.log(`[${pkgName} install] ${data}`)
+        installationStatus[pkgName].progress = Math.min(
+          installationStatus[pkgName].progress + 30,
+          90
+        )
+      })
+
+      installProcess.stderr.on('data', (data) => {
+        console.error(`[${pkgName} install error] ${data}`)
+      })
+
+      installProcess.on('close', (code) => {
+        const success = code === 0
+        installationStatus[pkgName].installing = false
+        installationStatus[pkgName].installed = success
+        installationStatus[pkgName].progress = success ? 100 : 0
+
+        if (success) {
+          console.log(`${pkgName} installation completed successfully`)
+        } else {
+          console.error(`${pkgName} installation failed with code ${code}`)
+        }
+
+        resolve({ success, code })
+      })
+    })
+  }
+}
+
+// 批量安装所有需要的包
+async function installRequiredPackages() {
+  // 重置安装状态
+  for (const pkg of Object.keys(installationStatus)) {
+    installationStatus[pkg].installed =
+      (await checkCommand(pkg === 'python' ? 'python3' : pkg)) !== null
+    installationStatus[pkg].progress = installationStatus[pkg].installed ? 100 : 0
+  }
+
+  // 安装缺失的包
+  const packagesToInstall = Object.entries(installationStatus)
+    .filter(([_, status]) => !status.installed)
+    .map(([pkg]) => pkg)
+
+  if (packagesToInstall.length === 0) {
+    return { success: true, message: 'All required packages are already installed' }
+  }
+
+  try {
+    for (const pkg of packagesToInstall) {
+      await installPackage(pkg)
+    }
+    return { success: true, message: 'All packages installed successfully' }
+  } catch (error) {
+    return { success: false, message: `Installation failed: ${error.message}` }
+  }
+}
+
 // 打开新窗口
 ipcMain.on('open-new-window', (event, url) => {
   const win = new BrowserWindow({
@@ -364,10 +706,14 @@ ipcMain.handle('start-bot', async (event, configPath) => {
   }
 
   const botPath = getExecutablePath('bot')
-  const newBot = spawnAndTrack(botPath, ['-config', configPath, '-db', getUserResourcePath('githave.db')], {
-    detached: true,
-    stdio: 'ignore'
-  })
+  const newBot = spawnAndTrack(
+    botPath,
+    ['-config', configPath, '-db', getUserResourcePath('githave.db')],
+    {
+      detached: true,
+      stdio: 'ignore'
+    }
+  )
   newBot.unref()
   newBot.tag = 'bot' // 设置标记以便后续识别
   winstonLogger.log('info', `[IPC start-bot] Bot 启动成功，新的 pid: ${newBot.pid}`)
@@ -427,10 +773,14 @@ ipcMain.handle('start-app', async (event, configPath) => {
   }
 
   const appPath = getExecutablePath('app')
-  const newApp = spawnAndTrack(appPath, ['-config', configPath, '-db', getUserResourcePath('githave.db')], {
-    detached: true,
-    stdio: 'ignore'
-  })
+  const newApp = spawnAndTrack(
+    appPath,
+    ['-config', configPath, '-db', getUserResourcePath('githave.db')],
+    {
+      detached: true,
+      stdio: 'ignore'
+    }
+  )
   newApp.unref()
   newApp.tag = 'app' // 设置标记以便后续识别
   winstonLogger.log('info', `[IPC start-app] App 启动成功，新的 pid: ${newApp.pid}`)
@@ -692,34 +1042,85 @@ ipcMain.handle('open-path-with-bot', async (event, targetPath, botPath) => {
     throw error
   }
 })
-
-// 获取跨平台的ollama可执行文件路径
-function getOllamaPath() {
-  // Windows上通常安装在Program Files目录下，但也可能在PATH中
-  // macOS和Linux上通常在/usr/local/bin/ollama
-  if (process.platform === 'win32') {
-    return 'ollama' // Windows上使用命令名称，依赖PATH环境变量
-  } else {
-    return '/usr/local/bin/ollama' // macOS和Linux上使用完整路径
-  }
+/**
+ * 保证返回一个可执行命令名或绝对路径，
+ * which 找不到也返回命令名本身，让 shell 去 PATH 里找。
+ */
+async function resolveCommand(cmd) {
+  return new Promise(async (resolve) => {
+    if (process.platform === 'win32') {
+      console.log(`[resolveCommand] Windows platform, returning command: ${cmd}`)
+      return resolve(cmd)
+    }
+    const arch = await getSystemArchitecture()
+    console.log(`[resolveCommand] System architecture: ${arch}`)
+    const command = `which ${cmd}`
+    console.log(`[resolveCommand] Executing: ${command}`)
+    exec(
+      `bash -l -c "export PATH=$PATH:${arch === 'arm64' ? '/opt/homebrew/bin' : '/usr/local/bin'} &&  ${command}"`,
+      { env },
+      (error, stdout, stderr) => {
+        console.log(`stdout: ${stdout}`)
+        console.error(`stderr: ${stderr}`)
+        if (error || !stdout.trim()) {
+          console.log(
+            `[resolveCommand] Not found or error, returning original command: ${cmd} ${stdout} ${stderr}`,
+            error ? error.message : ''
+          )
+          resolve(cmd)
+        } else {
+          console.log(`[resolveCommand] Resolved path: ${stdout.trim()}`)
+          resolve(stdout.trim())
+        }
+      }
+    )
+  })
 }
 
-function getPandocPath() {
-  // Windows上通常安装在Program Files目录下，但也可能在PATH中
-  // macOS和Linux上通常在/usr/local/bin/pandoc
-  if (process.platform === 'win32') {
-    return 'pandoc' // Windows上使用命令名称，依赖PATH环境变量
-  } else {
-    return '/usr/local/bin/pandoc' // macOS和Linux上使用完整路径
-  }
+let pandocPath = null
+let gitPath = null
+let ollamaPath = null
+
+async function initPandocPath() {
+  pandocPath = await resolveCommand('pandoc')
+  console.log('[init][PandocPath] pandocPath:', pandocPath)
+}
+
+async function initGitPath() {
+  gitPath = await resolveCommand('git')
+  console.log('[init][GitPath] gitPath:', gitPath)
+}
+
+async function initOllamaPath() {
+  ollamaPath = await resolveCommand('ollama')
+  console.log('[init][OllamaPath] ollamaPath:', ollamaPath)
+}
+
+async function initPaths() {
+  await initPandocPath()
+  await initGitPath()
+  await initOllamaPath()
+}
+
+async function getPandocPath() {
+  return pandocPath
+}
+
+async function getGitPath() {
+  return gitPath
+}
+
+async function getOllamaPath() {
+  return ollamaPath
 }
 
 ipcMain.handle('check-ollama', async () => {
-  const ollamaCmd = getOllamaPath();
+  // 获取 ollama 的路径，并正确等待 Promise 完成
+  const ollamaCmd = await getOllamaPath()
   // 第一步：确认 ollama 可执行文件存在（即是否安装）
   try {
     // 调用 --version，比 serve 安全，不会占端口
-    await execAsync(`${ollamaCmd} --version`);
+    await execAsync(`${ollamaCmd} --version`)
   } catch (err) {
     console.error('[IPC check-ollama] ollama 未安装或无法执行:', err)
     return { installed: false, running: false }
@@ -743,20 +1144,37 @@ ipcMain.handle('check-ollama', async () => {
 
 // 解析 Ollama 列表输出为对象数组
 async function parseOllamaList() {
-  const ollamaPath = getOllamaPath()
-  const { stdout, stderr } = await execAsync(`${ollamaPath} list`)
-  if (stderr) console.error('[parseOllamaList] stderr:', stderr)
-  const lines = stdout.trim().split('\n')
-  const dataLines = lines.slice(1).filter((line) => line.trim())
-  return dataLines.map((line) => {
-    const parts = line.split(/\s{2,}/)
-    return { name: parts[0], id: parts[1], size: parts[2], modified: parts[3] }
-  })
+  // 1. 拿到“命令名”或“绝对路径”
+  const ollamaCmd = await getOllamaPath()
+
+  // 2. 验证命令是否真的在 PATH 可用
+  const actualPath = await checkCommand(ollamaCmd)
+  if (!actualPath) {
+    console.error(`[parseOllamaList] 找不到可执行文件: ${ollamaCmd}`)
+    // 如果你希望前端拿到空数组，就 return []
+    return []
+    // 或者直接抛错： throw new Error('ollama 未安装或不在 PATH 中')
+  }
+
+  // 3. 真正执行 list
+  try {
+    const { stdout, stderr } = await execAsync(`${actualPath} list`)
+    if (stderr) console.error('[parseOllamaList] stderr:', stderr)
+    const lines = stdout.trim().split('\n')
+    const dataLines = lines.slice(1).filter((line) => line.trim())
+    return dataLines.map((line) => {
+      const parts = line.split(/\s{2,}/)
+      return { name: parts[0], id: parts[1], size: parts[2], modified: parts[3] }
+    })
+  } catch (err) {
+    console.error('[parseOllamaList] 执行 list 时出错:', err)
+    throw err
+  }
 }
 
 ipcMain.handle('remove-models', async (event, modelName) => {
   try {
-    const ollamaPath = getOllamaPath()
+    const ollamaPath = await getOllamaPath()
     // 如果传入的是数组，则逐个卸载；否则视为单个模型名
     const models = Array.isArray(modelName) ? modelName : [modelName]
 
@@ -791,7 +1209,8 @@ ipcMain.handle('remove-models', async (event, modelName) => {
 // IPC：获取 Ollama 模型列表
 ipcMain.handle('list-models', async () => {
   try {
-    return await parseOllamaList()
+    const list = await parseOllamaList()
+    return list
   } catch (err) {
     console.error('[list-models] Error:', err)
     throw err
@@ -817,8 +1236,8 @@ ipcMain.handle('check-model-installed', async (event, modelName) => {
 
 ipcMain.handle('check-model-deployment', async (event, requiredModelsList) => {
   console.log('[IPC check-model-deployment] Received models list:', requiredModelsList)
-  const ollamaPath = getOllamaPath()
   try {
+    const ollamaPath = await getOllamaPath()
     const stdout = await runCommand(`${ollamaPath} list`)
     const deployed = requiredModelsList.every((modelName) =>
       stdout.toLowerCase().includes(modelName.toLowerCase())
@@ -836,7 +1255,7 @@ ipcMain.handle('install-models', async (event, modelsToInstall) => {
   modelsToInstall = [...new Set(modelsToInstall)]
   const total = modelsToInstall.length
   return new Promise((resolve) => {
-    function installModel(index) {
+    async function installModel(index) {
       if (index >= total) {
         event.sender.send('install-progress', { progress: 100, model: '全部模型' })
         console.log('[IPC install-models] All models installed.')
@@ -845,7 +1264,7 @@ ipcMain.handle('install-models', async (event, modelsToInstall) => {
       }
       const model = modelsToInstall[index]
       console.log(`[IPC install-models] Installing model: ${model}`)
-      const ollamaPath = getOllamaPath()
+      const ollamaPath = await getOllamaPath()
       const pullProcess = spawnAndTrack(ollamaPath, ['pull', model], { stdio: 'inherit' })
       let outputData = ''
       let lastModelProgress = 0
@@ -996,7 +1415,7 @@ async function createSkeletonWindow() {
   await win.loadFile(skeletonPath, {
     query: { desc: '正在检查并启动核心进程...' }
   })
-
+  initializeUserDataBin()
   // 当骨架页面准备就绪后展示窗口
   win.once('ready-to-show', () => win.show())
   // 拦截新窗口打开请求（外链均由系统默认浏览器打开）
@@ -1022,11 +1441,11 @@ async function loadMainInterface(win) {
 app.on('ready', async () => {
   console.log('[main] app ready')
   const win = await createSkeletonWindow()
-  // 异步启动清理操作，不阻塞主窗口创建
+  await initPaths()
+  await initBrewPath()
   clearOccupiedPorts().catch((err) => winstonLogger.log('error', '清理端口时出现错误: ' + err))
 
-  // 为了平滑展示骨架页，等待固定时间（例如 2.5 秒），但不受清理操作影响
-  await new Promise((resolve) => setTimeout(resolve, 2500))
+  await new Promise((resolve) => setTimeout(resolve, 500))
   try {
     setTimeout(async () => {
       await loadMainInterface(win)
@@ -1035,6 +1454,18 @@ app.on('ready', async () => {
     console.error('加载主界面出错:', err)
   }
 })
+
+// app.on('ready', async () => {
+//   console.log('[main] app ready')
+//   const win = await createSkeletonWindow()
+//   try {
+//     setTimeout(async () => {
+//       await loadMainInterface(win)
+//     }, timeout)
+//   } catch (err) {
+//     console.error('加载主界面出错:', err)
+//   }
+// })
 
 //【修改】before-quit：
 // 若用户选择“停止核心服务并退出”（shutdown-yes），则检查 childProcesses 数组，逐一清理
@@ -1205,7 +1636,10 @@ async function checkProcessByPort(port, executableName) {
     }
   } else {
     try {
-      const { stdout } = await execAsync(`lsof -i :${port} -sTCP:LISTEN -n -P`)
+      const { stdout, stderr } = await execAsync(`lsof -i :${port} -sTCP:LISTEN -n -P`)
+      if (stderr) {
+        console.warn(`lsof 错误: ${stderr}`)
+      }
       const lines = stdout.split('\n').filter((line) => line.trim() !== '')
       for (let i = 1; i < lines.length; i++) {
         const parts = lines[i].split(/\s+/)
@@ -1344,12 +1778,14 @@ ipcMain.handle('check-memory-flash', async (_event, args) => {
 
 ipcMain.handle('checkPandocIPC', async () => {
   try {
-    const { stdout } = await execAsync(`${getPandocPath()} --version`)
+    // 确保获取 pandoc 路径的时候正确等待 Promise 完成
+    const pandocPath = await getPandocPath()
+    const { stdout } = await execAsync(`${pandocPath} --version`)
     if (!stdout || !stdout.trim()) {
       return { installed: false }
     }
     const version = stdout.split('\n')[0]
-    return { installed: true, version }    // ← 改成 return
+    return { installed: true, version }
   } catch (err) {
     console.error('检查 Pandoc 失败：', err)
     return { installed: false }
@@ -1358,14 +1794,16 @@ ipcMain.handle('checkPandocIPC', async () => {
 
 ipcMain.handle('checkGitIPC', async () => {
   try {
-    const { stdout } = await execAsync(`git --version`)
+    // 确保获取 Git 路径的时候正确等待 Promise 完成
+    const gitPath = await getGitPath()
+    const { stdout } = await execAsync(`${gitPath} --version`)
     if (!stdout || !stdout.trim()) {
       return { installed: false }
     }
     const version = stdout.split('\n')[0]
-    return { installed: true, version }    // ← 改成 return
+    return { installed: true, version }
   } catch (err) {
-    console.error('检查 Pandoc 失败：', err)
+    console.error('检查 Git 失败：', err)
     return { installed: false }
   }
 })
@@ -1377,64 +1815,69 @@ ipcMain.handle('checkGitIPC', async () => {
  * 如果 userData 中不存在，则复制过去。
  */
 async function initializeUserDataBin() {
-  console.log('[initializeUserDataBin] 初始化 userData 下的 bin 目录...');
+  console.log('[initializeUserDataBin] 初始化 userData 下的 bin 目录...')
 
   // 1. 确定目标目录（生产环境用 userData，开发环境指向项目 bin）
-  const isProd = app.isPackaged;
-  const userDataPath = isProd
-    ? app.getPath('userData')
-    : path.join(app.getAppPath(), 'bin');
+  const isProd = app.isPackaged
+  const userDataPath = isProd ? app.getPath('userData') : path.join(app.getAppPath(), 'bin')
 
   // 2. 版本文件路径
-  const versionFilePath = path.join(userDataPath, 'app_version.json');
-  const currentVersion = app.getVersion();
+  const versionFilePath = path.join(userDataPath, 'app_version.json')
+  const currentVersion = app.getVersion()
+
+  console.log('内测阶段删除版本标识文件，正式生产上线时删掉这段')
+  await fsPromises.rm(versionFilePath, { recursive: true, force: true })
 
   // 3. 确保目标目录存在
-  await fsPromises.mkdir(userDataPath, { recursive: true });
+  await fsPromises.mkdir(userDataPath, { recursive: true })
 
   // 4. 如果版本文件路径存在且是目录，先把它删掉
   if (fs.existsSync(versionFilePath)) {
     try {
-      const stat = await fsPromises.stat(versionFilePath);
+      const stat = await fsPromises.stat(versionFilePath)
       if (stat.isDirectory()) {
-        console.warn(`[initializeUserDataBin] 版本文件路径误为目录，正在删除目录：${versionFilePath}`);
-        await fsPromises.rm(versionFilePath, { recursive: true, force: true });
+        console.warn(
+          `[initializeUserDataBin] 版本文件路径误为目录，正在删除目录：${versionFilePath}`
+        )
+        await fsPromises.rm(versionFilePath, { recursive: true, force: true })
       }
     } catch (err) {
-      console.error(`[initializeUserDataBin] 检查版本文件时出错: ${err}`);
+      console.error(`[initializeUserDataBin] 检查版本文件时出错: ${err}`)
       // 继续执行，后面写文件时会再次报错或重建
     }
   }
 
   // 5. 读取上次保存的版本号
-  let previousVersion = null;
+  let previousVersion = null
   if (fs.existsSync(versionFilePath)) {
     try {
-      const data = await fsPromises.readFile(versionFilePath, 'utf-8');
-      previousVersion = JSON.parse(data).version;
+      const data = await fsPromises.readFile(versionFilePath, 'utf-8')
+      previousVersion = JSON.parse(data).version
     } catch (err) {
-      console.warn(`[initializeUserDataBin] 无法读取版本文件: ${err}`);
+      console.warn(`[initializeUserDataBin] 无法读取版本文件: ${err}`)
     }
   }
 
   // 6. 判断是否为新版本
-  const isNewVersion = !previousVersion || semver.gt(currentVersion, previousVersion);
+  const isNewVersion = !previousVersion || semver.gt(currentVersion, previousVersion)
   if (isNewVersion) {
-    console.log(`[initializeUserDataBin] 检测到新版本: ${previousVersion || 'none'} → ${currentVersion}`);
+    console.log(
+      `[initializeUserDataBin] 检测到新版本: ${previousVersion || 'none'} → ${currentVersion}`
+    )
   }
 
   // 7. 准备源目录路径
   const sourceBinPath = isProd
     ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
-    : path.join(app.getAppPath(), 'bin');
+    : path.join(app.getAppPath(), 'bin')
 
   if (!fs.existsSync(sourceBinPath)) {
-    console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`);
-    return;
+    console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`)
+    return
   }
 
   // 8. 读取源目录内容
-  const entries = await fsPromises.readdir(sourceBinPath);
+  const entries = await fsPromises.readdir(sourceBinPath)
 
   // 9. 新版本时强制覆盖的名单
   const forceOverride = [
@@ -1445,25 +1888,41 @@ async function initializeUserDataBin() {
     'fm',
     'fm.exe',
     'fm_http',
-    'fm_http.exe',
-  ];
+    'fm_http.exe'
+  ]
 
   // 10. 遍历复制或覆盖
   for (const name of entries) {
-    const src = path.join(sourceBinPath, name);
-    const dest = path.join(userDataPath, name);
-    const stat = await fsPromises.stat(src);
-    const shouldForce = isNewVersion && forceOverride.includes(name);
+    const src = path.join(sourceBinPath, name)
+    const dest = path.join(userDataPath, name)
+    const stat = await fsPromises.stat(src)
+    const shouldForce = isNewVersion && forceOverride.includes(name)
 
     if (stat.isDirectory()) {
       if (shouldForce || !fs.existsSync(dest)) {
-        await fsPromises.cp(src, dest, { recursive: true });
-        console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖目录' : '复制目录'}：${name}`);
+        await fsPromises.cp(src, dest, { recursive: true })
+        console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖目录' : '复制目录'}：${name}`)
+        if (isProd) {
+          console.log(`[initializeUserDataBin] 删除用于更新的原始文件：${src}`)
+          try {
+            await fsPromises.rm(src, { recursive: true, force: true })
+          } catch (err) {
+            console.error(`[initializeUserDataBin] 删除原始文件失败: ${err}`)
+          }
+        }
       }
     } else {
       if (shouldForce || !fs.existsSync(dest)) {
-        await fsPromises.copyFile(src, dest);
-        console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖文件' : '复制文件'}：${name}`);
+        await fsPromises.copyFile(src, dest)
+        console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖文件' : '复制文件'}：${name}`)
+        if (isProd) {
+          console.log(`[initializeUserDataBin] 删除用于更新的原始文件：${src}`)
+          try {
+            await fsPromises.rm(src, { recursive: true, force: true })
+          } catch (err) {
+            console.error(`[initializeUserDataBin] 删除原始文件失败: ${err}`)
+          }
+        }
       }
     }
   }
@@ -1475,48 +1934,153 @@ async function initializeUserDataBin() {
         versionFilePath,
         JSON.stringify({ version: currentVersion }, null, 2),
         'utf-8'
-      );
-      console.log(`[initializeUserDataBin] 更新版本记录文件：${versionFilePath}`);
+      )
+      console.log(`[initializeUserDataBin] 更新版本记录文件：${versionFilePath}`)
     } catch (err) {
-      console.error(`[initializeUserDataBin] 写入版本文件失败: ${err}`);
-    }
-    if (isProd) {
-      console.log(`[initializeUserDataBin] 删除用于更新的原始文件：${sourceBinPath}`);
-      try {
-        await fsPromises.rm(sourceBinPath, { recursive: true, force: true });
-      } catch (err) {
-        console.error(`[initializeUserDataBin] 删除临时文件失败: ${err}`);
-      }
+      console.error(`[initializeUserDataBin] 写入版本文件失败: ${err}`)
     }
   }
 
-  console.log('[initializeUserDataBin] 初始化完成！');
+  console.log('[initializeUserDataBin] 初始化完成！')
 }
-initializeUserDataBin()
 
-ipcMain.handle('get-static-file-list', async (event, dirPath, subPath) => {
+// 检查依赖状态
+ipcMain.handle('check-dependencies-status', async () => {
+  return await checkDependenciesStatus()
+})
+
+// 安装所有缺失的依赖
+ipcMain.handle('install-required-packages', async () => {
+  return await installRequiredPackages()
+})
+
+// 安装单个包
+ipcMain.handle('install-package', async (event, pkgName) => {
+  if (!installationStatus[pkgName]) {
+    return { success: false, message: `Unknown package: ${pkgName}` }
+  }
+  return await installPackage(pkgName)
+})
+
+// 检查 Homebrew 是否安装
+ipcMain.handle('check-brew-installed', async () => {
+  return await checkBrewInstalled()
+})
+
+ipcMain.handle('get-static-file-list', async (event, dirPath, subPath, idDir) => {
   try {
-    const dir = getUserResourcePath(path.join(dirPath, subPath));
-    const entries = await readdir(dir, { withFileTypes: true });
-    const fileList = [];
+    const dir = getUserResourcePath(path.join(dirPath, subPath))
+    const entries = await readdir(dir, { withFileTypes: true })
+    const fileList = []
 
     for (const entry of entries) {
-      if (entry.isFile()) {
-        const fullPath = path.resolve(dir, entry.name);
-        const stats = await stat(fullPath);
-        fileList.push({
-          name: entry.name,
-          size: stats.size,
-          creationDate: stats.birthtime,
-          path: fullPath,
-        });
+      const fullPath = path.resolve(dir, entry.name)
+      const stats = await stat(fullPath)
+
+      // 根据 idDir 的值决定是否跳过文件扫描
+      if (idDir) {
+        // 如果 idDir 为 true，跳过文件扫描，仅返回文件夹
+        if (entry.isDirectory()) {
+          fileList.push({
+            name: entry.name,
+            size: null, // 文件夹不提供大小
+            creationDate: stats.birthtime,
+            path: fullPath,
+            type: 'directory',
+            isDirectory: true
+          })
+        }
+      } else {
+        // 如果 idDir 为 false 或未传递，正常扫描文件和文件夹
+        if (entry.isFile()) {
+          fileList.push({
+            name: entry.name,
+            size: stats.size,
+            creationDate: stats.birthtime,
+            path: fullPath,
+            type: 'file',
+            isDirectory: false
+          })
+        } else if (entry.isDirectory()) {
+          fileList.push({
+            name: entry.name,
+            size: null, // 文件夹不提供大小
+            creationDate: stats.birthtime,
+            path: fullPath,
+            type: 'directory',
+            isDirectory: true
+          })
+        }
       }
     }
 
-    return fileList;
+    return fileList
   } catch (err) {
-    console.error(`读取目录失败：${err.message}`);
-    throw err;
+    console.error(`读取目录失败：${err.message}`)
+    throw err
   }
-});
+})
+
+// 创建递归函数，用于获取目录下的所有文件
+const getFilesFromDirectory = (dirPath) => {
+  let files = []
+
+  // 读取目录内容
+  const items = fs.readdirSync(dirPath)
+
+  items.forEach((item) => {
+    const fullPath = path.join(dirPath, item)
+    const stats = fs.statSync(fullPath)
+
+    // 如果是文件，加入到文件数组
+    if (stats.isFile()) {
+      files.push(fullPath)
+    }
+    // 如果是目录，递归读取该目录下的文件
+    else if (stats.isDirectory()) {
+      files = files.concat(getFilesFromDirectory(fullPath)) // 合并子目录文件
+    }
+  })
+
+  return files
+}
+
+// 打包文件
+ipcMain.handle('zip-files', (event, directory, output) => {
+  try {
+    // 确保目录存在
+    if (!fs.existsSync(directory)) {
+      throw new Error('目录不存在')
+    }
+
+    const zip = new AdmZip()
+    const files = getFilesFromDirectory(directory) // 获取目录下的所有文件
+
+    // 将文件添加到压缩包
+    files.forEach((file) => zip.addLocalFile(file))
+
+    zip.writeZip(output) // 保存压缩包
+
+    return { success: true, message: '文件已成功压缩' }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
+// 解压文件
+ipcMain.handle('unzip-file', (event, zipFile, outputDir) => {
+  try {
+    if (!fs.existsSync(zipFile)) {
+      throw new Error('压缩文件不存在')
+    }
+
+    const zip = new AdmZip(zipFile)
+    zip.extractAllTo(outputDir, true) // 解压文件到指定目录
+
+    return { success: true, message: '文件已成功解压' }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
 console.log('main/index.js loaded!')
