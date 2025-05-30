@@ -58,7 +58,7 @@
                   cols="1"
                   style="position: sticky; top: 24px; height: fit-content;"
                 >
-                  <v-btn style="margin: 5px; padding: 5px;" size="small" class="mr-2" variant="outlined" color="warning">生成AI评价</v-btn>
+                  <v-btn disabled style="margin: 5px; padding: 5px;" size="small" class="mr-2" variant="outlined" color="warning">生成AI评价</v-btn>
                   <v-card
                     v-show="file.Evaluation && file.Evaluation.trim() !== ''"
                     class="my-new-card pa-4 mb-4 mx-auto"
