@@ -24,7 +24,7 @@
         </div>
       </v-col>
       <!-- 显示AI索引的表格 -->
-      <v-col class="table-scroll" cols="12">
+      <v-col class="table-scroll" style="width: 100%;" cols="12">
         <v-data-table
           :headers="headers"
           :items="repositories"
@@ -32,7 +32,7 @@
           class="elevation-1"
           loading-text="加载中..."
           items-per-page-text="每页显示行数"
-          :items-per-page-options="[7, 10, 15]"
+          :items-per-page-options="[7, 10, 15, 20]"
           v-model:page="page"
           v-model:items-per-page="itemsPerPage"
           density="compact"
@@ -134,15 +134,6 @@
               </template>
               <span>彻底清除构建</span>
             </v-tooltip>
-
-            <v-tooltip bottom>
-              <template #activator="{ props }">
-                <v-btn size="small" v-bind="props" class="mr-2" icon @click="exportMemoryFlash(item)" :loading="item.loading" disabled>
-                  <v-icon>mdi-export</v-icon>
-                </v-btn>
-              </template>
-              <span>导出索引</span>
-            </v-tooltip>
             <v-tooltip bottom>
               <template #activator="{ props }">
                 <v-btn
@@ -155,6 +146,14 @@
                 </v-btn>
               </template>
               <span>自定义排除索引规则</span>
+            </v-tooltip>
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn size="small" v-bind="props" class="mr-2" icon @click="exportMemoryFlash(item)" :loading="item.loading" :disabled="!item.hasMemoryFlash || item.indexing">
+                  <v-icon>mdi-export-variant</v-icon>
+                </v-btn>
+              </template>
+              <span>导出索引</span>
             </v-tooltip>
           </template>
         </v-data-table>
@@ -244,7 +243,7 @@ import { loadRepoProgress, removeRepoProgress, RepoProgress, saveRepoProgress } 
 import TipBanner from "../components/TipBanner.vue";
 // 分页状态
 const page = ref<number>(1)           // 默认打开第 1 页
-const itemsPerPage = ref<number>(7)   // 默认每页 5 条
+const itemsPerPage = ref<number>(10)   // 默认每页 5 条
 // 对话框相关状态
 const dialogVisible = ref(false);
 const dialogTitle = ref('');
@@ -317,9 +316,9 @@ interface Repository {
 const headers = [
   { title: '仓库名称', key: 'name'},
   { title: '描述', key: 'omitDesc'},
-  { title: '状态', key: 'hasMemoryFlash'},
-  { title: '当前进度/预估函数量', key: 'totalProgress', width: '260px'},
-  { title: '操作', key: 'actions', width: '420px'},
+  { title: '索引状态', key: 'hasMemoryFlash'},
+  { title: '当前构建进度/预估索引量', key: 'totalProgress', minWidth: '300px'},
+  { title: '操作', key: 'actions', maxWidth: '500px'},
 ]
 
 const messages = ref([
@@ -358,7 +357,7 @@ const fetchRepositories = async () => {
         repo.resetIcon = indexing ? 'mdi-stop-circle' : 'mdi-lock-reset';
         return {
           ...repo,
-          omitDesc: omit(repo.desc, 5),
+          omitDesc: omit(repo.desc, 20),
           hasMemoryFlash: exists,
           indexing,
           functionsTotal,
@@ -602,7 +601,7 @@ async function deleteClick(repo: Repository) {
 // 方法
 const importMemoryFlash = async () => {
   try {
-    const result = await window.electron.ipcRenderer.invoke('import-memory-flash');
+    const result = await window.electron.unzipFile('', '');
     if (result.success) {
       // 刷新列表
       repositories.value = [];
@@ -616,11 +615,29 @@ const importMemoryFlash = async () => {
 
 const exportMemoryFlash = async (repo: Repository) => {
   try {
+    // 二次确认
+    const confirmed = window.confirm(`确定要导出“${repo.name}”的AI索引吗？`)
+    if (!confirmed) return
+    const path = await window.electron.path
     repo.loading = true;
-    // await window.electron.ipcRenderer.invoke('export-memory-flash', { repoId: repo.id });
+    const zipFile = path.join(repo.local_path, `${repo.name}.gitgo.zip`);
+    const {success, message} = await window.electron.zipFiles(path.join(repo.local_path, '.gitgo'), zipFile);
+    if (success) {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `导出AI索引成功: ${zipFile}`,
+        color: 'success'
+      });
+      // 跳转至文件夹
+      window.electron.shell.openPath(path.dirname(zipFile));
+    } else {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `导出AI索引失败: ${message}`,
+        color: 'error'
+      });
+    }
+    repo.loading = false;
   } catch (error) {
     console.error(`导出AI索引失败:`, error);
-  } finally {
     repo.loading = false;
   }
 };
@@ -652,13 +669,11 @@ const startAutoRefresh = () => {
               scannedCount: scannedCount,
               indexProgress: progress
             };
-            console.log('startAutoRefresh:', repo.local_path, scannedCount, progress);
             saveRepoProgress(repo.id, updatedProgress);
 
             if (oldProgress.functionsTotal != 0) {
               // 如果仓库已进行初始化，则更新仓库的加载状态
               const { exists, indexing } = await window.electron.checkMemoryFlashStatus(repo.local_path);
-              console.log('startAutoRefresh:', repo.local_path, exists, indexing);
               repo.hasMemoryFlash = exists;
               repo.loading = indexing;
               repo.indexing = indexing;
@@ -744,11 +759,51 @@ onBeforeUnmount(() => {
 }
 .table-scroll {
   width: 100%;
-  overflow-x: auto;       /* 启用横向滚动 */
+  overflow-x: auto;
 }
 
-/* 深度选择器，给内部真正渲染的 table 设置最小宽度 */
-.table-scroll ::v-deep(.v-data-table__wrapper > table) {
-  min-width: 800px;        /* 根据列数调大或用 max-content */
+.v-data-table {
+  min-width: 100%;
+  table-layout: fixed;
+}
+
+.v-data-table :deep(th),
+.v-data-table :deep(td) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.v-data-table :deep(th) {
+  position: sticky;
+  top: 0;
+  background-color: #fff;
+  z-index: 2;
+}
+
+/* Keep existing styles */
+.memory-flash-container {
+  padding: 20px;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.action-buttons {
+  margin-bottom: 20px;
+}
+
+.v-data-table {
+  border-radius: 8px;
+}
+
+.v-btn {
+  margin-right: 10px;
+}
+
+.news-tips.compact-list {
+  padding: 0;
 }
 </style>
