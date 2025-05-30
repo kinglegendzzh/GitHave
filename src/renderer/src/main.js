@@ -72,8 +72,9 @@ import {
   VBottomNavigation,
   VBtnToggle,
   VSelect,
+  VAlert,
 } from 'vuetify/components'
-import { Ripple } from 'vuetify/directives'
+import { Ripple, Tooltip } from 'vuetify/directives'
 import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
 import '@mdi/font/css/materialdesignicons.css' // 图标字体
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs';
@@ -162,9 +163,11 @@ const vuetify = createVuetify({
     VBottomNavigation,
     VBtnToggle,
     VSelect,
+    VAlert,
   },
   directives: {
-    Ripple
+    Ripple,
+    Tooltip
   }
 })
 
