@@ -96,7 +96,7 @@
         <v-col cols="auto">
           <v-btn
             color="black"
-            @click=""
+            @click="openMap1Dialog"
             density="compact"
             variant="outlined"
           >
@@ -106,7 +106,7 @@
         <v-col cols="auto">
           <v-btn
             color="green"
-            @click=""
+            @click="openMap2Dialog"
             density="compact"
             variant="outlined"
           >
@@ -186,7 +186,7 @@
                   生成报告
                 </v-btn>
               </template>
-              <span>生成提交记录分析报告，在 ‘枢纽’ 中查看</span>
+              <span>生成提交记录分析报告，在 文件枢纽 中查看</span>
             </v-tooltip>
             <v-tooltip bottom>
               <template #activator="{ props }">
@@ -194,7 +194,7 @@
                   生成明细
                 </v-btn>
               </template>
-              <span>生成提交记录明细，在 ‘枢纽’ 中查看</span>
+              <span>生成提交记录明细，在 文件枢纽 中查看</span>
             </v-tooltip>
           </div>
         </template> <!-- 新增 -->
@@ -381,15 +381,31 @@ function showLocalSnackbar(message: string, color: string) { // 新增
 
 // ========= 打开对话框的触发函数 =========
 function openCombinedDialog() {
-  confirmCombined.value = true
+  showLocalSnackbar('正在有序开发中，敬请期待', 'grey')
+  return
+  // confirmCombined.value = true
 }
 function openReportDialog(item) {
-  currentItem.value = item
-  confirmReport.value = true
+  showLocalSnackbar('正在有序开发中，敬请期待', 'grey')
+  return
+  // currentItem.value = item
+  // confirmReport.value = true
 }
 function openDetailDialog(item) {
-  currentItem.value = item
-  confirmDetail.value = true
+  showLocalSnackbar('正在有序开发中，敬请期待', 'grey')
+  return
+  // currentItem.value = item
+  // confirmDetail.value = true
+}
+
+function openMap1Dialog() {
+  showLocalSnackbar('正在有序开发中，敬请期待', 'grey')
+  return
+}
+
+function openMap2Dialog() {
+  showLocalSnackbar('正在有序开发中，敬请期待', 'grey')
+  return
 }
 
 // ========= 确认后的实际执行 =========
@@ -417,8 +433,8 @@ async function generateAnalysisReport(item: typeof commits.value[0]) {
     }
     const res = await enrichFileDiffs(filter.repoID!, preload)
     const enriched = res.data.data
-    // TODO: 用 enriched 生成分析报告，比如传给“枢纽”组件展示
-    showLocalSnackbar(`提交 ${item.hash} 的文件差异已加载，正在生成分析报告至“枢纽”…`, 'info')
+    // TODO: 用 enriched 生成分析报告，比如传给“文件枢纽”组件展示
+    showLocalSnackbar(`提交 ${item.hash} 的文件差异已加载，正在生成分析报告至“文件枢纽”…`, 'info')
   } catch (e: any) {
     showLocalSnackbar(`加载提交详情失败：${e.response?.data || e}`, 'error')
   }
@@ -434,8 +450,8 @@ async function generateDetailReport(item: typeof commits.value[0]) {
     }
     const res = await enrichFileDiffs(filter.repoID!, payload)
     const enriched = res.data.data
-    // TODO: 用 enriched.FileDiffs 在“枢纽”里渲染修改明细
-    showLocalSnackbar(`提交 ${item.hash} 的文件差异已加载，正在生成修改明细至“枢纽”…`, 'info')
+    // TODO: 用 enriched.FileDiffs 在“文件枢纽”里渲染修改明细
+    showLocalSnackbar(`提交 ${item.hash} 的文件差异已加载，正在生成修改明细至“文件枢纽”…`, 'info')
   } catch (e: any) {
     showLocalSnackbar(`加载提交详情失败：${e.response?.data || e}`, 'error')
   }
@@ -455,8 +471,8 @@ async function generateCombinedReport() {
     )
     const results = await Promise.all(promises)
     const enrichedCommits = results.map(r => r.data.data)
-    // TODO: 把 enrichedCommits 传给“枢纽”一次性批量生成
-    showLocalSnackbar(`已加载 ${enrichedCommits.length} 条提交的差异，正在生成综合报告和修改明细至“枢纽”…`, 'info')
+    // TODO: 把 enrichedCommits 传给“文件枢纽”一次性批量生成
+    showLocalSnackbar(`已加载 ${enrichedCommits.length} 条提交的差异，正在生成综合报告和修改明细至“文件枢纽”…`, 'info')
   } catch (e: any) {
     showLocalSnackbar(`批量加载提交详情失败：${e.response?.data || e}`, 'error')
   }
@@ -480,7 +496,6 @@ async function checkCode(item: typeof commits.value[0]) {
 
 
 function resetFilter() {
-  filter.branch = ''
   filter.start = ''
   filter.end = ''
   filter.author = ''
@@ -507,7 +522,7 @@ function formatRepoTitle(item) {
   if (!item.desc) {
     return item.name;
   } else {
-    return `${item.desc}（${item.name}）`;
+    return `${omit(item.desc, 15)}（${item.name}）`;
   }
 }
 
