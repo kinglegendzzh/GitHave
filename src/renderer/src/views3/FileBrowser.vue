@@ -27,7 +27,7 @@
               class="mr-2"
               style="width: 400px; height: auto"
               @focus="loadPathSuggestions"
-              @update:menu="resetRoot"
+              @update:model-value="onPathSelectionChanged"
             ></v-select>
             <v-tooltip text="更新代码">
               <template #activator="{ props }">
@@ -67,7 +67,7 @@
                 </v-btn>
               </template>
             </v-tooltip>
-            <v-tooltip text="在IDE中编辑">
+            <!-- <v-tooltip text="在IDE中编辑">
               <template #activator="{ props }">
                 <v-btn
                   v-bind="props"
@@ -81,7 +81,7 @@
                   在IDE中编辑
                 </v-btn>
               </template>
-            </v-tooltip>
+            </v-tooltip> -->
           </div>
         </v-toolbar>
       </v-row>
@@ -110,6 +110,8 @@
               :clearable="true"
               :auto-load-root-options="true"
               :always-open="true"
+              :open-nodes="openNodes"
+              :default-expand-level="1"
               class="mt-2"
               style="min-width: 800px"
               :menu-height="1000"
@@ -137,11 +139,7 @@
                   @click.stop="removeTab(index)"
                   >mdi-close</v-icon
                 >
-                <span
-                  style="cursor: pointer"
-                  @click="selectTab(tab)"
-                  >{{ tab.name }}</span
-                >
+                <span style="cursor: pointer" @click="selectTab(tab)">{{ tab.name }}</span>
               </v-tab>
             </v-tabs>
             <!-- 面包屑导航 -->
@@ -159,6 +157,17 @@
           <v-card tonal class="flex-grow-1" style="height: 100%; overflow-y: auto">
             <v-card-text>
               <div v-if="selectedFileName" class="preview-content">
+                <!-- 文件操作按钮（英文支持小写） -->
+                <div class="d-flex justify-end mb-0">
+                  <v-btn
+                    color="success"
+                    size="small"
+                    prepend-icon="mdi-code-braces"
+                    @click="openInIDE(selectedFileUrl)"
+                  >
+                    <span style="text-transform: none">在GitHave IDE中编辑</span>
+                  </v-btn>
+                </div>
                 <!-- PDF 预览 -->
                 <div v-if="isPDF(selectedFileName)">
                   <iframe
@@ -234,8 +243,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
+import { isFilePath, getFileExtension, getFileName } from '../service/file'
 import mammoth from 'mammoth'
 import { LOAD_ROOT_OPTIONS, LOAD_CHILDREN_OPTIONS, ASYNC_SEARCH } from 'vue3-treeselect'
 import path from 'path-browserify'
@@ -243,17 +253,92 @@ import Treeselect from 'vue3-treeselect'
 import 'vue3-treeselect/dist/vue3-treeselect.css'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/docco.css'
+// import 'highlight.js/styles/docco.css'
 import * as XLSX from 'xlsx'
 import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo } from '../service/api.js'
 import { omit } from '../service/str'
 import dynamicLoadingSvg from '../assets/load.svg'
-import router from "../router";
+// router import removed as we're using IPC instead of direct routing
 // Vuex store（假定已配置）
 const store = useStore()
 // computed 用于展现 snackbar 数据（减少不必要的更新）
 const snackbar = computed(() => store.state.snackbar)
+
+// 主题检测和高亮样式管理
+const isDarkTheme = ref(false)
+const highlightTheme = ref('mono-blue') // 默认亮色主题
+const darkHighlightTheme = 'gradient-dark' // 暗色主题 [gradient-dark, xcode]
+const lightHighlightTheme = 'mono-blue' // 亮色主题 [monokai, docco, mono-blue, github]
+
+// 监听主题变化并加载对应的高亮样式
+const loadHighlightTheme = (themeName) => {
+  // 移除之前加载的样式
+  const prevStyle = document.getElementById('highlight-theme-style')
+  if (prevStyle) {
+    console.log(`[FileBrowser] 已移除之前的高亮主题样式: ${prevStyle.href}`)
+    prevStyle.remove()
+  }
+
+  // 创建并加载新样式
+  const link = document.createElement('link')
+  link.id = 'highlight-theme-style'
+  link.rel = 'stylesheet'
+  // link.href = `https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/${themeName}.css`
+  link.href = `highlight.js/styles/${themeName}.css`
+  document.head.appendChild(link)
+
+  highlightTheme.value = themeName
+  console.log(`[FileBrowser] 已加载高亮主题: ${themeName}`)
+}
+
+// 检测当前主题
+const checkTheme = () => {
+  // 通过检查 body 上的 Vuetify 主题类来确定当前主题
+  const isDark = localStorage.getItem('isDark') === 'true'
+  isDarkTheme.value = isDark
+
+  // 根据主题加载对应的高亮样式
+  loadHighlightTheme(isDark ? darkHighlightTheme : lightHighlightTheme)
+}
+
+// 设置主题变化的监听器
+const setupThemeObserver = () => {
+  // 使用 MutationObserver 监听 body 类变化
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.attributeName === 'class') {
+        checkTheme()
+      }
+    })
+  })
+
+  observer.observe(document.body, { attributes: true })
+
+  // 初始检查主题
+  checkTheme()
+
+  return observer
+}
+
+// 主题观察器实例
+let themeObserver = null
+
+// 组件挂载时初始化主题观察器
+onMounted(() => {
+  // 初始化主题观察器
+  themeObserver = setupThemeObserver()
+  console.log('[FileBrowser] 主题观察器已初始化')
+})
+
+// 组件卸载时清理主题观察器
+onUnmounted(() => {
+  if (themeObserver) {
+    themeObserver.disconnect()
+    themeObserver = null
+    console.log('[FileBrowser] 主题观察器已清理')
+  }
+})
 
 // 定义 props（支持传入本地路径及一些控制参数）
 const props = defineProps({
@@ -339,11 +424,71 @@ const allowedExtensions = [
   '.docx',
   '.sql',
   '.conf',
+  '.ini',
+  '.properties',
+  '.csv',
+  '.ipynb',
+  '.iml',
+  '.mod',
+  '.sum',
+  '.toml',
+  '.lock',
+  '.lic',
+  '.model',
+  '.spec',
+  '.svg',
+  '.rs',
+  '.rsx',
+  '.hpp',
+  '.hxx',
+  '.rust'
+]
+const allowedFileName = [
+  'Dockerfile',
+  'README.md',
+  'LICENSE',
+  'CONTRIBUTING.md',
+  'AUTHORS',
+  'CHANGELOG.md',
+  'HISTORY.md',
+  'TODO.md',
+  'FAQ.md',
+  'README',
+  'LICENSE',
+  'CONTRIBUTING',
+  'AUTHORS',
+  'CHANGELOG',
+  'HISTORY',
+  'TODO',
+  'FAQ'
 ]
 const blacklistedExtensions = [
-  '.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk',
-  '.jpg', '.png', '.gif', '.mp4', '.mp3', '.mpeg', '.mpg', '.avi', '.wmv', '.mov', '.flv', '.mkv', '.webm',
-  '.ogg', '.ogv', '.ogm', '.ogx', '.lic'
+  '.zip',
+  '.rar',
+  '.7z',
+  '.dmg',
+  '.exe',
+  '.tar',
+  '.gz',
+  '.iso',
+  '.apk',
+  '.jpg',
+  '.png',
+  '.gif',
+  '.mp4',
+  '.mp3',
+  '.mpeg',
+  '.mpg',
+  '.avi',
+  '.wmv',
+  '.mov',
+  '.flv',
+  '.mkv',
+  '.webm',
+  '.ogg',
+  '.ogv',
+  '.ogm',
+  '.ogx'
 ]
 const customAppMapping = {
   '.txt': { win32: 'notepad', linux: 'gedit' },
@@ -364,16 +509,37 @@ const customAppMapping = {
 
 // Markdown 渲染器
 const md = new MarkdownIt({
+  // 代码高亮处理
   highlight: (str, lang) => {
-    const validLang = hljs.getLanguage(lang) ? lang : 'plaintext'
-    return hljs.highlight(str, { language: validLang }).value
+    try {
+      // 确保在高亮前已加载正确的主题样式
+      nextTick(() => {
+        // 如果当前没有加载主题，则检查并加载
+        if (!document.getElementById('highlight-theme-style')) {
+          checkTheme()
+        }
+      })
+
+      if (lang && hljs.getLanguage(lang)) {
+        return hljs.highlight(str, { language: lang }).value
+      } else {
+        return hljs.highlightAuto(str).value
+      }
+    } catch (e) {
+      console.error('代码高亮错误:', e)
+      return str
+    }
   }
 })
 
 // 计算属性：是否为代码文件（非 Markdown）
 const isCodeFile = computed(() => {
   const ext = path.extname(selectedFileName.value).toLowerCase()
-  return allowedExtensions.includes(ext) && !isMarkdown(selectedFileName.value)
+  const fileName = path.basename(selectedFileName.value)
+  return (
+    (allowedExtensions.includes(ext) || allowedFileName.includes(fileName)) &&
+    !isMarkdown(selectedFileName.value)
+  )
 })
 
 // 懒加载大文件：滚动时加载更多
@@ -390,8 +556,14 @@ async function loadMoreLines(selectedPath, loadedLines = 1000, step = 1000) {
         break
       }
     }
-    const moreContent = lines.slice(0, loadedLines + step).join('\n') + (lines.length > loadedLines + step ? '\n...\n(继续加载更多)' : '')
-    updateFileState(selectedPath, { fileContent: moreContent, isLargeFile: true, loadedLines: loadedLines + step })
+    const moreContent =
+      lines.slice(0, loadedLines + step).join('\n') +
+      (lines.length > loadedLines + step ? '\n...\n(继续加载更多)' : '')
+    updateFileState(selectedPath, {
+      fileContent: moreContent,
+      isLargeFile: true,
+      loadedLines: loadedLines + step
+    })
   } catch (err) {
     updateFileState(selectedPath, { fileContent: `读取文件失败：${err.message}` })
   }
@@ -432,18 +604,30 @@ async function initialize(initialPath) {
   let rootDir = ''
   if (props.forceReplace == 'true' && initialPath) {
     newRootPath.value = initialPath
-    rootDir = isFilePath(initialPath) ? path.dirname(initialPath) : initialPath
+    rootDir = isFilePath(
+      initialPath,
+      allowedExtensions,
+      allowedFileName,
+      findNodeByPath,
+      treeData.value
+    )
+      ? path.dirname(initialPath)
+      : initialPath
   }
   if (rootDir) {
     fileContent.value = ''
     await resetTree(rootDir)
     if (initialPath) {
       if (props.forceReplace == 'true') {
-        isFilePath(initialPath) ? expandToPath(initialPath) : handleNodeSelection([rootDir])
+        isFilePath(initialPath, allowedExtensions, allowedFileName, findNodeByPath, treeData.value)
+          ? expandToPath(initialPath)
+          : handleNodeSelection([rootDir])
       } else {
         expandToPath(initialPath)
       }
-      if (isFilePath(initialPath)) {
+      if (
+        isFilePath(initialPath, allowedExtensions, allowedFileName, findNodeByPath, treeData.value)
+      ) {
         await loadFileByType(initialPath)
         const breadcrumbPath = buildBreadcrumb(initialPath)
         addOrSwitchTab({
@@ -466,6 +650,35 @@ function resetRoot() {
     tabs.value = []
     breadcrumbs.value = []
   })
+}
+
+// 处理路径选择变更，只在用户实际选择或清除路径时触发重置
+function onPathSelectionChanged(newPath) {
+  // 如果用户选择了路径（新路径或者已有路径）
+  if (newPath) {
+    // 更新目录树
+    resetTree(newPath).then(() => {
+      handleNodeSelection([newPath])
+      tabs.value = []
+      breadcrumbs.value = []
+    })
+    // 清空文件内容和预览区域，防止切换目录时残留上次的内容
+    fileContent.value = ''
+    renderedDocx.value = ''
+    renderedXlsx.value = ''
+    selectedFileUrl.value = ''
+    selectedFileName.value = ''
+  } else if (newPath === null || newPath === '') {
+    // 用户清除了路径选择
+    tabs.value = []
+    breadcrumbs.value = []
+    fileContent.value = ''
+    treeData.value = []
+    renderedDocx.value = ''
+    renderedXlsx.value = ''
+    selectedFileUrl.value = ''
+    selectedFileName.value = ''
+  }
 }
 
 function isPDF(fileName) {
@@ -546,11 +759,18 @@ async function loadFileByType(selectedPath) {
             content += chunk
             let lines = content.split(/\r?\n/)
             if (lines.length >= maxLines) {
-              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前1000行，滚动可继续加载)'
+              content =
+                lines.slice(0, maxLines).join('\n') +
+                '\n...\n(文件过大，仅显示前1000行，滚动可继续加载)'
               break
             }
           }
-          updateFileState(selectedPath, { fileContent: content, isLargeFile: true, loadedLines: maxLines, totalSize: stat.size })
+          updateFileState(selectedPath, {
+            fileContent: content,
+            isLargeFile: true,
+            loadedLines: maxLines,
+            totalSize: stat.size
+          })
         } else {
           const content = await window.electron.readFile(selectedPath, { encoding: 'utf-8' })
           updateFileState(selectedPath, { fileContent: content, isLargeFile: false })
@@ -677,13 +897,15 @@ async function handleNodeSelection(activeItems) {
   if (node.isDirectory) {
     if (node.children === null) {
       // 懒加载：递归加载该节点，深度从当前节点层级起
-      const currentDepth = selectedPath.split(path.sep).length - treeData.value[0].path.split(path.sep).length + 1
+      const currentDepth =
+        selectedPath.split(path.sep).length - treeData.value[0].path.split(path.sep).length + 1
       node.children = await getDirectoryTree(node.path, currentDepth, MAX_TREE_DEPTH)
     }
   } else {
     // 只允许打开指定后缀的文件
     const ext = path.extname(node.name).toLowerCase()
-    if (!ext || !allowedExtensions.includes(ext)) {
+    const fileName = path.basename(node.name)
+    if (!allowedExtensions.includes(ext) && !allowedFileName.includes(fileName)) {
       store.dispatch('snackbar/showSnackbar', {
         message: '该文件类型不支持预览',
         type: 'warning'
@@ -753,15 +975,16 @@ async function fetchChildren(item) {
     children.sort((a, b) => b.mtime - a.mtime)
     // 构造节点并去除隐藏文件
     const map = children
-      .map(child => ({
+      .map((child) => ({
         name: child.name,
         path: child.fullPath,
         isDirectory: child.isDirectory,
         children: child.isDirectory ? null : undefined
       }))
-      .filter(child => !child.name.startsWith('.'))
+      .filter((child) => !child.name.startsWith('.'))
     // 目录一律展示；文件只要不在黑名单中就展示
-    return map.filter(child =>
+    return map.filter(
+      (child) =>
         child.isDirectory || !blacklistedExtensions.includes(path.extname(child.path).toLowerCase())
     )
   } catch (err) {
@@ -842,7 +1065,13 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   }
   let url = breadcrumbsArray[breadcrumbsArray.length - 1].path
   if (url !== null) {
-    const isFile = isFilePath(url)
+    const isFile = isFilePath(
+      url,
+      allowedExtensions,
+      allowedFileName,
+      findNodeByPath,
+      treeData.value
+    )
     // 只有在非 Windows 上才加 " / "
     const platform = await window.electron.platform
     if (platform !== 'win32') {
@@ -901,19 +1130,7 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   }
 }
 
-function isFilePath(filePath) {
-  // 先通过树结构判断：若找到节点，就以节点的isDirectory为准
-  const node = findNodeByPath(treeData.value, filePath)
-  if (node) {
-    if (node.isDirectory) return false
-    // 只有允许的文本后缀才允许打开
-    const ext = path.extname(node.name).toLowerCase()
-    return ext && allowedExtensions.includes(ext)
-  }
-  // 回退到后缀判断
-  const ext = path.extname(filePath).toLowerCase()
-  return ext && allowedExtensions.includes(ext)
-}
+// 使用导入的 isFilePath 函数判断文件路径，需要传入必要的参数
 
 // 最大递归深度（可根据实际需求调整）
 const MAX_TREE_DEPTH = 50
@@ -929,53 +1146,68 @@ async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH
   } catch (e) {
     return [] // 目录不可读
   }
-  const filteredRoot = root.filter(child => !child.name.startsWith('.'))
-  return await Promise.all(filteredRoot.map(async child => {
-    if (child.isDirectory) {
-      const children = await getDirectoryTree(child.fullPath, depth + 1, maxDepth)
-      return {
-        name: child.name,
-        path: child.fullPath,
-        isDirectory: true,
-        children: children // 可能为 null
+  const filteredRoot = root.filter((child) => !child.name.startsWith('.'))
+  return await Promise.all(
+    filteredRoot.map(async (child) => {
+      if (child.isDirectory) {
+        const children = await getDirectoryTree(child.fullPath, depth + 1, maxDepth)
+        return {
+          name: child.name,
+          path: child.fullPath,
+          isDirectory: true,
+          children: children // 可能为 null
+        }
+      } else {
+        return {
+          name: child.name,
+          path: child.fullPath,
+          isDirectory: false,
+          children: undefined
+        }
       }
-    } else {
-      return {
-        name: child.name,
-        path: child.fullPath,
-        isDirectory: false,
-        children: undefined
-      }
-    }
-  }))
+    })
+  )
 }
 
 // 重置目录树：仅在用户选定路径后调用
 async function resetTree(newPath) {
-  const targetPath = isFilePath(newPath) ? path.dirname(newPath) : newPath
+  const targetPath = isFilePath(
+    newPath,
+    allowedExtensions,
+    allowedFileName,
+    findNodeByPath,
+    treeData.value
+  )
+    ? path.dirname(newPath)
+    : newPath
   try {
     const children = await getDirectoryTree(targetPath, 0, MAX_TREE_DEPTH)
-    treeData.value = [{
-      name: path.basename(targetPath),
-      path: targetPath,
-      isDirectory: true,
-      children: children
-    }]
+    treeData.value = [
+      {
+        name: path.basename(targetPath),
+        path: targetPath,
+        isDirectory: true,
+        children: children
+      }
+    ]
     openNodes.value = [targetPath]
   } catch (e) {
     console.error('路径加载失败:', e)
   }
 }
-
 async function loadPathSuggestions() {
   await listRepos()
     .then((response) => {
       if (!response.data || !Array.isArray(response.data)) {
         return
       }
-      pathSuggestions.value = response.data.map((repo) => ({
+      // 按id降序排序
+      const sortedData = [...response.data].sort((a, b) => b.id - a.id)
+
+      pathSuggestions.value = sortedData.map((repo) => ({
         value: repo.local_path,
-        title: `${omit(repo.desc, 10)}(${repo.name})`,
+        // 如果desc为空则只显示name，否则显示desc(name)
+        title: repo.desc ? `${omit(repo.desc, 10)}(${repo.name})` : repo.name,
         repo_url: repo.local_path,
         branch: repo.branch,
         local_path: repo.local_path,
@@ -989,7 +1221,6 @@ async function loadPathSuggestions() {
       console.error('获取仓库数据失败:', err)
     })
 }
-
 // ---------- 仓库拉取进度条 ----------
 function startProgressSimulation(title = '正在拉取代码') {
   progress.value = 0
@@ -1065,7 +1296,12 @@ async function pull() {
 // 预览仓库内容，使用 Vue Router 进行跳转
 const previewIde = (path) => {
   if (path) {
-    const url = `${window.location.origin}/#/ide`
+    // 构建路由参数
+    const rootDir = path
+
+    // 构建带参数的URL
+    const url = `${window.location.origin}/#/ide/${encodeURIComponent(path)}?rootPath=${encodeURIComponent(rootDir)}`
+
     // 调用主进程打开新窗口
     window.electron.openNewWindowIDE(url)
   } else {
@@ -1073,11 +1309,53 @@ const previewIde = (path) => {
   }
 }
 
+// 在IDE中打开当前文件或目录
+const openInIDE = (filePath) => {
+  // 如果没有指定文件路径，则使用当前选中的文件或目录
+  const pathToOpen = filePath || (currentTab.value ? currentTab.value.path : newRootPath.value)
+
+  if (!pathToOpen) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先选择一个文件或目录',
+      type: 'warning'
+    })
+    return
+  }
+
+  // 构建路由参数
+  const rootDir = isFilePath(
+    pathToOpen,
+    allowedExtensions,
+    allowedFileName,
+    findNodeByPath,
+    treeData.value
+  )
+    ? path.dirname(pathToOpen)
+    : pathToOpen
+
+  // 构建带参数的URL
+  const url = `${window.location.origin}/#/ide/${encodeURIComponent(pathToOpen)}?rootPath=${encodeURIComponent(rootDir)}`
+
+  // 调用主进程打开新窗口，并传递URL参数
+  window.electron.openNewWindowIDE(url)
+}
+
 // 监听 props 和响应式数据变化
 watch(
   () => props.localPath,
   (newPath) => {
+    // 清空文件内容和预览区域，防止切换目录时残留上次的内容
+    fileContent.value = ''
+    renderedDocx.value = ''
+    renderedXlsx.value = ''
+    selectedFileUrl.value = ''
+    selectedFileName.value = ''
+
     if (newPath) {
+      // 重置标签页和其他状态
+      tabs.value = []
+      activeTab.value = null
+
       initialize(newPath).finally(() => {
         loading.value = false
       })
@@ -1098,6 +1376,13 @@ watch(treeselectValue, (newVal) => {
 // 生命周期挂载时执行初始化
 onMounted(() => {
   initializePage()
+})
+
+// 组件激活时重新检查主题（解决返回页面时样式不一致的问题）
+onActivated(() => {
+  // 重新检查并加载正确的主题样式
+  checkTheme()
+  console.log('[FileBrowser] 组件激活，重新检查主题样式')
 })
 </script>
 
@@ -1216,13 +1501,13 @@ body {
 }
 .preview-content pre {
   /* 保持原有空格格式，不自动换行 */
-  white-space: pre;        /* 强制按照原始空白和换行显示 */
-  word-wrap: normal;       /* 禁用单词换行 */
-  word-break: normal;      /* 禁用任意字符换行 */
+  white-space: pre; /* 强制按照原始空白和换行显示 */
+  word-wrap: normal; /* 禁用单词换行 */
+  word-break: normal; /* 禁用任意字符换行 */
 
   /* 横向滚动条，超出宽度时显示 */
   overflow-x: auto;
-  overflow-y: hidden;      /* 可选：隐藏垂直滚动条 */
+  overflow-y: hidden; /* 可选：隐藏垂直滚动条 */
 
   font-size: 0.8rem;
 }
