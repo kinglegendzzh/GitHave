@@ -23,9 +23,10 @@
       <div v-else class="research-content">
         <div class="research-header">
           <h2>
-            文件枢纽 <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
+            文件枢纽
+            <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
           </h2>
-          <v-btn class="refresh-button" elevation="0" @click="fetchCodeReports">
+          <v-btn class="refresh-button" elevation="0" @click="refreshAllReports">
             <v-icon left>mdi-refresh</v-icon>
             刷新
           </v-btn>
@@ -34,11 +35,11 @@
         <!-- 文件类型标签页 -->
         <v-tabs v-model="activeTab" background-color="transparent" color="primary" class="mb-4">
           <v-tab value="codeReport">代码分析报告</v-tab>
-          <v-tab value="contributionChart" disabled>仓库提交贡献榜</v-tab>
-          <v-tab value="activityHeatmap" disabled>提交活跃度·热力图</v-tab>
+          <v-tab value="commitAnalysis">提交记录分析报告</v-tab>
+          <v-tab value="commitDetails">提交记录修改明细</v-tab>
+          <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
+          <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
           <v-tab value="weekly" disabled>代码仓库周刊</v-tab>
-          <v-tab value="commitDetails" disabled>提交记录修改明细</v-tab>
-          <v-tab value="commitAnalysis" disabled>提交记录分析报告</v-tab>
         </v-tabs>
 
         <v-card class="content-card" variant="flat">
@@ -103,6 +104,13 @@
                         variant="text"
                         size="small"
                         @click.stop="openFile(file)"
+                      ></v-btn>
+                      <v-btn
+                        icon="mdi-pencil"
+                        variant="text"
+                        size="small"
+                        color="primary"
+                        @click.stop="showRenameDialog(file)"
                       ></v-btn>
                       <v-btn
                         icon="mdi-delete"
@@ -180,12 +188,24 @@
                       size="small"
                       @click.stop="openFile(file)"
                     ></v-btn>
+                    <v-btn
+                      icon="mdi-pencil"
+                      variant="text"
+                      size="small"
+                      color="primary"
+                      @click.stop="showRenameDialog(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click.stop="removeContributionChartFile(file)"
+                    ></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
             </div>
-
-            <!-- 提交活跃度热力图 -->
             <div v-else-if="activeTab === 'activityHeatmap'">
               <div v-if="activityHeatmapFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-image-outline</v-icon>
@@ -236,12 +256,24 @@
                       size="small"
                       @click.stop="openFile(file)"
                     ></v-btn>
+                    <v-btn
+                      icon="mdi-pencil"
+                      variant="text"
+                      size="small"
+                      color="primary"
+                      @click.stop="showRenameDialog(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click.stop="removeActivityHeatmapFile(file)"
+                    ></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
             </div>
-
-            <!-- 提交记录修改明细 -->
             <div v-else-if="activeTab === 'commitDetails'">
               <div v-if="commitDetailFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-delimited-outline</v-icon>
@@ -292,12 +324,24 @@
                       size="small"
                       @click.stop="openFile(file)"
                     ></v-btn>
+                    <v-btn
+                      icon="mdi-pencil"
+                      variant="text"
+                      size="small"
+                      color="primary"
+                      @click.stop="showRenameDialog(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click.stop="removeCommitDetailsFile(file)"
+                    ></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
             </div>
-
-            <!-- 提交记录分析报告 -->
             <div v-else-if="activeTab === 'commitAnalysis'">
               <div v-if="commitAnalysisFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
@@ -355,6 +399,20 @@
                       size="small"
                       @click.stop="openFile(file)"
                     ></v-btn>
+                    <v-btn
+                      icon="mdi-pencil"
+                      variant="text"
+                      size="small"
+                      color="primary"
+                      @click.stop="showRenameDialog(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click.stop="removeCommitAnalysisFile(file)"
+                    ></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
@@ -373,27 +431,216 @@
             <v-divider></v-divider>
             <v-card-text class="preview-content">
               <div v-if="fileContent" class="pa-2">
-                <div
-                  v-if="selectedFile.type === 'md'"
-                  class="markdown-preview"
-                  v-html="renderedMarkdown"
-                ></div>
-                <div v-if="selectedFile?.type === 'csv'" class="csv-preview">
-                  <table class="csv-table">
-                    <thead>
-                      <tr>
-                        <th v-for="(header, index) in csvHeaders" :key="index">{{ header }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="(row, rowIndex) in csvData" :key="rowIndex">
-                        <td v-for="(cell, cellIndex) in row" :key="cellIndex">{{ cell }}</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                <div v-if="selectedFile.type === 'md'" class="markdown-container">
+                  <!-- 大文件导航控制 -->
+                  <div v-if="isLargeFile && mdTotalChunks > 1" class="md-navigation sticky-md-nav">
+                    <div class="md-info">
+                      <v-chip size="small" color="info" variant="outlined">
+                        <v-icon left size="small">mdi-file-document</v-icon>
+                        大文件模式 ({{ Math.round(fileContent.length / 1024) }}KB)
+                      </v-chip>
+                      <v-chip size="small" color="primary" variant="outlined" class="ml-2">
+                        第 {{ mdCurrentChunk + 1 }} / {{ mdTotalChunks }} 块
+                      </v-chip>
+                    </div>
+                    <div class="md-controls mt-2 mb-2">
+                      <v-btn
+                        size="small"
+                        variant="outlined"
+                        :disabled="mdCurrentChunk === 0"
+                        @click="mdCurrentChunk--"
+                      >
+                        <v-icon>mdi-chevron-left</v-icon>
+                        上一块
+                      </v-btn>
+                      <v-btn
+                        size="small"
+                        variant="outlined"
+                        class="ml-2"
+                        :disabled="mdCurrentChunk >= mdTotalChunks - 1"
+                        @click="mdCurrentChunk++"
+                      >
+                        下一块
+                        <v-icon>mdi-chevron-right</v-icon>
+                      </v-btn>
+                    </div>
+                  </div>
+
+                  <!-- MD内容显示 -->
+                  <div class="markdown-preview" v-html="displayedMarkdown"></div>
+
+                  <!-- 加载状态 -->
+                  <div v-if="mdLoading" class="text-center py-4">
+                    <v-progress-circular
+                      indeterminate
+                      color="primary"
+                      size="24"
+                    ></v-progress-circular>
+                    <div class="text-caption mt-2">加载中...</div>
+                  </div>
                 </div>
-                <div v-else-if="['png', 'jpg', 'jpeg'].includes(selectedFile?.type)">
-                  <img :src="fileContent" style="max-width: 100%" />
+                <div v-if="selectedFile?.type === 'csv'" class="csv-container">
+                  <!-- CSV信息栏 -->
+                  <div class="csv-info-bar">
+                    <div class="csv-stats">
+                      <v-chip size="small" color="primary" variant="outlined">
+                        <v-icon left size="small">mdi-table</v-icon>
+                        {{ csvHeaders.length }} 列
+                      </v-chip>
+                      <v-chip size="small" color="success" variant="outlined" class="ml-2">
+                        <v-icon left size="small">mdi-format-list-numbered</v-icon>
+                        {{ csvData.length }} 行
+                      </v-chip>
+                      <v-chip
+                        v-if="isLargeFile"
+                        size="small"
+                        color="warning"
+                        variant="outlined"
+                        class="ml-2"
+                      >
+                        <v-icon left size="small">mdi-flash</v-icon>
+                        大文件模式
+                      </v-chip>
+                    </div>
+                    <div class="csv-search">
+                      <v-text-field
+                        v-model="csvSearchText"
+                        placeholder="搜索内容..."
+                        density="compact"
+                        variant="outlined"
+                        hide-details
+                        clearable
+                        style="min-width: 500px"
+                      >
+                        <template #prepend-inner>
+                          <v-icon size="small">mdi-magnify</v-icon>
+                        </template>
+                      </v-text-field>
+                    </div>
+                  </div>
+
+                  <!-- CSV分页控制 -->
+                  <div
+                    v-if="isLargeFile && csvTotalPages > 1 && !csvSearchText"
+                    class="csv-pagination"
+                  >
+                    <div class="pagination-info">
+                      <span class="text-caption">
+                        第 {{ (csvCurrentPage - 1) * csvPageSize + 1 }} -
+                        {{ Math.min(csvCurrentPage * csvPageSize, csvData.length) }} 行， 共
+                        {{ csvData.length }} 行
+                      </span>
+                    </div>
+                    <div class="pagination-controls">
+                      <v-btn
+                        size="small"
+                        variant="outlined"
+                        :disabled="csvCurrentPage === 1"
+                        @click="csvCurrentPage--"
+                      >
+                        <v-icon>mdi-chevron-left</v-icon>
+                        上一页
+                      </v-btn>
+                      <span class="mx-3 text-caption">
+                        {{ csvCurrentPage }} / {{ csvTotalPages }}
+                      </span>
+                      <v-btn
+                        size="small"
+                        variant="outlined"
+                        :disabled="csvCurrentPage >= csvTotalPages"
+                        @click="csvCurrentPage++"
+                      >
+                        下一页
+                        <v-icon>mdi-chevron-right</v-icon>
+                      </v-btn>
+                    </div>
+                  </div>
+
+                  <!-- CSV表格 -->
+                  <div class="csv-preview">
+                    <!-- 加载状态 -->
+                    <div v-if="csvLoading" class="text-center py-4">
+                      <v-progress-circular
+                        indeterminate
+                        color="primary"
+                        size="24"
+                      ></v-progress-circular>
+                      <div class="text-caption mt-2">加载中...</div>
+                    </div>
+
+                    <!-- 表格内容 -->
+                    <div v-else-if="csvHeaders.length > 0" class="csv-table-container">
+                      <table class="csv-table">
+                        <thead>
+                          <tr>
+                            <th class="row-number-header">#</th>
+                            <th v-for="(header, index) in csvHeaders" :key="index">{{ header }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="(row, rowIndex) in filteredCsvData" :key="rowIndex">
+                            <td class="row-number">{{ getOriginalRowIndex(rowIndex) + 1 }}</td>
+                            <td v-for="(cell, cellIndex) in row" :key="cellIndex" :title="cell">
+                              <span v-html="highlightSearchText(cell)"></span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <!-- 无结果提示 -->
+                    <div v-if="filteredCsvData.length === 0 && csvSearchText" class="no-results">
+                      <v-icon color="grey">mdi-magnify</v-icon>
+                      <div class="text-body-2 mt-2">未找到匹配的内容</div>
+                    </div>
+
+                    <!-- 空数据提示 -->
+                    <div v-if="csvHeaders.length === 0 && !csvLoading" class="no-results">
+                      <v-icon color="grey">mdi-table</v-icon>
+                      <div class="text-body-2 mt-2">无法解析CSV数据</div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  v-else-if="['png', 'jpg', 'jpeg'].includes(selectedFile?.type)"
+                  class="image-container"
+                >
+                  <div
+                    v-if="fileContent && !fileContent.startsWith('无法预览')"
+                    class="image-preview"
+                  >
+                    <img
+                      :src="fileContent"
+                      :alt="selectedFile.name"
+                      style="
+                        max-width: 100%;
+                        max-height: 80vh;
+                        object-fit: contain;
+                        display: block;
+                        margin: 0 auto;
+                      "
+                      @error="handleImageError"
+                      @load="handleImageLoad"
+                    />
+                    <div class="image-info mt-2 text-center">
+                      <v-chip size="small" color="info" variant="outlined">
+                        <v-icon left size="small">mdi-image</v-icon>
+                        {{ selectedFile.name }}
+                      </v-chip>
+                    </div>
+                  </div>
+                  <div v-else class="text-center py-4">
+                    <v-icon size="48" color="error">mdi-image-broken</v-icon>
+                    <div class="text-body-1 mt-2 text-error">{{ fileContent }}</div>
+                    <v-btn
+                      color="primary"
+                      variant="text"
+                      class="mt-2"
+                      @click="openFile(selectedFile)"
+                    >
+                      在外部打开
+                    </v-btn>
+                  </div>
                 </div>
                 <div v-else-if="selectedFile?.type === 'docx'">
                   {{ fileContent }}
@@ -412,6 +659,41 @@
             </v-card-actions>
           </v-card>
         </v-dialog>
+
+        <!-- 重命名对话框 -->
+        <v-dialog v-model="renameDialog" max-width="500px">
+          <v-card>
+            <v-card-title class="d-flex align-center">
+              <v-icon left>mdi-pencil</v-icon>
+              <span>重命名文件</span>
+              <v-spacer></v-spacer>
+              <v-btn icon="mdi-close" variant="text" @click="renameDialog = false"></v-btn>
+            </v-card-title>
+            <v-divider></v-divider>
+            <v-card-text>
+              <div class="mb-4">
+                <div class="text-body-2 text-grey-darken-1 mb-2">当前文件名：</div>
+                <div class="text-body-1">{{ renameFile?.name }}</div>
+              </div>
+              <v-text-field
+                v-model="newFileName"
+                label="新文件名"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                :rules="[(v) => !!v || '文件名不能为空']"
+                @keyup.enter="handleRename"
+              ></v-text-field>
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer></v-spacer>
+              <v-btn color="grey" variant="text" @click="renameDialog = false"> 取消 </v-btn>
+              <v-btn color="primary" variant="text" :disabled="!newFileName" @click="handleRename">
+                确认重命名
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
       </div>
     </div>
   </v-container>
@@ -421,7 +703,15 @@
 import { RecycleScroller } from 'vue-virtual-scroller'
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import SVG from '../assets/report.svg'
-import { deepResearchFiles, deleteFile } from '../service/api'
+import {
+  deepResearchFiles,
+  deleteFile,
+  commitsResearchFiles,
+  commitsDetailsFileList,
+  renameFile,
+  heatmapFiles,
+  contributionChartFiles
+} from '../service/api'
 import MarkdownIt from 'markdown-it'
 // 新增路径处理和自定义工具
 import path from 'path-browserify'
@@ -442,12 +732,31 @@ export default {
       placeholderImage: SVG, // 外部矢量图路径
       selectedDirectory: '', // 选中的目录路径
       files: [], // 所有文件列表
+      commitAnalysisFiles: [], // 提交记录分析报告文件列表
+      commitDetailFiles: [], // 提交记录明细文件列表
+      activityHeatmapFiles: [], // 热力图文件列表
+      contributionChartFiles: [], // 贡献图表文件列表
       activeTab: 'codeReport', // 当前活动的标签页
       previewDialog: false, // 预览对话框显示状态
       selectedFile: null, // 当前选中的文件
       fileContent: null, // 文件内容
       csvHeaders: [], // CSV文件表头
       csvData: [], // CSV文件数据
+      csvSearchText: '', // CSV搜索文本
+      csvFilteredIndexes: [], // 过滤后的行索引
+      renameDialog: false, // 重命名对话框显示状态
+      renameFile: null, // 当前要重命名的文件
+      newFileName: '', // 新文件名
+      // 性能优化相关
+      csvPageSize: 100, // CSV分页大小
+      csvCurrentPage: 1, // CSV当前页
+      csvTotalRows: 0, // CSV总行数
+      csvLoading: false, // CSV加载状态
+      mdChunkSize: 50000, // MD文件分块大小（字符数）
+      mdCurrentChunk: 0, // MD当前显示的块
+      mdTotalChunks: 0, // MD总块数
+      mdLoading: false, // MD加载状态
+      isLargeFile: false, // 是否为大文件
       md: new MarkdownIt({
         highlight: (str, lang) => {
           const validLang = hljs.getLanguage(lang) ? lang : 'plaintext'
@@ -481,26 +790,62 @@ export default {
     codeReportFiles() {
       return this.files.filter((f) => f.category === 'codeReport')
     },
-    // 仓库提交贡献榜（图片）
-    contributionChartFiles() {
-      return this.files.filter((f) => f.category === 'contributionChart')
+
+    // 过滤后的CSV数据（分页优化）
+    filteredCsvData() {
+      if (!this.csvSearchText || !this.csvData.length) {
+        this.csvFilteredIndexes = this.csvData.map((_, index) => index)
+        // 对于大文件，只返回当前页的数据
+        if (this.isLargeFile && this.csvData.length > this.csvPageSize) {
+          const startIndex = (this.csvCurrentPage - 1) * this.csvPageSize
+          const endIndex = Math.min(startIndex + this.csvPageSize, this.csvData.length)
+          return this.csvData.slice(startIndex, endIndex)
+        }
+        return this.csvData
+      }
+
+      const searchText = this.csvSearchText.toLowerCase()
+      const filtered = []
+      const indexes = []
+
+      this.csvData.forEach((row, index) => {
+        const rowText = row.join(' ').toLowerCase()
+        if (rowText.includes(searchText)) {
+          filtered.push(row)
+          indexes.push(index)
+        }
+      })
+
+      this.csvFilteredIndexes = indexes
+      return filtered
     },
-    // 提交活跃度热力图（图片）
-    activityHeatmapFiles() {
-      return this.files.filter((f) => f.category === 'activityHeatmap')
+
+    // CSV总页数
+    csvTotalPages() {
+      if (!this.isLargeFile) return 1
+      return Math.ceil(this.csvData.length / this.csvPageSize)
     },
-    // 提交记录修改明细（csv）
-    commitDetailFiles() {
-      return this.files.filter((f) => f.category === 'commitDetails')
-    },
-    // 提交记录分析报告（docx/md）
-    commitAnalysisFiles() {
-      return this.files.filter((f) => f.category === 'commitAnalysis')
+
+    // 当前显示的MD内容
+    displayedMarkdown() {
+      if (!this.isLargeFile || !this.fileContent) {
+        return this.renderedMarkdown
+      }
+
+      // 对于大文件，只显示当前块的内容
+      const startIndex = this.mdCurrentChunk * this.mdChunkSize
+      const endIndex = Math.min(startIndex + this.mdChunkSize, this.fileContent.length)
+      const chunk = this.fileContent.slice(startIndex, endIndex)
+      return this.md.render(chunk)
     }
   },
   created() {
     // this.loadMockData()
     this.fetchCodeReports()
+    this.fetchCommitAnalysisReports()
+    this.fetchCommitDetailsFiles()
+    this.fetchContributionChartFiles()
+    this.fetchHeatmapFiles()
   },
   methods: {
     async removeFile(file) {
@@ -521,6 +866,138 @@ export default {
             type: 'error'
           })
         }
+      }
+    },
+    async removeCommitAnalysisFile(file) {
+      //二次确认
+      if (confirm('确定要删除吗？')) {
+        try {
+          const res = await deleteFile(file.raw.id)
+          this.commitAnalysisFiles = this.commitAnalysisFiles.filter(
+            (f) => f.raw.id !== file.raw.id
+          )
+          this.fetchCommitAnalysisReports()
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除成功',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('删除文件失败:', error)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除失败',
+            type: 'error'
+          })
+        }
+      }
+    },
+    async removeActivityHeatmapFile(file) {
+      //二次确认
+      if (confirm('确定要删除吗？')) {
+        try {
+          const res = await deleteFile(file.raw.id)
+          this.activityHeatmapFiles = this.activityHeatmapFiles.filter(
+            (f) => f.raw.id !== file.raw.id
+          )
+          this.fetchHeatmapFiles()
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除成功',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('删除文件失败:', error)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除失败',
+            type: 'error'
+          })
+        }
+      }
+    },
+    async removeContributionChartFile(file) {
+      //二次确认
+      if (confirm('确定要删除吗？')) {
+        try {
+          const res = await deleteFile(file.raw.id)
+          this.contributionChartFiles = this.contributionChartFiles.filter(
+            (f) => f.raw.id !== file.raw.id
+          )
+          this.fetchContributionChartFiles()
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除成功',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('删除文件失败:', error)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除失败',
+            type: 'error'
+          })
+        }
+      }
+    },
+    async removeCommitDetailsFile(file) {
+      //二次确认
+      if (confirm('确定要删除吗？')) {
+        try {
+          const res = await deleteFile(file.raw.id)
+          // 从commitDetailFiles中移除
+          this.commitDetailFiles = this.commitDetailFiles.filter((f) => f.raw.id !== file.raw.id)
+          // 从总文件列表中移除
+          this.files = this.files.filter((f) => f.raw?.id !== file.raw.id)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除成功',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('删除文件失败:', error)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除失败',
+            type: 'error'
+          })
+        }
+      }
+    },
+    // 显示重命名对话框
+    showRenameDialog(file) {
+      this.renameFile = file
+      this.newFileName = file.name
+      this.renameDialog = true
+    },
+    // 处理重命名
+    async handleRename() {
+      if (!this.newFileName || !this.renameFile) {
+        return
+      }
+
+      try {
+        await renameFile(this.renameFile.raw.id, this.newFileName)
+
+        // 更新本地数据
+        const updateFileName = (fileList) => {
+          const fileIndex = fileList.findIndex((f) => f.raw.id === this.renameFile.raw.id)
+          if (fileIndex !== -1) {
+            fileList[fileIndex].name = this.newFileName
+          }
+        }
+
+        // 更新各个文件列表中的文件名
+        updateFileName(this.files)
+        updateFileName(this.commitAnalysisFiles)
+        updateFileName(this.commitDetailFiles)
+
+        this.$store.dispatch('snackbar/showSnackbar', {
+          message: '重命名成功',
+          type: 'success'
+        })
+
+        this.renameDialog = false
+        this.renameFile = null
+        this.newFileName = ''
+      } catch (error) {
+        console.error('重命名文件失败:', error)
+        this.$store.dispatch('snackbar/showSnackbar', {
+          message: '重命名失败',
+          type: 'error'
+        })
       }
     },
     async getAppPath(appName) {
@@ -579,6 +1056,155 @@ export default {
       } catch (error) {
         console.error('获取代码分析报告失败：', error)
       }
+    },
+    async fetchCommitAnalysisReports() {
+      try {
+        const res = await commitsResearchFiles()
+        // 假设 res.data 就是文件数组
+        let apiFiles = res.data.map((item) => {
+          const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
+          const tags = ext === 'md' ? ['可预览'] : []
+          return {
+            name: item.file_name,
+            path: item.file_path,
+            type: ext,
+            modifiedTime: new Date(item.updated_at.Time),
+            main_tags: ['提交记录分析'],
+            tags,
+            raw: item
+          }
+        })
+        // 过滤掉状态不为success的文件
+        apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        this.commitAnalysisFiles = apiFiles
+      } catch (error) {
+        console.error('获取提交记录分析报告失败：', error)
+      }
+    },
+    async fetchCommitDetailsFiles() {
+      try {
+        const res = await commitsDetailsFileList()
+        // 假设 res.data 就是文件数组
+        let apiFiles = res.data.map((item) => {
+          const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
+          const tags = ext === 'csv' ? ['可预览'] : []
+
+          // 处理时间字段，优先使用updated_at，如果无效则使用uploaded_at
+          let timeValue = item.uploaded_at
+          if (
+            item.updated_at &&
+            item.updated_at.Valid &&
+            item.updated_at.Time !== '0001-01-01T00:00:00Z'
+          ) {
+            timeValue = item.updated_at.Time
+          }
+
+          return {
+            name: item.file_name,
+            path: item.file_path,
+            type: ext,
+            modifiedTime: new Date(timeValue),
+            main_tags: ['提交记录明细'],
+            tags,
+            raw: item,
+            category: 'commitDetails'
+          }
+        })
+        // 过滤掉状态不为success的文件
+        apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        // 将明细文件添加到总文件列表中
+        this.files = this.files.filter((f) => f.category !== 'commitDetails').concat(apiFiles)
+        this.commitDetailFiles = apiFiles
+      } catch (error) {
+        console.error('获取提交记录明细文件失败：', error)
+      }
+    },
+    async fetchContributionChartFiles() {
+      try {
+        const res = await contributionChartFiles()
+        // 假设 res.data 就是文件数组
+        let apiFiles = res.data.map((item) => {
+          const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
+          const tags = ['图片文件']
+
+          // 处理时间字段，优先使用updated_at，如果无效则使用uploaded_at
+          let timeValue = item.uploaded_at
+          if (
+            item.updated_at &&
+            item.updated_at.Valid &&
+            item.updated_at.Time !== '0001-01-01T00:00:00Z'
+          ) {
+            timeValue = item.updated_at.Time
+          }
+
+          return {
+            name: item.file_name,
+            path: item.file_path,
+            type: ext,
+            modifiedTime: new Date(timeValue),
+            main_tags: ['仓库提交贡献榜'],
+            tags,
+            raw: item,
+            category: 'contributionChart'
+          }
+        })
+        // 过滤掉状态不为success的文件
+        apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        // 将贡献榜文件添加到总文件列表中
+        this.files = this.files.filter((f) => f.category !== 'contributionChart').concat(apiFiles)
+        this.contributionChartFiles = apiFiles
+      } catch (error) {
+        console.error('获取仓库提交贡献榜文件失败：', error)
+      }
+    },
+    async fetchHeatmapFiles() {
+      try {
+        const res = await heatmapFiles()
+        // 假设 res.data 就是文件数组
+        let apiFiles = res.data.map((item) => {
+          const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
+          const tags = ['图片文件']
+
+          // 处理时间字段，优先使用updated_at，如果无效则使用uploaded_at
+          let timeValue = item.uploaded_at
+          if (
+            item.updated_at &&
+            item.updated_at.Valid &&
+            item.updated_at.Time !== '0001-01-01T00:00:00Z'
+          ) {
+            timeValue = item.updated_at.Time
+          }
+
+          return {
+            name: item.file_name,
+            path: item.file_path,
+            type: ext,
+            modifiedTime: new Date(timeValue),
+            main_tags: ['提交活跃度·热力图'],
+            tags,
+            raw: item,
+            category: 'activityHeatmap'
+          }
+        })
+        // 过滤掉状态不为success的文件
+        apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        // 将热力图文件添加到总文件列表中
+        this.files = this.files.filter((f) => f.category !== 'activityHeatmap').concat(apiFiles)
+        this.activityHeatmapFiles = apiFiles
+      } catch (error) {
+        console.error('获取提交活跃度·热力图文件失败：', error)
+      }
+    },
+    refreshAllReports() {
+      this.fetchCodeReports()
+      this.fetchCommitAnalysisReports()
+      this.fetchCommitDetailsFiles()
+      this.fetchContributionChartFiles()
+      this.fetchHeatmapFiles()
     },
     // 选择目录
     async selectDirectory() {
@@ -711,30 +1337,104 @@ export default {
       this.previewDialog = true
       this.fileContent = null
       this.renderedMarkdown = ''
+      this.isLargeFile = false
+      this.csvCurrentPage = 1
+      this.mdCurrentChunk = 0
+      this.csvLoading = false
+      this.mdLoading = false
 
       // 1. Markdown 文件：通过 IPC 读取并渲染
       if (file.type === 'md') {
+        this.mdLoading = true
         try {
           console.log('读取 Markdown 文件：', file.path)
           const raw = await window.electron.readFile(file.path)
           this.fileContent = raw
-          this.renderedMarkdown = this.md.render(raw)
+
+          // 检测是否为大文件（超过50KB）
+          if (raw.length > this.mdChunkSize) {
+            this.isLargeFile = true
+            this.mdTotalChunks = Math.ceil(raw.length / this.mdChunkSize)
+            console.log(
+              `大MD文件检测: ${Math.round(raw.length / 1024)}KB, 分为${this.mdTotalChunks}块`
+            )
+          } else {
+            this.renderedMarkdown = this.md.render(raw)
+          }
         } catch (err) {
           console.error('加载 Markdown 失败：', err)
+          this.fileContent = `读取Markdown文件失败: ${err.message}`
+        } finally {
+          this.mdLoading = false
         }
-        return // 读取完就返回，不走后续模拟逻辑
+        return
+      } else if (file.type === 'docx') {
+        if (confirm('是否在外部应用中打开Docx文档？')) {
+          const appPath = await this.getAppPath('Microsoft Word')
+          if (appPath) {
+            window.electron.shell.openPath(appPath)
+          } else {
+            // 未找到，通过默认应用打开
+            window.electron.shell.openPath(file.path)
+          }
+          this.fileContent = `无法读取${file.type}格式文件的内容，通过外部打开`
+          return
+        }
+        this.previewDialog = false
+        return
       }
 
-      // 2. 其它类型继续原有模拟逻辑
-      setTimeout(() => {
-        if (file.type === 'csv') {
-          // … CSV 处理（保持原有代码）
-        } else if (['png', 'jpg', 'jpeg'].includes(file.type)) {
-          this.fileContent = file.path
-        } else {
-          this.fileContent = `无法读取${file.type}格式文件的内容，通过外部打开`
+      // 2. CSV 文件：通过 IPC 读取并解析
+      if (file.type === 'csv') {
+        this.csvLoading = true
+        try {
+          console.log('读取 CSV 文件：', file.path)
+          const raw = await window.electron.readFile(file.path)
+          this.fileContent = raw
+
+          // 使用异步解析避免阻塞UI
+          await this.parseCsvContentAsync(raw)
+        } catch (err) {
+          console.error('加载 CSV 失败：', err)
+          this.fileContent = `读取CSV文件失败: ${err.message}`
+        } finally {
+          this.csvLoading = false
         }
+        return
+      }
+
+      // 3. 图片文件：使用专门的图片读取接口
+      if (['png', 'jpg', 'jpeg'].includes(file.type)) {
+        try {
+          // 使用新的readImageBlob接口读取图片
+          const imageDataUrl = await window.electron.readImageBlob(file.path)
+          if (imageDataUrl) {
+            this.fileContent = imageDataUrl
+            console.log('图片预览成功加载')
+          } else {
+            this.fileContent = '无法读取图片文件'
+          }
+        } catch (err) {
+          console.error('读取图片文件失败：', err)
+          this.fileContent = `无法预览图片: ${err.message}`
+        }
+        return
+      }
+
+      // 4. 其它类型继续原有模拟逻辑
+      setTimeout(() => {
+        this.fileContent = `无法读取${file.type}格式文件的内容，通过外部打开`
       }, 500)
+    },
+
+    // 图片加载成功处理
+    handleImageLoad(event) {
+      console.log('图片加载成功：', event.target.src)
+    },
+    // 图片加载错误处理
+    handleImageError(event) {
+      console.error('图片加载失败：', event.target.src)
+      this.fileContent = '无法预览图片：图片文件可能已损坏或不存在'
     },
 
     // 在外部打开文件
@@ -861,6 +1561,297 @@ export default {
       const m = String(d.getUTCMinutes()).padStart(2, '0')
 
       return `${Y}-${M}-${D} ${h}:${m}`
+    },
+
+    // 解析CSV内容
+    parseCsvContent(csvText) {
+      if (!csvText || typeof csvText !== 'string') {
+        this.csvHeaders = []
+        this.csvData = []
+        return
+      }
+
+      try {
+        // 按行分割，过滤空行
+        const lines = csvText.split('\n').filter((line) => line.trim())
+
+        if (lines.length === 0) {
+          this.csvHeaders = []
+          this.csvData = []
+          return
+        }
+
+        // 改进的CSV行解析函数，更好地处理引号和逗号
+        const parseCSVLine = (line) => {
+          const result = []
+          let current = ''
+          let inQuotes = false
+          let i = 0
+
+          while (i < line.length) {
+            const char = line[i]
+
+            if (char === '"') {
+              if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+                // 处理双引号转义 ("")
+                current += '"'
+                i += 2
+                continue
+              } else {
+                // 切换引号状态
+                inQuotes = !inQuotes
+              }
+            } else if (char === ',' && !inQuotes) {
+              // 在引号外遇到逗号，分割字段
+              result.push(current.trim())
+              current = ''
+            } else {
+              current += char
+            }
+            i++
+          }
+
+          // 添加最后一个字段
+          result.push(current.trim())
+
+          // 清理字段值，移除首尾的引号
+          return result.map((field) => {
+            if (field.startsWith('"') && field.endsWith('"')) {
+              return field.slice(1, -1)
+            }
+            return field
+          })
+        }
+
+        // 第一行作为表头，确定总列数
+        this.csvHeaders = parseCSVLine(lines[0])
+        const totalColumns = this.csvHeaders.length
+        console.log('CSV表头解析完成，总列数:', totalColumns)
+
+        // 处理数据行，考虑行内换行的情况
+        this.csvData = []
+        let currentRow = []
+        let lineIndex = 1 // 从第二行开始（跳过表头）
+
+        while (lineIndex < lines.length) {
+          // 解析当前行
+          const parsedFields = parseCSVLine(lines[lineIndex])
+
+          // 将解析出的字段添加到当前行
+          currentRow = currentRow.concat(parsedFields)
+
+          // 检查当前行是否已经达到或超过总列数
+          if (currentRow.length >= totalColumns) {
+            // 如果超出总列数，截断多余部分
+            if (currentRow.length > totalColumns) {
+              currentRow = currentRow.slice(0, totalColumns)
+            }
+
+            // 添加完整行到数据集
+            this.csvData.push(currentRow)
+
+            // 重置当前行，准备处理下一行数据
+            currentRow = []
+          }
+
+          // 移动到下一行
+          lineIndex++
+        }
+
+        // 处理最后一个不完整行（如果有）
+        if (currentRow.length > 0) {
+          // 填充不足的列
+          while (currentRow.length < totalColumns) {
+            currentRow.push('')
+          }
+          this.csvData.push(currentRow)
+        }
+
+        console.log('CSV解析完成:', {
+          headers: this.csvHeaders,
+          dataRows: this.csvData.length,
+          sampleRow: this.csvData[0]
+        })
+      } catch (err) {
+        console.error('CSV解析失败:', err)
+        this.csvHeaders = ['解析错误']
+        this.csvData = [[`CSV解析失败: ${err.message}`]]
+      }
+    },
+
+    // 异步解析 CSV 内容（避免阻塞UI）
+    async parseCsvContentAsync(csvText) {
+      if (!csvText || typeof csvText !== 'string') {
+        this.csvHeaders = []
+        this.csvData = []
+        this.csvTotalRows = 0
+        return
+      }
+
+      try {
+        // 按行分割，过滤空行
+        const lines = csvText.split('\n').filter((line) => line.trim())
+
+        if (lines.length === 0) {
+          this.csvHeaders = []
+          this.csvData = []
+          this.csvTotalRows = 0
+          return
+        }
+
+        // 解析表头
+        this.csvHeaders = this.parseCSVLine(lines[0])
+        this.csvData = []
+        this.csvTotalRows = lines.length - 1
+
+        // 检测是否为大文件（超过1000行）
+        if (this.csvTotalRows > 1000) {
+          this.isLargeFile = true
+          console.log(`大CSV文件检测: ${this.csvTotalRows}行数据`)
+        }
+
+        // 分批解析数据行，避免阻塞UI
+        const batchSize = 500
+        const totalColumns = this.csvHeaders.length
+        let currentRow = []
+        let lineIndex = 1
+
+        while (lineIndex < lines.length) {
+          const batchEnd = Math.min(lineIndex + batchSize, lines.length)
+          const batch = []
+
+          for (let i = lineIndex; i < batchEnd; i++) {
+            const parsedFields = this.parseCSVLine(lines[i])
+            currentRow = currentRow.concat(parsedFields)
+
+            if (currentRow.length >= totalColumns) {
+              if (currentRow.length > totalColumns) {
+                currentRow = currentRow.slice(0, totalColumns)
+              }
+              batch.push(currentRow)
+              currentRow = []
+            }
+          }
+
+          this.csvData.push(...batch)
+          lineIndex = batchEnd
+
+          // 让出控制权，避免阻塞UI
+          if (lineIndex < lines.length) {
+            await new Promise((resolve) => setTimeout(resolve, 10))
+          }
+        }
+
+        // 处理最后一个不完整行
+        if (currentRow.length > 0) {
+          while (currentRow.length < totalColumns) {
+            currentRow.push('')
+          }
+          this.csvData.push(currentRow)
+        }
+
+        console.log('CSV 异步解析完成：', {
+          headers: this.csvHeaders.length,
+          rows: this.csvData.length,
+          totalRows: this.csvTotalRows
+        })
+      } catch (err) {
+        console.error('CSV异步解析失败:', err)
+        this.csvHeaders = ['解析错误']
+        this.csvData = [[`CSV解析失败: ${err.message}`]]
+      }
+    },
+
+    // CSV行解析辅助方法
+    parseCSVLine(line) {
+      const result = []
+      let current = ''
+      let inQuotes = false
+      let i = 0
+
+      while (i < line.length) {
+        const char = line[i]
+
+        if (char === '"') {
+          if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+            current += '"'
+            i += 2
+            continue
+          } else {
+            inQuotes = !inQuotes
+          }
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+        i++
+      }
+
+      result.push(current.trim())
+
+      return result.map((field) => {
+        if (field.startsWith('"') && field.endsWith('"')) {
+          return field.slice(1, -1)
+        }
+        return field
+      })
+    },
+
+    // MD文件分块导航
+    prevMdChunk() {
+      if (this.mdCurrentChunk > 0) {
+        this.mdCurrentChunk--
+      }
+    },
+
+    nextMdChunk() {
+      if (this.mdCurrentChunk < this.mdTotalChunks - 1) {
+        this.mdCurrentChunk++
+      }
+    },
+
+    // CSV分页导航
+    prevCsvPage() {
+      if (this.csvCurrentPage > 1) {
+        this.csvCurrentPage--
+      }
+    },
+
+    nextCsvPage() {
+      if (this.csvCurrentPage < this.csvTotalPages) {
+        this.csvCurrentPage++
+      }
+    },
+
+    // 获取原始行索引（用于显示行号）
+    getOriginalRowIndex(filteredIndex) {
+      return this.csvFilteredIndexes[filteredIndex] || filteredIndex
+    },
+
+    // 高亮搜索文本
+    highlightSearchText(text) {
+      if (!this.csvSearchText || !text) {
+        return text
+      }
+
+      const searchText = this.csvSearchText.toLowerCase()
+      const textLower = text.toLowerCase()
+
+      if (!textLower.includes(searchText)) {
+        return text
+      }
+
+      // 使用正则表达式进行大小写不敏感的替换
+      const regex = new RegExp(
+        `(${this.csvSearchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
+        'gi'
+      )
+      return text.replace(
+        regex,
+        '<mark style="background-color: #ffeb3b; padding: 1px 2px; border-radius: 2px;">$1</mark>'
+      )
     }
   }
 }
@@ -1033,25 +2024,125 @@ export default {
   overflow-y: auto;
 }
 
-.csv-table {
+.csv-preview {
+  overflow: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
   width: 100%;
-  border-collapse: collapse;
+  max-width: 2500px;
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
-.csv-table th,
-.csv-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
+.csv-table {
+  width: 2500px;
+  min-width: 2500px;
+  border-collapse: collapse;
+  font-size: 14px;
+  background-color: white;
 }
 
 .csv-table th {
-  background-color: #f2f2f2;
-  font-weight: bold;
+  background-color: #f8f9fa;
+  color: #495057;
+  font-weight: 600;
+  padding: 12px 8px;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+  border-right: 1px solid #dee2e6;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-all;
+  max-width: 200px;
+  min-height: 20px;
+  line-height: 1.4;
 }
 
-.csv-table tr:nth-child(even) {
-  background-color: #f9f9f9;
+.csv-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e9ecef;
+  border-right: 1px solid #dee2e6;
+  vertical-align: top;
+  word-break: break-word;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: break-all;
+  max-width: 200px;
+  min-height: 20px;
+  line-height: 1.4;
+  span {
+    color: #282c2f;
+  }
+}
+
+.csv-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.csv-table tbody tr:nth-child(even) {
+  background-color: #fdfdfd;
+}
+
+.csv-table tbody tr:nth-child(even):hover {
+  background-color: #f8f9fa;
+}
+
+.csv-container {
+  width: 100%;
+}
+
+.csv-info-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  border-radius: 4px 4px 0 0;
+}
+
+.csv-stats {
+  display: flex;
+  align-items: center;
+}
+
+.csv-search {
+  color: #6c757d;
+  background-color: #f8f9fa;
+  display: flex;
+  align-items: center;
+}
+
+.row-number-header {
+  width: 60px;
+  min-width: 60px;
+  background-color: #e9ecef !important;
+  text-align: center;
+  font-weight: 700;
+}
+
+.row-number {
+  width: 60px;
+  min-width: 60px;
+  background-color: #f8f9fa;
+  text-align: center;
+  font-weight: 500;
+  color: #6c757d;
+  border-right: 1px solid #dee2e6;
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+  background-color: #f8f9fa;
+}
+
+.csv-preview {
+  border-radius: 0 0 4px 4px;
 }
 
 .markdown-preview {
@@ -1114,5 +2205,19 @@ pre {
 }
 .research-container {
   animation: fadeIn 1.5s ease-in-out;
+}
+
+.sticky-md-nav {
+  position: sticky;
+  top: 0;
+  background-color: rgba(var(--v-theme-surface), 0.98);
+  padding-top: 12px;
+  padding-bottom: 12px;
+  z-index: 10;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  margin-left: -24px; /* Adjust to counteract v-card-text padding */
+  margin-right: -24px; /* Adjust to counteract v-card-text padding */
+  padding-left: 24px;
+  padding-right: 24px;
 }
 </style>
