@@ -68,7 +68,7 @@
         </v-card>
       </v-col>
 
-      <!-- 仓库周刊智能体 -->
+      <!-- 仓库报刊智能体 -->
       <v-col cols="12" md="4">
         <v-card
           disabled
@@ -82,12 +82,12 @@
           <v-card-title class="card-title-compact">
             <v-icon small class="icon-compact">mdi-calendar-text</v-icon>
             <span class="tag-compact">[内置]</span>
-            <span class="title-compact">仓库周刊</span>
+            <span class="title-compact">仓库报刊</span>
           </v-card-title>
-          <v-card-subtitle class="subtitle-compact">生成仓库周报</v-card-subtitle>
+          <v-card-subtitle class="subtitle-compact">生成仓库报刊</v-card-subtitle>
           <v-card-text class="text-compact">
             <div><strong>仓库数量:</strong> {{ config.repos_daily.length }}</div>
-            <div><strong>周报频率:</strong> {{ config.plugin_cron.GitSummary || '未设置' }}</div>
+            <div><strong>报刊频率:</strong> {{ config.plugin_cron.GitSummary || '未设置' }}</div>
             <div><strong>提示词:</strong> {{ config.prompt_daily ? '已配置' : '未配置' }}</div>
           </v-card-text>
         </v-card>
@@ -156,7 +156,7 @@
                     ></v-text-field>
                     <v-text-field
                       v-model="config.plugin_cron.GitSummary"
-                      label="GitSummary 代码周报定时任务"
+                      label="GitSummary 代码报刊定时任务"
                       outlined
                     ></v-text-field>
                   </v-expansion-panel-text>
@@ -430,7 +430,7 @@
             </v-form>
           </div>
 
-          <!-- 仓库周刊智能体配置 -->
+          <!-- 仓库报刊智能体配置 -->
           <div v-if="currentAgent === 'weekly'">
             <v-form ref="weeklyForm" v-model="validWeekly">
               <!-- 周刊提示词 -->
@@ -520,7 +520,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- 共享导入弹窗（常规仓库 & 周报仓库复用） -->
+    <!-- 共享导入弹窗（常规仓库 & 报刊仓库复用） -->
     <v-dialog
       v-model="importDialog"
       max-width="640px"
@@ -599,7 +599,7 @@ const currentAgentTitle = computed(() => {
     case 'analysis':
       return '提交记录分析智能体'
     case 'weekly':
-      return '仓库周刊智能体'
+      return '仓库报刊智能体'
     default:
       return ''
   }
@@ -702,7 +702,7 @@ const messages = ref([
   {
     date: '2025.4.29',
     message:
-      '📰 仓库周刊智能体现已上线，每周精选动态自动推送，不错过任何亮点，快为你的代码仓库订阅一份吧！',
+      '📰 仓库报刊智能体现已上线，每周精选动态自动推送，不错过任何亮点，快为你的代码仓库订阅一份吧！',
     href: 'https://your.link/3'
   },
   {
@@ -852,7 +852,7 @@ const updateModeRangesSecond = (newData) => {
   config.mode_ranges_second = newData
 }
 
-/* —— 仓库周刊智能体：仓库操作 —— */
+/* —— 仓库报刊智能体：仓库操作 —— */
 const addWeeklyRepo = () => {
   config.repos_daily.push({
     RepoURL: '',
@@ -980,7 +980,7 @@ const confirmImport = async () => {
       if (importTarget.value === 'repos') {
         config.repos.push(mappedRepo) // 常规仓库
       } else {
-        config.repos_daily.push(mappedRepo) // 周报仓库
+        config.repos_daily.push(mappedRepo) // 报刊仓库
       }
     } catch (err) {
       console.error('获取仓库详情失败:', err)
