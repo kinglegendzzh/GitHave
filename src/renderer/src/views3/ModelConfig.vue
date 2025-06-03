@@ -231,6 +231,7 @@
           style="
             background: linear-gradient(90deg, #e3f2fd 60%, #fff 100%);
             border-left: 6px solid #1976d2;
+            border-radius: 8px;
           "
         >
           <v-icon color="primary" class="mr-2">mdi-alert-decagram</v-icon>
@@ -238,8 +239,34 @@
         </v-card-title>
         <v-card-text
           class="d-flex flex-wrap justify-space-between align-center"
-          style="background: #f5f7fa; border-radius: 8px; border: 2px dashed #1976d2"
+          style="border-radius: 8px; border: 2px dashed #1976d2"
         >
+          <v-row class="w-100 dark-text-force" align="center" justify="center">
+            <!-- 云端/本地模型一键切换 -->
+            <v-alert colored-border density="compact" class="mt-3 mb-3">
+              <div class="d-flex align-center flex-wrap">
+                <div>
+                  <span class="font-weight-bold">当前模型使用模式：</span>
+                  <v-chip :color="allCloudModelsEnabled ? 'info' : 'primary'" class="ml-2" label>
+                    {{ allCloudModelsEnabled ? '云端模型' : '本地模型' }}
+                  </v-chip>
+                </div>
+                <v-spacer></v-spacer>
+                <v-switch
+                  :model-value="allCloudModelsEnabled"
+                  color="info"
+                  hide-details
+                  density="compact"
+                  :label="allCloudModelsEnabled ? '切换至本地模型' : '切换至云端模型'"
+                  @update:model-value="toggleAllCloudModels"
+                ></v-switch>
+              </div>
+              <div class="text-caption mt-2">
+                <v-icon small color="info">mdi-information-outline</v-icon>
+                <span> 一键切换当前所有模型的启用状态。 </span>
+              </div>
+            </v-alert>
+          </v-row>
           <v-row class="w-100 dark-text-force" align="center" justify="center">
             <!-- 云端模型卡片 -->
             <v-col cols="12" md="5">
@@ -264,10 +291,12 @@
                       <template #prepend>
                         <v-icon color="info">mdi-information-outline</v-icon>
                       </template>
-                      <div class="dark-text-force" style="overflow-x: auto; white-space: nowrap;">
-                        <v-icon v-if="cloudApiCount !== 0" color="green" small>mdi-check-circle</v-icon>
+                      <div class="dark-text-force" style="overflow-x: auto; white-space: nowrap">
+                        <v-icon v-if="cloudApiCount !== 0" color="green" small
+                          >mdi-check-circle</v-icon
+                        >
                         <v-icon v-else color="red" small>mdi-close-circle</v-icon>
-                        <span class="font-weight-bold dark-text-force">已启用的云端模型API：</span>
+                        <span class="font-weight-bold dark-text-force">已配置的云端模型API：</span>
                         <span class="text-primary">{{ cloudApiCount }}</span>
                         <span class="ml-3 font-weight-bold dark-text-force">涉及提供商：</span>
                         <span class="text-info">{{ cloudVendors.join('，') || '无' }}</span>
@@ -283,7 +312,7 @@
             <!-- 二选一提示 -->
             <v-col cols="12" md="auto" class="d-flex flex-column align-center justify-center">
               <v-icon color="primary" size="36">mdi-swap-horizontal-bold</v-icon>
-              <div class="font-weight-bold text-primary dark-text-force">二选一</div>
+              <div class="font-weight-bold text-primary">二选一</div>
             </v-col>
             <!-- 本地模型卡片 -->
             <v-col cols="12" md="5">
@@ -321,11 +350,18 @@
                       <template #prepend>
                         <v-icon color="info">mdi-information-outline</v-icon>
                       </template>
+                      <span class="dark-text-force">本地模型部署状态: </span>
                       <v-icon v-if="ollamaInstalled && ollamaRunning" color="green" small
                         >mdi-check-circle</v-icon
                       >
+                      <template v-else-if="ollamaInstalled === null || ollamaRunning === null">
+                        <v-progress-circular
+                          size="20"
+                          indeterminate
+                          color="info"
+                        ></v-progress-circular>
+                      </template>
                       <v-icon v-else color="red" small>mdi-close-circle</v-icon>
-                      <span class="dark-text-force">本地模型部署状态</span>
                     </v-alert>
                   </template>
 
@@ -691,7 +727,12 @@
                     :tag="'div'"
                   >
                     <template #item="{ element }">
-                      <div class="chip-item" draggable="true" @dragstart="onDragStart(element)">
+                      <div
+                        class="chip-item"
+                        draggable="true"
+                        @dragstart="onDragStart(element)"
+                        @dragend="onDragEnd"
+                      >
                         <v-tooltip location="top">
                           <template #activator="{ props }">
                             <v-chip
@@ -717,13 +758,23 @@
 
               <!-- 右侧：角色插槽卡片 -->
               <v-col cols="12" md="6" class="d-flex exp-list">
+                <v-card-title class="subtitle-1 text-grey mb-2">
+                  将左侧模型拖拽到右侧对应角色，点击保存即可
+                </v-card-title>
                 <div class="exp-list-placeholder">拖拽模型到这里 绑定角色</div>
                 <v-row>
-                  <v-col v-for="slot in expertKeys" :key="slot" cols="12" sm="4" class="d-flex">
+                  <!-- 常规角色 -->
+                  <v-col cols="12">
+                    <h3 class="role-section-title">常规角色</h3>
+                  </v-col>
+                  <v-col v-for="slot in oldExpertKeys" :key="slot" cols="12" sm="4" class="d-flex">
                     <v-card
                       class="flex-grow-1 pa-2"
                       outlined
-                      :class="{ 'drag-over': dragOverSlot === slot }"
+                      :class="{
+                        'drag-over': dragOverSlot === slot,
+                        'card-transparent': isDragging
+                      }"
                       @dragover.prevent="dragOverSlot = slot"
                       @dragleave="dragOverSlot = null"
                       @drop="onDrop(slot)"
@@ -731,17 +782,109 @@
                       <v-card-title class="subtitle-1">{{ slotLabels[slot] }}</v-card-title>
                       <v-divider />
                       <v-card-text class="d-flex flex-column">
-                        <div v-if="expertSlots[slot].length === 0" class="text-center grey--text">
+                        <div class="text-center grey--text">
                           <span v-if="dragOverSlot === slot" class="font-weight-bold"
                             >释放至此</span
                           >
-                          <span v-else>请拖入模型</span>
+                          <span v-else class="text-grey">请拖入模型</span>
                         </div>
                         <v-chip
                           v-for="m in expertSlots[slot]"
                           :key="m.name"
                           class="ma-1 expert-chip"
                           color="primary"
+                          dark
+                        >
+                          {{ m.name }}
+                        </v-chip>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                  <!-- FM 配置角色 -->
+                  <v-col cols="12" class="mt-4">
+                    <h3 class="role-section-title">索引基础角色</h3>
+                  </v-col>
+                  <!-- FM 通用模型角色 -->
+                  <v-col
+                    v-for="slot in ['default_model', 'embedding_model']"
+                    :key="slot"
+                    cols="12"
+                    sm="4"
+                    class="d-flex"
+                  >
+                    <v-card
+                      class="flex-grow-1 pa-2"
+                      outlined
+                      :class="{
+                        'drag-over': dragOverSlot === slot,
+                        'card-transparent': isDragging
+                      }"
+                      @dragover.prevent="dragOverSlot = slot"
+                      @dragleave="dragOverSlot = null"
+                      @drop="onDrop(slot)"
+                    >
+                      <v-card-title class="subtitle-1">{{ slotLabels[slot] }}</v-card-title>
+                      <v-divider />
+                      <v-card-text class="d-flex flex-column">
+                        <div class="text-center grey--text">
+                          <span v-if="dragOverSlot === slot" class="font-weight-bold"
+                            >释放至此</span
+                          >
+                          <span v-else class="text-grey">请拖入模型</span>
+                        </div>
+                        <v-chip
+                          v-for="m in expertSlots[slot]"
+                          :key="m.name"
+                          class="ma-1 expert-chip"
+                          color="success"
+                          dark
+                        >
+                          {{ m.name }}
+                        </v-chip>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+
+                  <!-- FM 配置模型角色 -->
+                  <v-col cols="12" class="mt-2">
+                    <h3 class="role-section-title">索引弹性策略角色</h3>
+                  </v-col>
+                  <v-col
+                    v-for="i in fmConfig.model_configs.length"
+                    :key="'model_config_' + (i - 1)"
+                    cols="12"
+                    sm="4"
+                    class="d-flex"
+                  >
+                    <v-card
+                      class="flex-grow-1 pa-2"
+                      outlined
+                      :class="{
+                        'drag-over': dragOverSlot === 'model_config_' + (i - 1),
+                        'card-transparent': isDragging
+                      }"
+                      @dragover.prevent="dragOverSlot = 'model_config_' + (i - 1)"
+                      @dragleave="dragOverSlot = null"
+                      @drop="onDrop('model_config_' + (i - 1))"
+                    >
+                      <v-card-title class="subtitle-1">
+                        {{ '尺码 ' + fmConfig.model_configs[i - 1].size }}
+                      </v-card-title>
+                      <v-divider />
+                      <v-card-text class="d-flex flex-column">
+                        <div class="text-center grey--text">
+                          <span
+                            v-if="dragOverSlot === 'model_config_' + (i - 1)"
+                            class="font-weight-bold"
+                            >释放至此</span
+                          >
+                          <span v-else class="text-grey">请拖入模型</span>
+                        </div>
+                        <v-chip
+                          v-for="m in expertSlots['model_config_' + (i - 1)]"
+                          :key="m.name"
+                          class="ma-1 expert-chip"
+                          color="info"
                           dark
                         >
                           {{ m.name }}
@@ -756,7 +899,7 @@
           <v-card-actions>
             <v-spacer />
             <v-btn text @click="resetConfig">重置</v-btn>
-            <v-btn color="primary" @click="saveModelConfig">保存模型配置</v-btn>
+            <v-btn color="primary" @click="saveModelConfig">保存</v-btn>
           </v-card-actions>
         </v-card>
       </div>
@@ -1471,10 +1614,146 @@
         </v-card-text>
       </v-card>
     </div>
+    <v-snackbar
+      v-model="snackbar.show"
+      :color="snackbar.color"
+      :timeout="3000"
+      rounded="pill"
+      elevation="2"
+    >
+      {{ snackbar.message }}
+    </v-snackbar>
+    
+    <!-- 模型切换确认对话框 -->
+    <v-dialog v-model="showSwitchConfirmDialog" persistent max-width="600">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon color="warning" class="mr-2">mdi-alert-circle</v-icon>
+          切换模型使用模式确认
+        </v-card-title>
+        <v-card-text>
+          <v-alert type="warning" variant="outlined" class="mb-4">
+            <div class="font-weight-bold mb-2">⚠️ 重要提醒</div>
+            <div class="mb-2">
+              切换模型使用模式将会重启所有核心服务，这可能会影响以下正在运行的功能：
+            </div>
+            <ul class="ml-4">
+              <li>代码分析和搜索任务</li>
+              <li>AI对话和问答服务</li>
+              <li>文档生成和处理</li>
+              <li>其他依赖AI模型的功能</li>
+            </ul>
+          </v-alert>
+          
+          <div class="mb-3">
+            <span class="font-weight-bold">即将切换到：</span>
+            <v-chip 
+              :color="pendingSwitchValue ? 'info' : 'primary'" 
+              class="ml-2" 
+              label
+            >
+              {{ pendingSwitchValue ? '云端模型' : '本地模型' }}
+            </v-chip>
+          </div>
+          
+          <div class="text-body-2 text-grey-darken-1">
+            请确保当前没有重要任务正在进行，然后点击确认继续。
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn 
+            text 
+            @click="cancelSwitch"
+          >
+            取消
+          </v-btn>
+          <v-btn 
+            color="primary" 
+            variant="elevated"
+            @click="confirmSwitch"
+          >
+            确认切换
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 重启服务进度对话框 -->
+    <v-dialog v-model="showRestartDialog" persistent max-width="500">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <v-icon color="primary" class="mr-2">mdi-restart</v-icon>
+          重启服务中
+        </v-card-title>
+        <v-card-text>
+          <div class="mb-4">正在重启核心服务和索引服务，请稍候...</div>
+          <v-list>
+            <v-list-item
+              v-for="step in restartProgress"
+              :key="step.step"
+              class="px-0"
+            >
+              <template #prepend>
+                <v-icon
+                  v-if="step.status === 'pending'"
+                  color="grey"
+                  size="small"
+                >
+                  mdi-circle-outline
+                </v-icon>
+                <v-progress-circular
+                  v-else-if="step.status === 'running'"
+                  indeterminate
+                  color="primary"
+                  size="20"
+                  width="2"
+                ></v-progress-circular>
+                <v-icon
+                  v-else-if="step.status === 'completed'"
+                  color="success"
+                  size="small"
+                >
+                  mdi-check-circle
+                </v-icon>
+                <v-icon
+                  v-else-if="step.status === 'error'"
+                  color="error"
+                  size="small"
+                >
+                  mdi-close-circle
+                </v-icon>
+              </template>
+              <v-list-item-title
+                :class="{
+                  'text-grey': step.status === 'pending',
+                  'text-primary': step.status === 'running',
+                  'text-success': step.status === 'completed',
+                  'text-error': step.status === 'error'
+                }"
+              >
+                {{ step.step }}. {{ step.text }}
+              </v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-card-text>
+        <v-card-actions v-if="!isRestarting">
+          <v-spacer></v-spacer>
+          <v-btn
+            color="primary"
+            variant="text"
+            @click="showRestartDialog = false"
+          >
+            关闭
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup>
+import { useStore } from 'vuex'
 import { ref, reactive, onMounted, watch, computed, onBeforeUnmount } from 'vue'
 import { getConfig, updateConfig, getFmConfig, updateFmConfig } from '../service/api.js'
 import draggable from 'vuedraggable'
@@ -1569,12 +1848,30 @@ const needsInstallCount = computed(() => {
 
 // —— 拖拽分配 ——
 const installedModels = ref([])
-const expertSlots = reactive({ coder: [], chatter: [], officer: [] })
-const expertKeys = ['coder', 'chatter', 'officer']
+// 扩展 expertSlots 以包含 fmConfig 中的模型角色
+const expertSlots = reactive({
+  // 原有角色
+  coder: [],
+  chatter: [],
+  officer: [],
+  // fmConfig 模型角色
+  default_model: [], // fmConfig.default_model
+  embedding_model: [] // fmConfig.embedding_model
+})
+// 原有角色键名
+const oldExpertKeys = ['coder', 'chatter', 'officer']
+
+// fmConfig 模型角色键名
+const fmExpertKeys = ['default_model', 'embedding_model']
+
+// 注意：我们不再需要全部角色键名的合并列表，使用各自的列表即可
 const slotLabels = {
   coder: '代码助手',
   chatter: '对话助手',
-  officer: '总结助手'
+  officer: '总结助手',
+  default_model: '索引默认模型',
+  embedding_model: '索引嵌入模型',
+  model_config: '索引弹性策略模型'
 }
 const dragOverSlot = ref(null)
 
@@ -1640,13 +1937,38 @@ const messages = ref([
 ])
 
 // —— 拖拽处理 ——
+const isDragging = ref(false)
+
 const onDragStart = (model) => {
   event.dataTransfer.setData('application/json', JSON.stringify(model))
+  isDragging.value = true
+}
+
+const onDragEnd = () => {
+  isDragging.value = false
 }
 const onDrop = (slot) => {
   dragOverSlot.value = null
   const model = JSON.parse(event.dataTransfer.getData('application/json'))
   expertSlots[slot] = [model]
+
+  // 如果是 fmConfig 相关的角色，直接更新 fmConfig 对应的属性
+  if (fmExpertKeys.includes(slot)) {
+    if (slot === 'default_model') {
+      fmConfig.default_model = model.name
+      console.log('更新 fmConfig.default_model:', model.name)
+    } else if (slot === 'embedding_model') {
+      fmConfig.embedding_model = model.name
+      console.log('更新 fmConfig.embedding_model:', model.name)
+    } else if (slot.startsWith('model_config_')) {
+      // 提取索引数字，如 'model_config_0' 中的 0
+      const index = parseInt(slot.split('_').pop())
+      if (!isNaN(index) && index >= 0 && fmConfig.model_configs[index]) {
+        fmConfig.model_configs[index].name = model.name
+        console.log(`更新 fmConfig.model_configs[${index}].name:`, model.name)
+      }
+    }
+  }
 }
 
 // —— 环境检测 ——
@@ -1875,26 +2197,77 @@ const fetchConfig = async () => {
 }
 
 const initExpertSlotsFromConfig = () => {
-  expertKeys.forEach((slot) => {
+  // 从config初始化原有expertSlots
+  oldExpertKeys.forEach((slot) => {
     const name = config.ollama[slot]
     if (name) {
       const found = installedModels.value.find((m) => m.name === name)
       expertSlots[slot] = found ? [found] : [{ id: name, name, size: '', modified: '' }]
     }
   })
+
+  // 从fmConfig初始化FM相关的expertSlots
+  // 初始化 default_model
+  if (fmConfig.default_model) {
+    const defaultModel = fmConfig.default_model
+    const found = installedModels.value.find((m) => m.name === defaultModel)
+    expertSlots.default_model = found
+      ? [found]
+      : [{ id: defaultModel, name: defaultModel, size: '', modified: '' }]
+  }
+
+  // 初始化 embedding_model
+  if (fmConfig.embedding_model) {
+    const embeddingModel = fmConfig.embedding_model
+    const found = installedModels.value.find((m) => m.name === embeddingModel)
+    expertSlots.embedding_model = found
+      ? [found]
+      : [{ id: embeddingModel, name: embeddingModel, size: '', modified: '' }]
+  }
+
+  // 初始化 model_configs 数组的前三个元素
+  for (let i = 0; i < fmConfig.model_configs.length; i++) {
+    if (fmConfig.model_configs[i]?.name) {
+      const modelName = fmConfig.model_configs[i].name
+      const found = installedModels.value.find((m) => m.name === modelName)
+      const slotKey = `model_config_${i}`
+      expertSlots[slotKey] = found
+        ? [found]
+        : [{ id: modelName, name: modelName, size: '', modified: '' }]
+    }
+  }
 }
 
 const saveModelConfig = async () => {
-  // 同步 expertSlots 到 config
-  expertKeys.forEach((slot) => {
+  // 同步原有 expertSlots 到 config
+  oldExpertKeys.forEach((slot) => {
     config.ollama[slot] = expertSlots[slot][0]?.name || ''
   })
   config.expertSlots = { ...expertSlots }
+
+  // 同步 fmConfig 相关的 expertSlots 到 fmConfig
+  if (expertSlots.default_model[0]) {
+    fmConfig.default_model = expertSlots.default_model[0].name
+  }
+  if (expertSlots.embedding_model[0]) {
+    fmConfig.embedding_model = expertSlots.embedding_model[0].name
+  }
+
+  // 处理 model_configs 数组的前三个元素
+  for (let i = 0; i < 3; i++) {
+    const slotKey = `model_config_${i}`
+    if (expertSlots[slotKey][0] && fmConfig.model_configs[i]) {
+      fmConfig.model_configs[i].name = expertSlots[slotKey][0].name
+    }
+  }
+
   try {
-    await updateConfig(config)
-    alert('模型配置已保存')
+    // 保存两个配置
+    await Promise.all([updateConfig(config), updateFmConfig(fmConfig)])
+    alert('模型配置和FM配置已成功保存')
   } catch (e) {
-    console.error(e)
+    console.error('保存配置失败:', e)
+    alert('保存配置失败: ' + e.message)
   }
 }
 
@@ -1936,6 +2309,8 @@ const removeModel = async (model) => {
 const resetConfig = async () => {
   try {
     await fetchConfig()
+    await fetchFmConfig()
+    await fetchInstalledModels()
     initExpertSlotsFromConfig()
     expandedPanels.value = [] // 可选：收起所有面板
   } catch (e) {
@@ -2116,7 +2491,7 @@ function collectAllCloudConfigs() {
         type: 'model_configs',
         index: idx,
         ref: model.cloud_model,
-        label: `索引弹性策略云模型 #${idx + 1}`
+        label: `索引弹性策略云模型 ${model.size}尺码`
       })
     }
   })
@@ -2147,11 +2522,27 @@ function applyToAllCloudConfigs() {
     }
   })
 }
+// 获取 Vuex store 实例
+const store = useStore()
+const snackbar = computed(() => store.state.snackbar)
+
 // 一键保存
 async function saveAllCloudConfigs() {
-  await updateFmConfig(fmConfig)
-  await updateConfig(config)
-  alert('所有云端模型配置已保存')
+  try {
+    await updateFmConfig(fmConfig)
+    await updateConfig(config)
+    // 使用更友好的通知方式，避免阻塞用户操作
+    store.dispatch('snackbar/showSnackbar', {
+      message: `${allCloudModelsEnabled.value ? '启用云端模型' : '启用本地模型'}`,
+      color: 'success'
+    })
+  } catch (e) {
+    console.error('保存云端模型配置失败:', e)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '保存失败，请重试',
+      color: 'error'
+    })
+  }
 }
 
 // —— 打开 Pandoc 官网 ——
@@ -2314,28 +2705,12 @@ const cloudApiCount = computed(() => {
     if (cfg.api && cfg.api.trim()) count++
   })
   // fmConfig.embedding_cloud_model
-  if (
-    fmConfig.embedding_cloud_model.enabled &&
-    fmConfig.embedding_cloud_model.api &&
-    fmConfig.embedding_cloud_model.api.trim()
-  )
-    count++
+  if (fmConfig.embedding_cloud_model.api && fmConfig.embedding_cloud_model.api.trim()) count++
   // fmConfig.default_cloud_model
-  if (
-    fmConfig.default_cloud_model.enabled &&
-    fmConfig.default_cloud_model.api &&
-    fmConfig.default_cloud_model.api.trim()
-  )
-    count++
+  if (fmConfig.default_cloud_model.api && fmConfig.default_cloud_model.api.trim()) count++
   // fmConfig.model_configs
   fmConfig.model_configs.forEach((model) => {
-    if (
-      model.cloud_model &&
-      model.cloud_model.enabled &&
-      model.cloud_model.api &&
-      model.cloud_model.api.trim()
-    )
-      count++
+    if (model.cloud_model && model.cloud_model.api && model.cloud_model.api.trim()) count++
   })
   return count
 })
@@ -2355,6 +2730,208 @@ const cloudVendors = computed(() => {
   })
   return Array.from(vendors)
 })
+
+// 云端模型一键开关状态
+const allCloudModelsEnabled = computed({
+  get: () => {
+    // 检查所有云端模型是否都已启用
+    // 如果有任何一个云端模型未启用，则返回false
+    // 1. 检查config.custom中的模型
+    for (const cfg of Object.values(config.custom)) {
+      if (cfg.api && cfg.api.trim() && !cfg.enabled) {
+        return false
+      }
+    }
+
+    // 2. 检查fmConfig.embedding_cloud_model
+    if (
+      fmConfig.embedding_cloud_model.api &&
+      fmConfig.embedding_cloud_model.api.trim() &&
+      !fmConfig.embedding_cloud_model.enabled
+    ) {
+      return false
+    }
+
+    // 3. 检查fmConfig.default_cloud_model
+    if (
+      fmConfig.default_cloud_model.api &&
+      fmConfig.default_cloud_model.api.trim() &&
+      !fmConfig.default_cloud_model.enabled
+    ) {
+      return false
+    }
+
+    // 4. 检查fmConfig.model_configs中的云端模型
+    for (const model of fmConfig.model_configs) {
+      if (
+        model.cloud_model &&
+        model.cloud_model.api &&
+        model.cloud_model.api.trim() &&
+        !model.cloud_model.enabled
+      ) {
+        return false
+      }
+    }
+
+    // 如果所有模型都已启用或没有配置API，则返回true
+    return cloudApiCount.value > 0
+  },
+  set: () => {
+    // 这里不需要实现setter，因为我们使用toggleAllCloudModels方法来更新状态
+  }
+})
+
+// 进度状态
+const isRestarting = ref(false)
+const showRestartDialog = ref(false)
+const showSwitchConfirmDialog = ref(false)
+const pendingSwitchValue = ref(false)
+const restartProgress = ref([
+  { step: 1, text: '修改配置', status: 'pending' },
+  { step: 2, text: '停止核心服务', status: 'pending' },
+  { step: 3, text: '停止索引服务', status: 'pending' },
+  { step: 4, text: '启动核心服务', status: 'pending' },
+  { step: 5, text: '启动索引服务', status: 'pending' },
+  { step: 6, text: '完成', status: 'pending' }
+])
+
+// 显示切换确认对话框
+const toggleAllCloudModels = async (newValue) => {
+  console.log('toggleAllCloudModels', newValue)
+  
+  // 保存待切换的值并显示确认对话框
+  pendingSwitchValue.value = newValue
+  showSwitchConfirmDialog.value = true
+}
+
+// 取消切换
+const cancelSwitch = () => {
+  showSwitchConfirmDialog.value = false
+  pendingSwitchValue.value = false
+}
+
+// 确认切换并执行实际的切换逻辑
+const confirmSwitch = async () => {
+  showSwitchConfirmDialog.value = false
+  await executeModelSwitch(pendingSwitchValue.value)
+}
+
+// 实际执行模型切换的逻辑
+const executeModelSwitch = async (newValue) => {
+  console.log('executeModelSwitch', newValue)
+
+  // 重置进度状态
+  restartProgress.value.forEach(step => step.status = 'pending')
+  isRestarting.value = true
+  showRestartDialog.value = true
+  
+  try {
+    // 步骤1: 修改配置
+    restartProgress.value[0].status = 'running'
+    
+    // 1. 更新config.custom中的模型
+    Object.values(config.custom).forEach((cfg) => {
+      if (cfg.api && cfg.api.trim()) {
+        cfg.enabled = newValue
+      }
+    })
+
+    // 2. 更新fmConfig.embedding_cloud_model
+    if (fmConfig.embedding_cloud_model.api && fmConfig.embedding_cloud_model.api.trim()) {
+      fmConfig.embedding_cloud_model.enabled = newValue
+    }
+
+    // 3. 更新fmConfig.default_cloud_model
+    if (fmConfig.default_cloud_model.api && fmConfig.default_cloud_model.api.trim()) {
+      fmConfig.default_cloud_model.enabled = newValue
+    }
+
+    // 4. 更新fmConfig.model_configs中的云端模型
+    fmConfig.model_configs.forEach((model) => {
+      if (model.cloud_model && model.cloud_model.api && model.cloud_model.api.trim()) {
+        model.cloud_model.enabled = newValue
+      }
+    })
+
+    // 5. 保存配置
+    await updateFmConfig(fmConfig)
+    await updateConfig(config)
+    
+    restartProgress.value[0].status = 'completed'
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // 步骤2: 停止核心服务
+    restartProgress.value[1].status = 'running'
+    try {
+      await window.electron.stopApp()
+      restartProgress.value[1].status = 'completed'
+    } catch (error) {
+      console.warn('停止核心服务失败，可能已经停止:', error)
+      restartProgress.value[1].status = 'completed'
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // 步骤3: 停止索引服务
+    restartProgress.value[2].status = 'running'
+    try {
+      await window.electron.stopFmHttp()
+      restartProgress.value[2].status = 'completed'
+    } catch (error) {
+      console.warn('停止索引服务失败，可能已经停止:', error)
+      restartProgress.value[2].status = 'completed'
+    }
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    // 步骤4: 启动核心服务
+    restartProgress.value[3].status = 'running'
+    const sysConfigResp = await window.electron.sysConfig()
+    const startAppResult = await window.electron.startApp(sysConfigResp.configPath)
+    if (startAppResult.started) {
+      restartProgress.value[3].status = 'completed'
+    } else {
+      throw new Error('启动核心服务失败')
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // 步骤5: 启动索引服务
+    restartProgress.value[4].status = 'running'
+    const fmConfigResp = await window.electron.fmConfig()
+    const startFmResult = await window.electron.startFmHttp(fmConfigResp.configPath)
+    if (startFmResult.started) {
+      restartProgress.value[4].status = 'completed'
+    } else {
+      throw new Error('启动索引服务失败')
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    
+    // 步骤6: 完成
+    restartProgress.value[5].status = 'completed'
+    
+    store.dispatch('snackbar/showSnackbar', {
+      message: `${newValue ? '云端模型' : '本地模型'}模式切换完成，服务已重启`,
+      color: 'success'
+    })
+    
+  } catch (error) {
+    console.error('切换模型模式失败:', error)
+    // 标记当前步骤为失败
+    const currentStepIndex = restartProgress.value.findIndex(step => step.status === 'running')
+    if (currentStepIndex !== -1) {
+      restartProgress.value[currentStepIndex].status = 'error'
+    }
+    
+    store.dispatch('snackbar/showSnackbar', {
+      message: '切换模型模式失败，请检查服务状态',
+      color: 'error'
+    })
+  } finally {
+    isRestarting.value = false
+    // 3秒后关闭进度对话框
+    setTimeout(() => {
+      showRestartDialog.value = false
+    }, 3000)
+  }
+}
 
 onMounted(async () => {
   await fetchConfig()
@@ -2395,8 +2972,8 @@ onMounted(async () => {
   transition: background-color 0.2s;
 }
 .model-list {
-  width: 300px;
-  height: 400px;
+  width: 450px;
+  height: 500px;
   overflow-y: auto;
   display: flex;
   flex-wrap: wrap;
@@ -2407,6 +2984,7 @@ onMounted(async () => {
   border-radius: 4px;
 }
 .exp-list {
+  height: 500px;
   position: relative;
   flex: 1;
   overflow-y: auto;
@@ -2426,7 +3004,7 @@ onMounted(async () => {
   font-size: 24px;
   color: lightgrey;
   pointer-events: none;
-  z-index: 1;
+  z-index: -1;
 }
 .chip-item {
   cursor: grab;
@@ -2442,13 +3020,29 @@ onMounted(async () => {
   padding: 4px 8px !important;
   height: auto !important;
   min-height: auto !important;
-  line-height: 1.2 !important;
+  font-size: 12px !important;
+  line-height: 2 !important;
+  text-align: center !important;
 }
 .expert-chip .v-chip__content {
   white-space: normal;
   word-break: break-word;
   height: auto;
   line-height: 1.2;
+}
+
+/* FM模型角色分组标题样式 */
+.role-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.card-transparent {
+  opacity: 0.6;
+  transition: opacity 0.3s ease;
 }
 /* 让 v-progress-linear 的进度条宽度变化带过渡动画 */
 .v-progress-linear .v-progress-linear__bar {
