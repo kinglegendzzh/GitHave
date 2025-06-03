@@ -4,7 +4,7 @@
     <v-navigation-drawer
       v-model="drawer"
       app
-      :rail="false"
+      :rail="isRailMode"
       :dark="isDark"
       :color="isDark ? 'black' : 'white'"
       style="padding-top: 20px"
@@ -45,48 +45,97 @@
             active-class="active-link"
             :active="$route.path === item.to"
             @click="handleNav(item)"
-          ></v-list-item>
-
-          <!-- 有子菜单时，使用 v-list-group -->
-          <v-list-group
-            v-if="item.children"
-            :id="`group-${item.title}-${index}`"
-            :key="`${item.title}-group-${index}`"
-            class="no-drag-region"
-            :prepend-icon="item.icon"
-            @update:value="updateGroupState(item, $event)"
           >
-            <template #activator="{ props }">
-              <v-list-item
-                class="no-drag-region"
-                v-bind="props"
-                :title="item.title"
+            <v-tooltip activator="parent" location="end">
+              {{ item.title }}
+            </v-tooltip>
+          </v-list-item>
+
+          <!-- 有子菜单时的处理 -->
+          <template v-if="item.children">
+            <!-- rail模式下使用悬浮菜单 -->
+            <v-menu
+               v-if="isRailMode"
+               :key="`${item.title}-menu-${index}`"
+               :close-on-content-click="false"
+               location="end"
+               offset="10"
+             >
+              <template #activator="{ props }">
+                <v-list-item
+                  class="no-drag-region"
+                  v-bind="props"
+                  :prepend-icon="item.icon"
+                  :title="''"
+                  :class="{ 'text-white': isDark, 'text-black': !isDark }"
+                  size="medium"
+                  active-class="active-link"
+                  :active="isParentMenuActive(item)"
+                >
+                  <v-tooltip activator="parent" location="end">
+                    {{ item.title }}
+                  </v-tooltip>
+                </v-list-item>
+              </template>
+              <v-list
+                :bg-color="isDark ? 'black' : 'white'"
                 :class="{ 'text-white': isDark, 'text-black': !isDark }"
-              ></v-list-item>
-            </template>
-            <!-- 遍历子菜单 -->
-            <v-list-item
-              v-for="(child, i) in item.children"
-              :key="`${item.title}-${i}`"
+                density="compact"
+              >
+                <v-list-item
+                  v-for="(child, i) in item.children"
+                  :key="`${item.title}-${i}`"
+                  :prepend-icon="child.icon"
+                  :title="child.title"
+                  :class="{ 'text-white': isDark, 'text-black': !isDark }"
+                  size="small"
+                  active-class="active-link"
+                  :active="$route.path === child.to"
+                  @click="handleNav(child)"
+                ></v-list-item>
+              </v-list>
+            </v-menu>
+            <!-- 非rail模式下使用原来的v-list-group -->
+            <v-list-group
+              v-else
+              :id="`group-${item.title}-${index}`"
+              :key="`${item.title}-group-${index}`"
               class="no-drag-region"
-              :prepend-icon="child.icon"
-              :title="child.title"
-              :class="{ 'text-white': isDark, 'text-black': !isDark }"
-              size="medium"
-              active-class="active-link"
-              :active="$route.path === child.to"
-              @click="handleNav(child)"
-            ></v-list-item>
-          </v-list-group>
+              :prepend-icon="item.icon"
+              @update:value="updateGroupState(item, $event)"
+            >
+              <template #activator="{ props }">
+                <v-list-item
+                  class="no-drag-region"
+                  v-bind="props"
+                  :title="item.title"
+                  :class="{ 'text-white': isDark, 'text-black': !isDark }"
+                ></v-list-item>
+              </template>
+              <!-- 遍历子菜单 -->
+              <v-list-item
+                v-for="(child, i) in item.children"
+                :key="`${item.title}-${i}`"
+                class="no-drag-region"
+                :prepend-icon="child.icon"
+                :title="child.title"
+                :class="{ 'text-white': isDark, 'text-black': !isDark }"
+                size="medium"
+                active-class="active-link"
+                :active="$route.path === child.to"
+                @click="handleNav(child)"
+              ></v-list-item>
+            </v-list-group>
+          </template>
         </template>
       </v-list>
     </v-navigation-drawer>
 
     <!-- 顶部工具栏 -->
-    <v-app-bar app :dark="isDark" class="drag-region">
+    <v-app-bar app :dark="isDark" class="drag-region pt-0">
       <v-tooltip class="no-drag-region" bottom>
         <template #activator="{ props }">
-          <v-btn class="no-drag-region" icon v-bind="props" @click="drawer = !drawer">
+          <v-btn class="no-drag-region" icon v-bind="props" @click="toggleDrawer">
             <v-icon>mdi-menu</v-icon>
           </v-btn>
         </template>
@@ -233,7 +282,7 @@
       </RouterView>
       <v-snackbar
         v-model="showConfigSnackbar"
-        :timeout="-1"
+        :timeout="15000"
         top
         right
         color="red"
@@ -300,6 +349,7 @@ export default {
       isTogglingApp: false, // 核心服务按钮防连点
       isTogglingFm: false, // 索引服务按钮防连点
       isCompactMode: true, // 紧凑模式开关
+      isRailMode: true, // 侧边栏rail模式开关
       // 健康状态枚举：支持 "正在重启"、"已关闭"、"已启动"
       toggleAppTip: '强制关闭核心服务',
       appHealthState: '正在重启',
@@ -311,21 +361,13 @@ export default {
       drawer: true,
       navItems: [
         { title: '快速开始', to: '/start', icon: 'mdi-home' },
-        { title: 'IDE (研究预览版)', to: '/ide', icon: 'mdi-code-greater-than', standalone: true },
         { title: '文件枢纽', to: '/report', icon: 'mdi-microsoft-word' },
-        {
-          title: '应用中心',
-          icon: 'mdi-robot',
-          expanded: false,
-          children: [
-            { title: '深度搜索', to: '/search', icon: 'mdi-book-search' },
-            // { title: '代码记忆', to: '/memory', icon: 'mdi-brain' },
-            { title: '空间透镜', to: '/space', icon: 'mdi-telescope' },
-            { title: '代码视窗', to: '/finder', icon: 'mdi-code-block-tags' },
-            { title: '提交审查', to: '/commits/history', icon: 'mdi-github' },
-            { title: '推送机器人', to: '/sender', icon: 'mdi-send' }
-          ]
-        },
+        { title: '深度搜索', to: '/search', icon: 'mdi-book-search' },
+        // { title: '代码记忆', to: '/memory', icon: 'mdi-brain' },
+        { title: '空间透镜', to: '/space', icon: 'mdi-telescope' },
+        { title: '代码视窗', to: '/finder', icon: 'mdi-code-block-tags' },
+        { title: '提交审查', to: '/commits/history', icon: 'mdi-github' },
+        { title: '推送机器人', to: '/sender', icon: 'mdi-robot' },
         {
           title: '仓库管理',
           icon: 'mdi-source-repository',
@@ -343,7 +385,8 @@ export default {
             { title: '模型配置', to: '/model', icon: 'mdi-cards-playing-club-multiple-outline' },
             { title: '智能体配置', to: '/agent', icon: 'mdi-robot-happy-outline' }
           ]
-        }
+        },
+        { title: 'IDE (研究预览版)', to: '/ide', icon: 'mdi-code-greater-than', standalone: true },
         // {
         //   title: '社区',
         //   icon: 'mdi-hammer-sickle',
@@ -351,7 +394,7 @@ export default {
         //   children: [
         //     { title: '核心技术报告', to: '/', icon: 'mdi-atom' },
         //     { title: '代码维基', to: '/', icon: 'mdi-wikipedia' },
-        //     { title: '仓库周刊', to: '/', icon: 'mdi-newspaper' },
+        //     { title: '仓库报刊', to: '/', icon: 'mdi-newspaper' },
         //     { title: '公共配置镜像', to: '/', icon: 'mdi-mirror-rectangle' },
         //     { title: '公共索引镜像', to: '/', icon: 'mdi-flash' },
         //   ]
@@ -424,6 +467,13 @@ export default {
       else if (this.healthState === 'yes') return 'mdi-check-circle'
       else if (this.healthState === 'no') return 'mdi-close-circle'
       else return 'mdi-help-circle'
+    },
+    // 判断父级菜单是否应该高亮（当前路由匹配其子菜单时）
+    isParentMenuActive() {
+      return (item) => {
+        if (!item.children) return false
+        return item.children.some(child => this.$route.path === child.to)
+      }
     }
   },
   async created() {
@@ -495,6 +545,49 @@ export default {
     }
   },
   methods: {
+    loadSidebarState() {
+      try {
+        const savedState = localStorage.getItem('githave-sidebar-state')
+        if (savedState) {
+          const state = JSON.parse(savedState)
+          this.drawer = state.drawer !== undefined ? state.drawer : true
+          this.isRailMode = state.isRailMode !== undefined ? state.isRailMode : false
+        }
+      } catch (error) {
+        console.warn('Failed to load sidebar state from localStorage:', error)
+        // 使用默认值
+        this.drawer = true
+        this.isRailMode = false
+      }
+    },
+    saveSidebarState() {
+      try {
+        const state = {
+          drawer: this.drawer,
+          isRailMode: this.isRailMode
+        }
+        localStorage.setItem('githave-sidebar-state', JSON.stringify(state))
+      } catch (error) {
+        console.warn('Failed to save sidebar state to localStorage:', error)
+      }
+    },
+    toggleDrawer() {
+      if (this.drawer) {
+        // 如果当前是展开状态，先切换到rail模式，再关闭
+        if (!this.isRailMode) {
+          this.isRailMode = true
+        } else {
+          this.drawer = false
+          this.isRailMode = false
+        }
+      } else {
+        // 如果当前是关闭状态，直接展开
+        this.drawer = true
+        this.isRailMode = false
+      }
+      // 保存状态到localStorage
+      this.saveSidebarState()
+    },
     goBack() {
       window.history.back()
     },
@@ -773,6 +866,9 @@ export default {
     }
   },
   async mounted() {
+    // 从localStorage恢复侧边栏状态
+    this.loadSidebarState()
+    
     const storedTheme = localStorage.getItem('isDark')
     if (storedTheme !== null) {
       this.isDark = storedTheme === 'true'
