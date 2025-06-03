@@ -15,7 +15,7 @@
         <v-toolbar flat density="compact">
           <v-toolbar-title style="user-select: none; pointer-events: none">
             <v-icon>mdi-code-block-tags</v-icon>
-            <span style="border: 5px; padding: 0 4px"> GitHave IDE </span>
+            <span style="border: 5px; padding: 0 4px"> GitHave IDE (beta) </span>
           </v-toolbar-title>
           <div class="d-flex align-center ml-auto">
             <v-autocomplete
@@ -78,14 +78,14 @@
             </v-tooltip>
 
             <!-- 其余按钮保持 -->
-            <v-tooltip text="从本地目录打开">
+            <v-tooltip text="从文件夹打开">
               <template #activator="{ props }">
                 <v-btn v-bind="props" outlined plain @click="openOutside(breadcrumbs, true)">
                   <v-icon>mdi-folder-eye</v-icon>
                 </v-btn>
               </template>
             </v-tooltip>
-            <v-tooltip text="从本地应用程序打开">
+            <v-tooltip text="从应用程序打开">
               <template #activator="{ props }">
                 <v-btn v-bind="props" outlined plain @click="openOutside(breadcrumbs, false)">
                   <v-icon>mdi-file-search-outline</v-icon>
