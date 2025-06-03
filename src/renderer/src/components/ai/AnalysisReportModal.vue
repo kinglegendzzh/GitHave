@@ -19,6 +19,7 @@
       <div class="flex items-center justify-between px-6 py-4 border-b">
         <h3 v-if="props.api  === 'deepResearch'" class="text-xl font-semibold">代码分析报告</h3>
         <h3 v-else-if="props.api === 'commitsResearch'" class="text-xl font-semibold">提交记录分析报告</h3>
+        <h3 v-else-if="props.api === 'weeklyReport'" class="text-xl font-semibold">仓库报刊</h3>
         <h3 v-else class="text-xl font-semibold">流程图</h3>
       </div>
 
@@ -56,6 +57,13 @@
             </router-link>
             <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
           </div>
+          <div v-else-if="props.api === 'weeklyReport'" class="ml-auto flex space-x-2">
+            <span class="text-green-600"> 仓库报刊已生成，请前往'文件枢纽'查看！</span>
+            <router-link :to="{ name: 'report' }">
+              <v-btn color="primary" @click="close" size="small">文件枢纽</v-btn>
+            </router-link>
+            <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
+          </div>
           <div v-else class="ml-auto flex space-x-2">
             <span class="text-green-600"> 流程图已生成成功！</span>
             <v-btn color="error" variant="outlined" size="small" @click="restartStreaming">不满意?重新生成</v-btn>
@@ -71,7 +79,7 @@
 
       <!-- Content: flex-1 + min-h-0 + overflow-auto -->
       <div class="flex-1 min-h-0 overflow-auto px-6 py-4 prose max-w-none" style="max-height: 70vh; max-width: 90vw;">
-        <div v-if="props.api === 'deepResearch' || props.api === 'commitsResearch'">
+        <div v-if="props.api === 'deepResearch' || props.api === 'commitsResearch' || props.api === 'weeklyReport'">
           <div v-html="renderedMarkdown"></div>
         </div>
         <div v-else>
@@ -99,7 +107,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
-import { deepResearch, flowChart, deleteFile, commitsResearch } from '../../service/api.js'
+import { deepResearch, flowChart, deleteFile, commitsResearch, generateWeeklyReport } from '../../service/api.js'
 import { useStore } from 'vuex'
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs'
 import { useRouter } from 'vue-router'
@@ -132,6 +140,8 @@ const props = defineProps<{
   api: string
   count: number
   commitRecord?: any
+  startTime?: string
+  endTime?: string
 }>()
 const emit = defineEmits(['update:modelValue'])
 
@@ -299,6 +309,11 @@ async function startStreaming() {
         message: `正在异步${scopeText.value}生成提交记录分析报告…`, color: 'info'
       })
       response = await commitsResearch(repoID, props.commitRecord, true)
+    } else if (props.api === 'weeklyReport') {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `正在异步${scopeText.value}…`, color: 'info'
+      })
+      response = await generateWeeklyReport(repoID, props.startTime, props.endTime, true)
     } else {
       const saved = loadRepoProgress(repoID);
       if (saved != null) {
@@ -375,10 +390,12 @@ async function startStreaming() {
     isProcessing.value = false
     store.dispatch('snackbar/showSnackbar', {
       message: success.value
-        ? (props.api === 'deepResearch' ? '代码分析报告生成成功' : 
-           props.api === 'commitsResearch' ? '提交记录分析报告生成成功' : '流程图生成成功')
-        : (props.api === 'deepResearch' ? '代码分析报告生成失败' : 
-           props.api === 'commitsResearch' ? '提交记录分析报告生成失败' : '流程图生成失败'),
+        ? (props.api === 'deepResearch' ? '代码分析报告生成成功' :
+           props.api === 'commitsResearch' ? '提交记录分析报告生成成功' :
+           props.api === 'weeklyReport' ? '仓库报刊生成成功' : '流程图生成成功')
+        : (props.api === 'deepResearch' ? '代码分析报告生成失败' :
+           props.api === 'commitsResearch' ? '提交记录分析报告生成失败' :
+           props.api === 'weeklyReport' ? '仓库报刊生成失败' : '流程图生成失败'),
       color: success.value ? 'success' : 'error'
     })
   }
