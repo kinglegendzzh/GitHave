@@ -107,7 +107,19 @@
         </v-col>
         <v-col cols="auto">
           <v-btn
-            color="black"
+            color="thirdary"
+            @click="openWeeklyReportDialog"
+            :disabled="isGeneratingWeeklyReport"
+            :loading="isGeneratingWeeklyReport"
+            density="compact"
+            variant="outlined"
+          >
+            生成仓库报刊
+          </v-btn>
+        </v-col>
+        <v-col cols="auto">
+          <v-btn
+            color="warning"
             @click="openMap1Dialog"
             :disabled="filter.repoID == null || isGeneratingChart"
             :loading="isGeneratingChart"
@@ -119,7 +131,7 @@
         </v-col>
         <v-col cols="auto">
           <v-btn
-            color="green"
+            color="warning"
             @click="openMap2Dialog"
             :disabled="filter.repoID == null || isGeneratingHeatmap"
             :loading="isGeneratingHeatmap"
@@ -215,7 +227,7 @@
         <template #item.message="{ item }">
           <v-tooltip interactive>
             <template #activator="{ props }">
-              <span v-bind="props" class="text-truncate" style="max-width: 40%;">{{ omit(item.message,100) }}</span>
+              <span v-bind="props" class="text-truncate" style="max-width: 40%;">{{ omit(item.message,50) }}</span>
             </template>
             <span>{{ item.message }}</span>
           </v-tooltip>
@@ -315,6 +327,31 @@
         </v-card>
       </v-dialog>
 
+      <!-- **** 生成仓库报刊对话框 **** -->
+      <v-dialog v-model="showWeeklyReportDialog" max-width="500">
+        <v-card>
+          <v-card-title class="text-h6">生成仓库报刊</v-card-title>
+          <v-card-text>
+            <v-select
+              v-model="weeklyReportTimeRange"
+              :items="[
+                { title: '当前筛选时间范围', value: 'current' },
+                { title: '最近一周', value: 'week' },
+                { title: '最近一个月', value: 'month' }
+              ]"
+              label="选择时间范围"
+              variant="outlined"
+              density="compact"
+            />
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer/>
+            <v-btn text @click="closeWeeklyReportDialog">取消</v-btn>
+            <v-btn color="primary" text @click="generateWeeklyReportConfirm" :loading="isGeneratingWeeklyReport">确认生成</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
       <!-- **** 批量明细确认对话框 **** -->
       <v-dialog v-model="confirmCombinedDetail" max-width="400">
         <v-card>
@@ -372,13 +409,13 @@
                 </v-col>
               </v-row>
             </div>
-            
+
             <v-divider class="mb-4"></v-divider>
-            
+
             <div v-if="Object.keys(authorNameMap).length === 0" class="text-center text-grey py-4">
               暂无作者马甲设置
             </div>
-            
+
             <div v-else>
               <v-list density="compact">
                 <v-list-item
@@ -389,11 +426,11 @@
                   <template #prepend>
                     <v-icon>mdi-account</v-icon>
                   </template>
-                  
+
                   <v-list-item-title>
                     <strong>{{ original }}</strong> → {{ alias }}
                   </v-list-item-title>
-                  
+
                   <template #append>
                     <v-btn
                       icon="mdi-pencil"
@@ -470,7 +507,7 @@
                 color="primary"
               ></v-radio>
             </v-radio-group>
-            
+
             <v-expand-transition>
               <div v-if="heatmapType === 'selected'">
                 <v-divider class="mb-4"></v-divider>
@@ -491,7 +528,7 @@
                     {{ authorNameMap[author] ? authorNameMap[author] + '(' + author + ')' : author }}
                   </v-chip>
                 </v-chip-group>
-                
+
                 <v-alert
                   v-if="selectedHeatmapAuthors.length === 0"
                   type="info"
@@ -501,7 +538,7 @@
                 >
                   请选择至少一个作者
                 </v-alert>
-                
+
                 <v-alert
                   v-else
                   type="success"
@@ -517,15 +554,52 @@
           <v-card-actions>
             <v-spacer/>
             <v-btn text @click="closeHeatmapDialog">取消</v-btn>
-            <v-btn 
-              color="primary" 
-              text 
+            <v-btn
+              color="primary"
+              text
               @click="generateHeatmapWithOptions"
               :disabled="heatmapType === 'selected' && selectedHeatmapAuthors.length === 0"
               :loading="isGeneratingHeatmap"
             >
               生成热力图
             </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- **** 仓库报刊确认对话框 **** -->
+      <v-dialog v-model="showWeeklyReportDialog" max-width="500">
+        <v-card>
+          <v-card-title class="text-h6">生成仓库报刊</v-card-title>
+          <v-card-text>
+            <div class="mb-4">
+              <v-alert type="info" class="mb-3">
+                当前仓库：{{ getCurrentRepoName() }}
+              </v-alert>
+
+              <v-radio-group v-model="weeklyReportTimeRange" label="选择时间范围">
+                <v-radio
+                  label="当前筛选的日期范围"
+                  value="current"
+                  :disabled="!filter.start || !filter.end"
+                >
+                  <template #label>
+                    <span>当前筛选的日期范围</span>
+                    <span v-if="filter.start && filter.end" class="text-grey ml-2">
+                      ({{ filter.start }} 至 {{ filter.end }})
+                    </span>
+                    <span v-else class="text-red ml-2">(请先设置筛选日期范围)</span>
+                  </template>
+                </v-radio>
+                <v-radio label="近一周" value="week"></v-radio>
+                <v-radio label="近一个月" value="month"></v-radio>
+              </v-radio-group>
+            </div>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer/>
+            <v-btn text @click="closeWeeklyReportDialog">取消</v-btn>
+            <v-btn color="success" text @click="generateWeeklyReportConfirm">确认生成</v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -536,13 +610,15 @@
     />
     <AnalysisReportModal
       v-model="showAnalysisModal"
-      :repo-i-d="String(filter.repoID)"
-      :target-path="''"
-      :scope-text="`提交记录 ${analysisCommitRecord?.[0]?.Hash?.substring(0, 8)} 分析报告`"
-      :whole-repo="false"
-      api="commitsResearch"
-      :count="analysisCommitRecord?.[0]?.FileDiffs?.length || 0"
+      :repo-i-d="analysisRepoID || String(filter.repoID)"
+      :target-path="analysisTargetPath || ''"
+      :scope-text="analysisScopeText || `提交记录 ${analysisCommitRecord?.[0]?.Hash?.substring(0, 8)} 分析报告`"
+      :whole-repo="analysisWholeRepo !== undefined ? analysisWholeRepo : false"
+      :api="analysisApi || 'commitsResearch'"
+      :count="analysisCount || (analysisCommitRecord?.[0]?.FileDiffs?.length || 0)"
       :commit-record="analysisCommitRecord"
+      :start-time="analysisStartTime"
+      :end-time="analysisEndTime"
     />
     <v-snackbar
       v-model="snackbar.show"
@@ -557,7 +633,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { listRepos, filterCommits, listBranches, enrichFileDiffs, clearCommitsCache, exportCommitDetails, generateHeatmap, generateContributionChart, getConfig, updateConfig } from "../service/api.js";
+import { listRepos, filterCommits, listBranches, enrichFileDiffs, clearCommitsCache, exportCommitDetails, generateHeatmap, generateContributionChart, getConfig, updateConfig, generateWeeklyReport } from "../service/api.js";
 import {
   VCard,
   VForm,
@@ -584,6 +660,16 @@ const analysisCommitRecord = ref<CommitRecord[] | null>(null)
 const isCheckingCode = ref<string | null>(null) // 用于跟踪正在加载的 commit hash
 const isGeneratingChart = ref(false) // 用于跟踪贡献榜生成状态
 const isGeneratingHeatmap = ref(false) // 用于跟踪热力图生成状态
+
+// 分析报告相关变量
+const analysisRepoID = ref('')
+const analysisTargetPath = ref('')
+const analysisScopeText = ref('')
+const analysisWholeRepo = ref<boolean | undefined>(undefined)
+const analysisApi = ref('')
+const analysisCount = ref(0)
+const analysisStartTime = ref<string | undefined>(undefined)
+const analysisEndTime = ref<string | undefined>(undefined)
 
 
  // 用来控制错误提示
@@ -627,6 +713,11 @@ const heatmapAuthors = ref<string[]>([])
 const selectedHeatmapAuthors = ref<string[]>([])
 const heatmapType = ref<'all' | 'selected'>('all')
 
+// 仓库报刊相关变量
+const showWeeklyReportDialog = ref(false)
+const isGeneratingWeeklyReport = ref(false)
+const weeklyReportTimeRange = ref<'current' | 'week' | 'month'>('week')
+
 const filter = reactive({
   repoID: null as number | null,
   branch: '' as string,
@@ -642,7 +733,7 @@ onMounted(() => {
   // 先检查新的localStorage结构
   let savedSelections = localStorage.getItem('repoSelections');
   let lastRepoID: number | null = null;
-  
+
   // 如果没有新结构，检查旧的localStorage并迁移
   if (!savedSelections) {
     const oldSelection = localStorage.getItem('repoSelection');
@@ -664,11 +755,11 @@ onMounted(() => {
       }
     }
   }
-  
+
   if (savedSelections) {
     try {
       const repoSelections = JSON.parse(savedSelections);
-      
+
       // 如果没有从迁移中获得lastRepoID，尝试从现有数据中找到最后使用的仓库
       if (!lastRepoID) {
         // 首先尝试从 lastUsedRepoID 中获取最后使用的仓库
@@ -680,7 +771,7 @@ onMounted(() => {
             lastRepoID = parsedLastRepoID;
           }
         }
-        
+
         // 如果还是没有找到，则使用第一个找到的仓库作为fallback
         if (!lastRepoID) {
           const repoIDs = Object.keys(repoSelections);
@@ -689,14 +780,14 @@ onMounted(() => {
           }
         }
       }
-      
+
       if (lastRepoID && repoSelections[lastRepoID]) {
         const { repoID, branch } = repoSelections[lastRepoID];
         filter.repoID = parseInt(repoID, 10);
         if (branch) {
           filter.branch = branch;
         }
-        
+
         // 如果初始化了 repoID，则获取分支列表并获取提交记录
         fetchRepos().then(() => {
            ensureBranch(filter.repoID).then(() => {
@@ -720,7 +811,7 @@ onMounted(() => {
     // 如果 localStorage 中没有保存数据，则正常获取仓库列表
     fetchRepos();
   }
-  
+
   // 加载作者马甲配置
   loadAuthorNameMap();
 });
@@ -732,20 +823,20 @@ function saveRepoSelection() {
       // 获取现有的所有仓库选择记录
       const existingData = localStorage.getItem('repoSelections');
       let repoSelections = {};
-      
+
       if (existingData) {
         repoSelections = JSON.parse(existingData);
       }
-      
+
       // 更新当前仓库的分支信息
       repoSelections[filter.repoID] = {
         repoID: filter.repoID,
         branch: filter.branch || ''
       };
-      
+
       // 保存更新后的数据
       localStorage.setItem('repoSelections', JSON.stringify(repoSelections));
-      
+
       // 记录最后使用的仓库ID
       localStorage.setItem('lastUsedRepoID', filter.repoID.toString());
     } catch (e) {
@@ -793,7 +884,7 @@ const headers = [
     // 1️⃣ 先从 localStorage 中读取该仓库保存的分支信息
     const savedSelections = localStorage.getItem('repoSelections');
     let savedBranch: string | null = null;
-    
+
     if (savedSelections) {
       try {
         const repoSelections = JSON.parse(savedSelections);
@@ -805,19 +896,19 @@ const headers = [
         console.error('解析 localStorage 中的分支信息失败:', e);
       }
     }
-    
+
     // 2️⃣ 调用后端接口获取该仓库的所有分支列表
     const res = await listBranches(repoID);
     if (res.status === 200 && Array.isArray(res.data.data)) {
       branchOptions.value = res.data.data;
-      
+
       // 3️⃣ 如果缓存分支存在且在当前列表中，则直接使用缓存分支；否则回退到第一个分支
       if (savedBranch && branchOptions.value.includes(savedBranch)) {
         filter.branch = savedBranch;
       } else if (branchOptions.value.length > 0) {
         filter.branch = branchOptions.value[0];
       }
-      
+
       // 4️⃣ 不论是“读取到缓存分支”还是“回退到列表第一个分支”，都要立刻保存到 localStorage
       saveRepoSelection();
     }
@@ -863,7 +954,7 @@ async function openMap1Dialog() {
     showLocalSnackbar('请先选择仓库', 'warning')
     return
   }
-  
+
   isGeneratingChart.value = true
   try {
     if (!confirm(`确定要生成该仓库的提交贡献榜吗？（需要一点时间）`)) {
@@ -872,7 +963,7 @@ async function openMap1Dialog() {
     showLocalSnackbar('正在生成仓库提交贡献榜...', 'info')
     const startTime = filter.start ? new Date(filter.start).toISOString().split('T')[0] : undefined
     const endTime = filter.end ? new Date(filter.end).toISOString().split('T')[0] : undefined
-    const res = await generateContributionChart(filter.repoID!, startTime, endTime)
+    const res = await generateContributionChart(filter.repoID!, startTime || '', endTime || '')
     if (res.status === 200) {
       showLocalSnackbar('仓库提交贡献榜生成成功，请在文件枢纽中查看', 'success')
     } else {
@@ -891,17 +982,17 @@ async function openMap2Dialog() {
     showLocalSnackbar('请先选择仓库', 'warning')
     return
   }
-  
+
   // 检查是否已有作者列表，如果没有则提示用户先加载提交记录
   if (heatmapAuthors.value.length === 0) {
     showLocalSnackbar('请先加载提交记录以获取作者列表', 'warning')
     return
   }
-  
+
   // 重置选择状态
   heatmapType.value = 'all'
   selectedHeatmapAuthors.value = []
-  
+
   // 打开选择对话框
   showHeatmapDialog.value = true
 }
@@ -912,13 +1003,13 @@ async function clearCache() {
     showLocalSnackbar('请先选择仓库', 'warning')
     return
   }
-  
+
   // 二次确认
   const confirmed = confirm('确定要清理该仓库的提交缓存吗？\n\n清理后将重新从远程获取提交记录，可能需要一些时间。')
   if (!confirmed) {
     return
   }
-  
+
   try {
     showLocalSnackbar('正在清理缓存...', 'info')
     await clearCommitsCache(filter.repoID)
@@ -961,6 +1052,15 @@ async function generateAnalysisReport(item: typeof commits.value[0]) {
     const enriched = res.data.data
     // 设置完整的提交记录并打开分析报告弹窗
     analysisCommitRecord.value = [enriched]
+    // 重置分析报告参数为默认值
+    analysisRepoID.value = ''
+    analysisTargetPath.value = ''
+    analysisScopeText.value = ''
+    analysisWholeRepo.value = undefined
+    analysisApi.value = ''
+    analysisCount.value = 0
+    analysisStartTime.value = undefined
+    analysisEndTime.value = undefined
     showAnalysisModal.value = true
   } catch (e: any) {
     showLocalSnackbar(`加载提交详情失败：${e.response?.data || e}`, 'error')
@@ -969,7 +1069,7 @@ async function generateAnalysisReport(item: typeof commits.value[0]) {
 async function generateDetailReport(item: typeof commits.value[0]) {
   try {
     showLocalSnackbar('正在生成提交明细...', 'info')
-    
+
     const payload = {
       Hash: item.hash,
       AuthorName: item.authorName,
@@ -979,16 +1079,16 @@ async function generateDetailReport(item: typeof commits.value[0]) {
     }
     const res = await enrichFileDiffs(filter.repoID!, payload)
     const enriched = res.data.data
-    
+
     // 调用导出接口
     const exportRes = await exportCommitDetails([enriched])
-    
+
     // // 处理文件下载
     // const blob = new Blob([exportRes.data], { type: 'text/csv;charset=utf-8' })
     // const url = window.URL.createObjectURL(blob)
     // const link = document.createElement('a')
     // link.href = url
-    
+
     // // 从响应头获取文件名，如果没有则使用默认名称
     // const contentDisposition = exportRes.headers['content-disposition']
     // let filename = `提交明细_${item.hash.substring(0, 8)}.csv`
@@ -998,16 +1098,16 @@ async function generateDetailReport(item: typeof commits.value[0]) {
     //     filename = filenameMatch[1]
     //   }
     // }
-    
+
     // link.download = filename
     // document.body.appendChild(link)
     // link.click()
     // document.body.removeChild(link)
     // window.URL.revokeObjectURL(url)
-    
+
     showLocalSnackbar('提交明细已生成并下载，请前往文件枢纽查看', 'success')
-  
-    
+
+
   } catch (e: any) {
     showLocalSnackbar(`生成提交明细失败：${e.response?.data || e}`, 'error')
   }
@@ -1029,11 +1129,20 @@ async function generateCombinedReport() {
     const results = await Promise.all(promises)
     // 收集所有完整的commitRecords成一个list
     const commitRecords = results.map(r => r.data.data)
-    
+
     // 直接将commitRecords列表传给analysisCommitRecord
     analysisCommitRecord.value = commitRecords
+    // 重置分析报告参数为默认值
+    analysisRepoID.value = ''
+    analysisTargetPath.value = ''
+    analysisScopeText.value = ''
+    analysisWholeRepo.value = undefined
+    analysisApi.value = ''
+    analysisCount.value = 0
+    analysisStartTime.value = undefined
+    analysisEndTime.value = undefined
     showAnalysisModal.value = true
-    
+
     showLocalSnackbar(`已加载 ${commitRecords.length} 条提交记录，正在生成分析报告...`, 'success')
   } catch (error) {
     console.error('生成综合报告失败:', error)
@@ -1057,10 +1166,10 @@ async function generateCombinedDetail() {
     const results = await Promise.all(promises)
     // 收集所有完整的commitRecords成一个list
     const commitRecords = results.map(r => r.data.data)
-    
+
     // 调用导出接口生成综合明细
     const exportRes = await exportCommitDetails(commitRecords)
-    
+
     showLocalSnackbar(`已生成 ${commitRecords.length} 条提交记录的综合明细，请前往文件枢纽查看`, 'success')
   } catch (error) {
     console.error('生成综合明细失败:', error)
@@ -1124,15 +1233,15 @@ async function fetchRepos() {
   try {
     const res = await listRepos()
     const list = Array.isArray(res.data) ? res.data : res.data.data
-    
+
     // 将列表按id降序排序
     const sortedList = list.filter(repo => repo.repo_url !== null && repo.repo_url !== "")
     .sort((a, b) => b.id - a.id)
-    
+
     repos.value = sortedList.map(repo => ({
       id: repo.id,
       name: repo.name,
-      branch: repo.branch, 
+      branch: repo.branch,
       local_path: repo.local_path,
       username: repo.username,
       password: repo.password,
@@ -1162,8 +1271,8 @@ async function fetchCommits() {
   }
   isLoading.value = true
   selectedCommits.value = [] // 清理多选状态
-  const startTime = filter.start ? new Date(filter.start).toISOString().split('T')[0] : undefined
-  const endTime = filter.end ? new Date(filter.end).toISOString().split('T')[0] : undefined
+  const startTime = filter.start ? new Date(filter.start).toISOString() : undefined
+  const endTime = filter.end ? new Date(filter.end).toISOString() : undefined
   const params = {
     repoID: String(filter.repoID),
     branch: filter.branch || undefined,
@@ -1186,7 +1295,7 @@ async function fetchCommits() {
         time: item.Time,
       }))
       : []
-    
+
     // 提取作者列表用于热力图功能
     if (Array.isArray(raw) && raw.length > 0) {
       const authors = [...new Set(raw.map(item => item.AuthorName))]
@@ -1253,18 +1362,18 @@ function addAuthorMapping() {
     showLocalSnackbar('请填写完整的作者名和马甲名称', 'warning')
     return
   }
-  
+
   if (authorNameMap.value[newAuthorMapping.original]) {
     showLocalSnackbar('该作者已存在马甲设置，请使用编辑功能', 'warning')
     return
   }
-  
+
   authorNameMap.value[newAuthorMapping.original] = newAuthorMapping.alias
-  
+
   // 重置表单
   newAuthorMapping.original = ''
   newAuthorMapping.alias = ''
-  
+
   showLocalSnackbar('添加成功', 'success')
 }
 
@@ -1281,14 +1390,14 @@ function updateAuthorMapping() {
     showLocalSnackbar('请填写马甲名称', 'warning')
     return
   }
-  
+
   authorNameMap.value[editingAuthor.original] = editingAuthor.alias
   showEditAuthorDialog.value = false
-  
+
   // 重置编辑表单
   editingAuthor.original = ''
   editingAuthor.alias = ''
-  
+
   showLocalSnackbar('更新成功', 'success')
 }
 
@@ -1305,20 +1414,20 @@ async function saveAuthorMap() {
     // 先获取当前配置
     const currentConfigResponse = await getConfig()
     let currentConfig = {}
-    
+
     if (currentConfigResponse.status === 200 && currentConfigResponse.data) {
       currentConfig = currentConfigResponse.data
     }
-    
+
     // 更新authorNameMap
     const updatedConfig = {
       ...currentConfig,
       authorNameMap: authorNameMap.value
     }
-    
+
     // 保存配置
     const response = await updateConfig(updatedConfig)
-    
+
     if (response.status === 200) {
       showLocalSnackbar('保存成功', 'success')
       closeAuthorMapDialog()
@@ -1350,39 +1459,39 @@ async function generateHeatmapWithOptions() {
     showLocalSnackbar('请先选择仓库', 'warning')
     return
   }
-  
+
   if (heatmapType.value === 'selected' && selectedHeatmapAuthors.value.length === 0) {
     showLocalSnackbar('请选择至少一个作者', 'warning')
     return
   }
-  
+
   isGeneratingHeatmap.value = true
   showHeatmapDialog.value = false
-  
+
   try {
     showLocalSnackbar('正在生成提交活跃度热力图...', 'info')
     const repoId = filter.repoID
-    
+
     // 根据选择类型确定作者参数
     let authorName: string | undefined = undefined
     if (heatmapType.value === 'selected') {
       // 如果只选择了一个作者，传递单个作者名
       // 如果选择了多个作者，这里可能需要调整API来支持多个作者
-      authorName = selectedHeatmapAuthors.value.length === 1 
-        ? selectedHeatmapAuthors.value[0] 
+      authorName = selectedHeatmapAuthors.value.length === 1
+        ? selectedHeatmapAuthors.value[0]
         : selectedHeatmapAuthors.value.join(',')
     }
-    
+
     const repoName = repos.value.find(r => r.id === filter.repoID)?.name || '仓库'
-    const title = heatmapType.value === 'all' 
+    const title = heatmapType.value === 'all'
       ? `${repoName} 提交活跃度热力图（所有作者）`
       : `${repoName} 提交活跃度热力图（${selectedHeatmapAuthors.value.join('、')}）`
-    
+
     const startTime = filter.start ? new Date(filter.start).toISOString().split('T')[0] : undefined
     const endTime = filter.end ? new Date(filter.end).toISOString().split('T')[0] : undefined
-    
-    const res = await generateHeatmap(repoId, authorName || '', title, undefined, undefined, startTime, endTime)
-    
+
+    const res = await generateHeatmap(repoId || 0, authorName || '', title, undefined, undefined, startTime || '', endTime || '')
+
     if (res.status === 200) {
       showLocalSnackbar('提交活跃度热力图生成成功，请在文件枢纽中查看', 'success')
     } else {
@@ -1401,6 +1510,95 @@ function closeHeatmapDialog() {
   showHeatmapDialog.value = false
   selectedHeatmapAuthors.value = []
   heatmapType.value = 'all'
+}
+
+// ========= 仓库报刊相关函数 =========
+// 打开仓库报刊确认对话框
+function openWeeklyReportDialog() {
+  if (filter.repoID == null) {
+    showLocalSnackbar('请先选择仓库', 'warning')
+    return
+  }
+
+  // 重置选择状态
+  weeklyReportTimeRange.value = 'week'
+
+  // 如果有当前筛选的日期范围，默认选择它
+  if (filter.start && filter.end) {
+    weeklyReportTimeRange.value = 'current'
+  }
+
+  showWeeklyReportDialog.value = true
+}
+
+// 关闭仓库报刊确认对话框
+function closeWeeklyReportDialog() {
+  showWeeklyReportDialog.value = false
+  weeklyReportTimeRange.value = 'week'
+}
+
+// 获取当前仓库名称
+function getCurrentRepoName() {
+  if (filter.repoID == null) return '未选择'
+  const repo = repos.value.find(r => r.id === filter.repoID)
+  return repo ? formatRepoTitle(repo) : '未知仓库'
+}
+
+// 确认生成仓库报刊
+async function generateWeeklyReportConfirm() {
+  if (filter.repoID == null) {
+    showLocalSnackbar('请先选择仓库', 'warning')
+    return
+  }
+
+  // 计算时间范围
+  let startTime: string | undefined
+  let endTime: string | undefined
+
+  const now = new Date()
+  const today = now.toISOString().split('T')[0]
+
+  switch (weeklyReportTimeRange.value) {
+    case 'current':
+      if (!filter.start || !filter.end) {
+        showLocalSnackbar('请先设置筛选日期范围', 'warning')
+        return
+      }
+      // 确保日期格式为YYYY-MM-DD
+      startTime = new Date(filter.start).toISOString().split('T')[0]
+      endTime = new Date(filter.end).toISOString().split('T')[0]
+      break
+    case 'week':
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      startTime = weekAgo.toISOString().split('T')[0]
+      endTime = today
+      break
+    case 'month':
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      startTime = monthAgo.toISOString().split('T')[0]
+      endTime = today
+      break
+  }
+
+  // 关闭对话框
+  closeWeeklyReportDialog()
+
+  // 设置分析报告相关数据并打开弹窗
+  analysisCommitRecord.value = null // 周刊不需要提交记录
+  analysisRepoID.value = filter.repoID.toString()
+  analysisTargetPath.value = '' // 周刊分析整个仓库
+  analysisScopeText.value = `正在生成 ${getCurrentRepoName()} 的仓库报刊`
+  analysisWholeRepo.value = true
+  analysisApi.value = 'weeklyReport' // 新的API枚举
+  analysisCount.value = 1
+
+  // 设置时间范围参数
+  analysisStartTime.value = startTime
+  analysisEndTime.value = endTime
+
+  showAnalysisModal.value = true
+
+  showLocalSnackbar(`开始生成仓库报刊 (${startTime} 至 ${endTime})`, 'info')
 }
 
 // ========= 监听仓库变更，拉分支并刷新列表 =========
