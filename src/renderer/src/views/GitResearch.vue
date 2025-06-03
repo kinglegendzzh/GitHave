@@ -39,7 +39,7 @@
           <v-tab value="commitDetails">提交记录修改明细</v-tab>
           <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
           <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
-          <v-tab value="weekly" disabled>代码仓库周刊</v-tab>
+          <v-tab value="weeklyReport">代码仓库报刊</v-tab>
         </v-tabs>
 
         <v-card class="content-card" variant="flat">
@@ -201,6 +201,82 @@
                       size="small"
                       color="error"
                       @click.stop="removeContributionChartFile(file)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </div>
+            <!-- 代码仓库报刊 -->
+            <div v-else-if="activeTab === 'weeklyReport'">
+              <div v-if="weeklyReportFiles.length === 0" class="text-center py-4">
+                <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
+                <div class="text-body-1 mt-2">暂无代码仓库报刊文件</div>
+              </div>
+              <v-list v-else lines="two">
+                <v-list-item
+                  v-for="file in weeklyReportFiles"
+                  :key="file.path"
+                  @click="previewFile(file)"
+                >
+                  <template #prepend>
+                    <v-icon :color="getFileIconColor(file.type)" size="large">
+                      {{ getFileIcon(file.type) }}
+                    </v-icon>
+                  </template>
+                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
+                    file.name
+                  }}</v-list-item-title>
+                  <v-list-item-subtitle>
+                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
+                    <v-chip
+                      size="x-small"
+                      class="ml-2"
+                      :color="getFileTypeColor(file.type)"
+                      text-color="white"
+                    >
+                      {{ file.type.toUpperCase() }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(main_tag, tIndex) in file.main_tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="green"
+                      text-color="white"
+                    >
+                      {{ main_tag }}
+                    </v-chip>
+                    <v-chip
+                      v-for="(tag, tIndex) in file.tags"
+                      :key="'tag-' + tIndex"
+                      size="x-small"
+                      class="ml-2"
+                      color="grey"
+                      text-color="white"
+                    >
+                      {{ tag }}
+                    </v-chip>
+                  </v-list-item-subtitle>
+                  <template #append>
+                    <v-btn
+                      icon="mdi-open-in-new"
+                      variant="text"
+                      size="small"
+                      @click.stop="openFile(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-pencil"
+                      variant="text"
+                      size="small"
+                      color="primary"
+                      @click.stop="showRenameDialog(file)"
+                    ></v-btn>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      size="small"
+                      color="error"
+                      @click.stop="removeWeeklyReportFile(file)"
                     ></v-btn>
                   </template>
                 </v-list-item>
@@ -710,12 +786,12 @@ import {
   commitsDetailsFileList,
   renameFile,
   heatmapFiles,
-  contributionChartFiles
+  contributionChartFiles,
+  weeklyReportFilesList,
 } from '../service/api'
 import MarkdownIt from 'markdown-it'
-// 新增路径处理和自定义工具
-import path from 'path-browserify'
-import store from '../store'
+// import path from 'path-browserify'; // 移除未使用的 path
+// import store from '../store'; // 移除未使用的 store
 import { mapState } from 'vuex'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/docco.css'
@@ -736,6 +812,7 @@ export default {
       commitDetailFiles: [], // 提交记录明细文件列表
       activityHeatmapFiles: [], // 热力图文件列表
       contributionChartFiles: [], // 贡献图表文件列表
+      weeklyReportFiles: [], // 代码仓库报刊文件列表
       activeTab: 'codeReport', // 当前活动的标签页
       previewDialog: false, // 预览对话框显示状态
       selectedFile: null, // 当前选中的文件
@@ -792,9 +869,10 @@ export default {
     },
 
     // 过滤后的CSV数据（分页优化）
+    // 过滤后的CSV数据（分页优化）
     filteredCsvData() {
       if (!this.csvSearchText || !this.csvData.length) {
-        this.csvFilteredIndexes = this.csvData.map((_, index) => index)
+        // this.csvFilteredIndexes = this.csvData.map((_, index) => index); // 移除副作用
         // 对于大文件，只返回当前页的数据
         if (this.isLargeFile && this.csvData.length > this.csvPageSize) {
           const startIndex = (this.csvCurrentPage - 1) * this.csvPageSize
@@ -815,8 +893,8 @@ export default {
           indexes.push(index)
         }
       })
-
-      this.csvFilteredIndexes = indexes
+      // 使用方法更新，避免直接修改
+      this.setCsvFilteredIndexes(indexes);
       return filtered
     },
 
@@ -846,13 +924,14 @@ export default {
     this.fetchCommitDetailsFiles()
     this.fetchContributionChartFiles()
     this.fetchHeatmapFiles()
+    this.fetchWeeklyReportFiles() // 新增：获取代码仓库报刊文件列表
   },
   methods: {
     async removeFile(file) {
       //二次确认
       if (confirm('确定要删除吗？')) {
         try {
-          const res = await deleteFile(file.raw.id)
+          await deleteFile(file.raw.id) // 移除未使用的 res
           this.files = this.files.filter((f) => f.raw.id !== file.raw.id)
           this.fetchCodeReports()
           this.$store.dispatch('snackbar/showSnackbar', {
@@ -872,7 +951,7 @@ export default {
       //二次确认
       if (confirm('确定要删除吗？')) {
         try {
-          const res = await deleteFile(file.raw.id)
+          await deleteFile(file.raw.id) // 移除未使用的 res
           this.commitAnalysisFiles = this.commitAnalysisFiles.filter(
             (f) => f.raw.id !== file.raw.id
           )
@@ -894,7 +973,7 @@ export default {
       //二次确认
       if (confirm('确定要删除吗？')) {
         try {
-          const res = await deleteFile(file.raw.id)
+          await deleteFile(file.raw.id) // 移除未使用的 res
           this.activityHeatmapFiles = this.activityHeatmapFiles.filter(
             (f) => f.raw.id !== file.raw.id
           )
@@ -916,7 +995,7 @@ export default {
       //二次确认
       if (confirm('确定要删除吗？')) {
         try {
-          const res = await deleteFile(file.raw.id)
+          await deleteFile(file.raw.id) // 移除未使用的 res
           this.contributionChartFiles = this.contributionChartFiles.filter(
             (f) => f.raw.id !== file.raw.id
           )
@@ -934,11 +1013,32 @@ export default {
         }
       }
     },
+    async removeWeeklyReportFile(file) {
+      //二次确认
+      if (confirm('确定要删除吗？')) {
+        try {
+          await deleteFile(file.raw.id)
+          this.weeklyReportFiles = this.weeklyReportFiles.filter((f) => f.raw.id !== file.raw.id)
+          // 重新获取列表，或者直接从当前列表移除
+          // this.fetchWeeklyReportFiles(); // 如果需要实时更新
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除成功',
+            type: 'success'
+          })
+        } catch (error) {
+          console.error('删除代码仓库报刊文件失败:', error)
+          this.$store.dispatch('snackbar/showSnackbar', {
+            message: '删除失败',
+            type: 'error'
+          })
+        }
+      }
+    },
     async removeCommitDetailsFile(file) {
       //二次确认
       if (confirm('确定要删除吗？')) {
         try {
-          const res = await deleteFile(file.raw.id)
+          await deleteFile(file.raw.id) // 移除未使用的 res
           // 从commitDetailFiles中移除
           this.commitDetailFiles = this.commitDetailFiles.filter((f) => f.raw.id !== file.raw.id)
           // 从总文件列表中移除
@@ -954,6 +1054,37 @@ export default {
             type: 'error'
           })
         }
+      }
+    },
+    // 新增：获取代码仓库报刊文件列表
+    async fetchWeeklyReportFiles() {
+      try {
+        const res = await weeklyReportFilesList()
+        // 假设 res.data 就是文件数组
+        let apiFiles = res.data.map((item) => {
+          const extMatch = item.file_path.match(/\.([a-zA-Z0-9]+)$/)
+          const ext = extMatch ? extMatch[1] : (item.file_type || '').toLowerCase()
+          const tags = ext === 'md' ? ['可预览'] : []
+          return {
+            name: item.file_name,
+            path: item.file_path,
+            type: ext,
+            modifiedTime: new Date(item.updated_at.Time),
+            main_tags: ['代码报刊'],
+            tags,
+            raw: item
+          }
+        })
+        // 过滤掉状态不为success的文件
+        apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        this.weeklyReportFiles = apiFiles
+      } catch (error) {
+        console.error('获取代码仓库报刊文件列表失败:', error)
+        // 可选：显示错误提示
+        this.$store.dispatch('snackbar/showSnackbar', {
+          message: '获取代码仓库报刊文件列表失败',
+          type: 'error'
+        })
       }
     },
     // 显示重命名对话框
@@ -983,6 +1114,16 @@ export default {
         updateFileName(this.files)
         updateFileName(this.commitAnalysisFiles)
         updateFileName(this.commitDetailFiles)
+        updateFileName(this.activityHeatmapFiles)
+        updateFileName(this.contributionChartFiles)
+        updateFileName(this.weeklyReportFiles)
+
+        this.fetchCodeReports()
+        this.fetchCommitAnalysisReports()
+        this.fetchCommitDetailsFiles()
+        this.fetchContributionChartFiles()
+        this.fetchHeatmapFiles()
+        this.fetchWeeklyReportFiles()
 
         this.$store.dispatch('snackbar/showSnackbar', {
           message: '重命名成功',
@@ -1007,6 +1148,7 @@ export default {
         return appPath
       } catch (err) {
         console.error('获取应用路径失败:', err)
+        return null
       }
     },
     async fetchCodeReports() {
@@ -1229,8 +1371,8 @@ export default {
     async loadDirectoryFiles(dirPath) {
       try {
         // 使用IPC调用读取目录内容
-        const fs = await window.electron.fs
-        const path = await window.electron.path
+        // const fs = await window.electron.fs; // 移除未使用的 fs
+        // const path = await window.electron.path; // 移除未使用的 path
 
         // 实际项目中应该使用以下代码读取目录
         // const files = await window.electron.readDirectory(dirPath);
@@ -1382,6 +1524,20 @@ export default {
         }
         this.previewDialog = false
         return
+      } else if (file.type === 'xlsx' || file.type === 'xls') {
+        if (confirm('是否在外部应用中打开Xlsx表格？')) {
+          const appPath = await this.getAppPath('Microsoft Excel')
+          if (appPath) {
+            window.electron.shell.openPath(appPath)
+          } else {
+            // 未找到，通过默认应用打开
+            window.electron.shell.openPath(file.path)
+          }
+          this.fileContent = `无法读取${file.type}格式文件的内容，通过外部打开`
+          return
+        }
+        this.previewDialog = false
+        return
       }
 
       // 2. CSV 文件：通过 IPC 读取并解析
@@ -1435,6 +1591,10 @@ export default {
     handleImageError(event) {
       console.error('图片加载失败：', event.target.src)
       this.fileContent = '无法预览图片：图片文件可能已损坏或不存在'
+    },
+    // 新增方法来设置 csvFilteredIndexes，避免在计算属性中产生副作用
+    setCsvFilteredIndexes(indexes) {
+      this.csvFilteredIndexes = indexes;
     },
 
     // 在外部打开文件
