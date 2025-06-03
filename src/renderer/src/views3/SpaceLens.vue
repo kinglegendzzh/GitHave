@@ -120,10 +120,27 @@
             </div>
             <!-- 预设色卡 -->
             <v-card-subtitle class="px-0 pb-2 pt-0">预设色卡</v-card-subtitle>
-            <div style="display: flex; flex-wrap: wrap; gap: 16px;">
-              <div v-for="(palette, idx) in presetPalettes" :key="idx" style="cursor: pointer;" @click="applyPalette(palette)">
-                <div style="display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 2px solid #eee;">
-                  <div v-for="(color, i) in palette" :key="i" :style="{width: '32px', height: '32px', background: color}"></div>
+            <div style="display: flex; flex-wrap: wrap; gap: 16px">
+              <div
+                v-for="(palette, idx) in presetPalettes"
+                :key="idx"
+                style="cursor: pointer"
+                @click="applyPalette(palette)"
+              >
+                <div
+                  style="
+                    display: flex;
+                    gap: 0;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    border: 2px solid #eee;
+                  "
+                >
+                  <div
+                    v-for="(color, i) in palette"
+                    :key="i"
+                    :style="{ width: '32px', height: '32px', background: color }"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -139,30 +156,59 @@
       <v-row>
         <!-- 图表区域 -->
         <v-col cols="8">
-          <div style="display: flex; align-items: center; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; margin-bottom: 8px">
             <v-tooltip bottom>
               <template #activator="{ props }">
                 <v-icon v-bind="props" small class="ml-1">mdi-help-circle-outline</v-icon>
               </template>
               <span>
                 1. 透镜路径：选择要分析的代码仓库路径，点击按钮，开始扫描代码。<br />
-                2. 与左侧多级饼图交互：可以直观地查看代码仓库的结构，以及文件分布，也可以快速跳转到任意目录；点击饼图的中心图标返回上一级目录；右键点击饼图部分，通过弹出菜单项对文件进行操作。<br />
-                3. 与右侧目录列表交互：通过面包屑导航快速跳转到任意目录；右键点击文件夹或左键点击代码文件，通过弹出菜单项对文件进行操作。<br />
-                4. 【弹出菜单项】你可以预览代码详情、复制路径、在本地目录打开、生成分析报告、生成流程图。
+                2.
+                与左侧多级饼图交互：可以直观地查看代码仓库的结构，以及文件分布，也可以快速跳转到任意目录；点击饼图的中心图标返回上一级目录；右键点击饼图部分，通过弹出菜单项对文件进行操作。<br />
+                3.
+                与右侧目录列表交互：通过面包屑导航快速跳转到任意目录；右键点击文件夹或左键点击代码文件，通过弹出菜单项对文件进行操作。<br />
+                4.
+                【弹出菜单项】你可以预览代码详情、复制路径、在本地目录打开、生成分析报告、生成流程图。
               </span>
             </v-tooltip>
-            <v-btn-toggle variant="outlined" v-model="renderMode" mandatory density="compact" color="purple" class="ml-2 mr-2">
+            <v-btn-toggle
+              v-model="renderMode"
+              variant="outlined"
+              mandatory
+              density="compact"
+              color="purple"
+              class="ml-2 mr-2"
+            >
               <v-btn value="count">按子数量展示</v-btn>
               <v-btn value="size">按文件大小展示</v-btn>
             </v-btn-toggle>
             <!-- 新增：色系选择器和色卡模板按钮 -->
-            <div style="display: flex; align-items: center; gap: 12px;" class="mr-2 ml-2">
-              <v-btn size="small" color="primary" variant="outlined" @click="showPaletteDialog = true" class="mr-2">配色</v-btn>
-              <input type="color" v-model="colorRange[0]" style="width: 32px; height: 32px; border: none; background: none;" />
+            <div style="display: flex; align-items: center; gap: 12px" class="mr-2 ml-2">
+              <v-btn
+                size="small"
+                color="primary"
+                variant="outlined"
+                class="mr-2"
+                @click="showPaletteDialog = true"
+                >配色</v-btn
+              >
+              <input
+                v-model="colorRange[0]"
+                type="color"
+                style="width: 32px; height: 32px; border: none; background: none"
+              />
               <span>→</span>
-              <input type="color" v-model="colorRange[1]" style="width: 32px; height: 32px; border: none; background: none;" />
+              <input
+                v-model="colorRange[1]"
+                type="color"
+                style="width: 32px; height: 32px; border: none; background: none"
+              />
               <span>→</span>
-              <input type="color" v-model="colorRange[2]" style="width: 32px; height: 32px; border: none; background: none;" />
+              <input
+                v-model="colorRange[2]"
+                type="color"
+                style="width: 32px; height: 32px; border: none; background: none"
+              />
               <v-btn icon size="small" variant="plain" @click="refreshChart">
                 <v-icon>mdi-refresh</v-icon>
               </v-btn>
@@ -326,6 +372,9 @@ import { listRepos } from '../service/api'
 import grassSVG from '../assets/透镜.svg'
 import { omit } from '../service/str'
 
+// —— 平台检测 ——
+const isMacOS = ref(navigator.platform.toUpperCase().indexOf('MAC') >= 0)
+
 // 父组件内部 state
 const analysisReportDrawerVisible = ref(false)
 const modalRepoID = ref('')
@@ -415,7 +464,7 @@ const contextMenu = ref(null)
 import { useRouter } from 'vue-router'
 import { useStore } from 'vuex'
 import AnalysisReportModal from '../components/ai/AnalysisReportModal.vue'
-import { loadRepoProgress } from "../storage/progress-storage";
+import { loadRepoProgress } from '../storage/progress-storage'
 const router = useRouter()
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
@@ -580,11 +629,14 @@ const generateFolderArchitectureMap = async () => {
 
 // 动态菜单项，根据选中项是文件还是文件夹显示不同的菜单
 const menuItems = computed(() => {
-  const baseItems = [
-    { title: '查看详情', icon: 'mdi-information', action: viewFileDetails },
-    { title: '复制路径', icon: 'mdi-content-copy', action: copyFilePath },
-    { title: '在本地目录中显示', icon: 'mdi-folder', action: openInFinder }
-  ]
+  const baseItems = []
+  if (isMacOS.value) {
+    baseItems.push({
+      title: '预览代码',
+      icon: 'mdi-information',
+      action: viewFileDetails
+    })
+  }
 
   // 添加生成代码分析报告选项（对文件和文件夹都可用）
   baseItems.push({
@@ -601,7 +653,10 @@ const menuItems = computed(() => {
     action: generateFolderArchitectureMap
   })
   // }
-
+  baseItems.push(
+    { title: '复制路径', icon: 'mdi-content-copy', action: copyFilePath },
+    { title: '打开文件夹', icon: 'mdi-folder', action: openInFinder }
+  )
   return baseItems
 })
 
@@ -1103,7 +1158,7 @@ const presetPalettes = [
   ['#43E97B', '#38F9D7', '#3B82F6'], // 绿-青-蓝
   ['#FFB75E', '#ED8F03', '#A770EF'], // 橙-金-紫
   ['#F7971E', '#FFD200', '#21D4FD'], // 橙-黄-蓝
-  ['#43C6AC', '#191654', '#6D5BBA'], // 绿-深蓝-紫
+  ['#43C6AC', '#191654', '#6D5BBA'] // 绿-深蓝-紫
 ]
 
 // 应用色卡
@@ -1289,7 +1344,11 @@ const drawChartWithAnimation = () => {
     updateSunburst.value = updateSunburstFunc
     // 递归分配颜色，传递 colorRange
     const rootHierarchy = d3.hierarchy(focusNode.data)
-    assignColors(rootHierarchy, [focusNode.data._color || colorRange.value[0], colorRange.value[1], colorRange.value[2]])
+    assignColors(rootHierarchy, [
+      focusNode.data._color || colorRange.value[0],
+      colorRange.value[1],
+      colorRange.value[2]
+    ])
     rootHierarchy.each((node) => {
       assignValueByMode(node)
     })
