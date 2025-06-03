@@ -15,9 +15,7 @@
         <v-toolbar flat density="compact">
           <v-toolbar-title style="user-select: none; pointer-events: none">
             <v-icon>mdi-code-block-tags</v-icon>
-            <span style="border: 5px; padding: 0 4px">
-              GitHave IDE
-            </span>
+            <span style="border: 5px; padding: 0 4px"> GitHave IDE </span>
           </v-toolbar-title>
           <div class="d-flex align-center ml-auto">
             <v-autocomplete
@@ -34,7 +32,7 @@
               color="warning"
               style="width: 400px"
               @focus="loadPathSuggestions"
-              @update:menu="resetRoot"
+              @update:model-value="onPathSelectionChanged"
             />
             <!-- NEW ─ 主题切换 -->
             <v-select
@@ -49,7 +47,6 @@
             >
               <!--              <template #prepend>🌗</template>-->
             </v-select>
-
 
             <!-- NEW ─ 格式化按钮 -->
             <v-btn
@@ -115,6 +112,8 @@
               :clearable="true"
               :auto-load-root-options="true"
               :always-open="true"
+              :open-nodes="openNodes"
+              :default-expand-level="1"
               class="mt-2"
               style="min-width: 800px"
               :menu-height="1000"
@@ -135,17 +134,10 @@
           <div class="flex-shrink-0">
             <v-tabs v-model="activeTab">
               <v-tab v-for="(tab, index) in tabs" :key="tab.path" class="d-flex align-center">
-                <v-icon
-                  color="error"
-                  style="cursor: pointer"
-                  @click.stop="removeTab(index)"
+                <v-icon color="error" style="cursor: pointer" @click.stop="removeTab(index)"
                   >mdi-close</v-icon
                 >
-                <span
-                  style="cursor: pointer"
-                  @click="selectTab(tab)"
-                  >{{ tab.name }}</span
-                >
+                <span style="cursor: pointer" @click="selectTab(tab)">{{ tab.name }}</span>
               </v-tab>
             </v-tabs>
             <div class="breadcrumb-container">
@@ -194,7 +186,7 @@
                           :language="detectedLanguage"
                           :theme="currentTheme"
                           :options="monacoOptions"
-                          @editorMounted="onEditorMounted"
+                          @editor-mounted="onEditorMounted"
                         />
                       </template>
                       <template #fallback>
@@ -245,8 +237,8 @@
 <script setup>
 // 1) 导入 worker 构造器（路径视你的依赖版本和打包器语法而定）
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker'
-import JsonWorker   from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
-import TsWorker     from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
 
 // 2) 注入到全局
 // window.MonacoEnvironment = {
@@ -263,7 +255,17 @@ import TsWorker     from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?
 // }
 import 'vue3-treeselect/dist/vue3-treeselect.css'
 import 'highlight.js/styles/atom-one-dark.css'
-import { ref, reactive, computed, watch, onMounted, nextTick, onUnmounted, defineAsyncComponent, Suspense } from 'vue'
+import {
+  ref,
+  reactive,
+  computed,
+  watch,
+  onMounted,
+  nextTick,
+  onUnmounted,
+  defineAsyncComponent,
+  Suspense
+} from 'vue'
 import { debounce } from 'lodash-es'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import { useStore } from 'vuex'
@@ -295,8 +297,7 @@ const MonacoEditor = defineAsyncComponent({
 })
 
 // 原 loadFileByType 保持不变
-const debouncedLoad = debounce(path => loadFileByType(path), 200)
-
+const debouncedLoad = debounce((path) => loadFileByType(path), 200)
 
 /* ----------------------------------------------------------
    Monaco Editor State & Utils
@@ -340,9 +341,9 @@ async function saveDocument() {
     console.log('saveDocument', selectedPath.value, fileContent.value)
     await window.electron.saveFile(selectedPath.value, fileContent.value, { encoding: 'utf-8' })
     // 保存后重新读取并刷新当前 Tab
-    await loadFileByType(selectedPath.value);
+    await loadFileByType(selectedPath.value)
     if (currentTab.value && currentTab.value.path === selectedPath.value) {
-      currentTab.value.fileContent = fileContent.value;
+      currentTab.value.fileContent = fileContent.value
     }
     store.dispatch('snackbar/showSnackbar', {
       message: '文件已保存',
@@ -374,9 +375,8 @@ onUnmounted(() => {
 })
 const detectedLanguage = computed(() => {
   const ext = path.extname(selectedFileName.value).slice(1).toLowerCase()
-  return languageMap[ext] || 'plaintext'
+  return languageMap[ext] || 'shell'
 })
-
 
 const monacoOptions = reactive({
   readOnly: false,
@@ -399,17 +399,17 @@ let monacoGlobal
 /* NEW ─ onEditorMounted：注册快捷键、补全、装饰 */
 function onEditorMounted(editor) {
   // 拿到 Monaco 的全局对象
-  monacoGlobal = editor.$monaco;
+  monacoGlobal = editor.$monaco
 
   // 1. 强制开启触发字符补全和片段建议
   editor.updateOptions({
     suggestOnTriggerCharacters: true,
-    snippetSuggestions: 'inline',
-  });
+    snippetSuggestions: 'inline'
+  })
 
   // 2. 获取当前模型的语言 ID
-  const model = editor.getModel();
-  const langId = model.getLanguageId();
+  const model = editor.getModel()
+  const langId = model.getLanguageId()
 
   // 3. 针对当前语言注册补全 provider
   monacoGlobal.languages.registerCompletionItemProvider(langId, {
@@ -423,27 +423,30 @@ function onEditorMounted(editor) {
             insertText: 'console.log("Hello, Monaco!");',
             // 确保这是以 snippet 形式插入
             insertTextRules: monacoGlobal.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            documentation: '打印 "Hello, Monaco!" 到控制台',
-          },
-        ],
-      };
-    },
-  });
+            documentation: '打印 "Hello, Monaco!" 到控制台'
+          }
+        ]
+      }
+    }
+  })
 
   // 2. 自定义保存快捷键 Ctrl/Cmd+S → 格式化当前文档
-  editor.addCommand(
-    monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS,
-    () => editor.getAction('editor.action.formatDocument').run()
-  );
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS, () =>
+    editor.getAction('editor.action.formatDocument').run()
+  )
 
   // 3. 行高亮装饰示例
-  const deco = editor.deltaDecorations([], [{
-    range: new monacoGlobal.Range(1, 1, 1, 1),
-    options: { isWholeLine: true, className: 'myLineHighlight' }
-  }]);
-  editor.onDidDispose(() => editor.deltaDecorations(deco, []));
+  const deco = editor.deltaDecorations(
+    [],
+    [
+      {
+        range: new monacoGlobal.Range(1, 1, 1, 1),
+        options: { isWholeLine: true, className: 'myLineHighlight' }
+      }
+    ]
+  )
+  editor.onDidDispose(() => editor.deltaDecorations(deco, []))
 }
-
 
 // 你的主题列表
 const themeOptions = ['vs-dark', 'vs-light', 'hc-black']
@@ -456,7 +459,6 @@ const theme = useTheme()
 // 根据 Vuetify 主题 name（'light' | 'dark'）算出一个布尔值
 const isDarkMode = computed(() => theme.global.name.value === 'dark')
 
-
 // 监听 Vuetify 主题切换
 // watch(isDarkMode, dark => {
 //   const t = dark ? 'vs-dark' : 'vs-light'
@@ -465,7 +467,7 @@ const isDarkMode = computed(() => theme.global.name.value === 'dark')
 
 // 1️⃣ 初始化：优先用 localStorage，fallback 到系统（Vuetify）主题
 const saved = localStorage.getItem('ideTheme')
-// eslint-disable-next-line no-undef
+
 const currentTheme = ref(
   saved && themeOptions.includes(saved)
     ? saved
@@ -488,9 +490,7 @@ watch(
 
 // 占位图也跟着 currentTheme 切
 const placeholderImage = computed(() =>
-  currentTheme.value === 'vs-light'
-    ? codeSVGWhite
-    : codeSVG
+  currentTheme.value === 'vs-light' ? codeSVGWhite : codeSVG
 )
 
 // 定义 props（支持传入本地路径及一些控制参数）
@@ -570,6 +570,44 @@ const allowedExtensions = [
   '.docx',
   '.sql',
   '.conf',
+  '.ini',
+  '.properties',
+  '.csv',
+  '.ipynb',
+  '.iml',
+  '.mod',
+  '.sum',
+  '.toml',
+  '.lock',
+  '.inc',
+  '.lic',
+  '.model',
+  '.spec',
+  '.svg',
+  '.rs',
+  '.rsx',
+  '.hpp',
+  '.hxx',
+  '.rust'
+]
+const allowedFileName = [
+  'Dockerfile',
+  'README.md',
+  'LICENSE',
+  'CONTRIBUTING.md',
+  'AUTHORS',
+  'CHANGELOG.md',
+  'HISTORY.md',
+  'TODO.md',
+  'FAQ.md',
+  'README',
+  'LICENSE',
+  'CONTRIBUTING',
+  'AUTHORS',
+  'CHANGELOG',
+  'HISTORY',
+  'TODO',
+  'FAQ'
 ]
 const blacklistedExtensions = ['.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk']
 const customAppMapping = {
@@ -624,13 +662,69 @@ async function initializePage() {
   loading.value = true
   try {
     if (props.localPath) {
-      await initialize(props.localPath)
+      // 确定根目录路径
+      // 如果传入的是文件路径，则使用其所在目录作为根目录
+      // 如果传入的是目录路径，则直接使用该目录作为根目录
+      const rootDir = isFilePath(props.localPath) ? path.dirname(props.localPath) : props.localPath
+
+      // 初始化目录树
+      await resetTree(rootDir)
+
+      // 如果是文件路径，则展开到该文件并加载文件内容
+      if (isFilePath(props.localPath)) {
+        // 展开到文件所在路径
+        await expandToPath(props.localPath)
+
+        // 检查文件类型是否支持
+        const fileExt = path.extname(props.localPath).toLowerCase()
+        const fileName = path.basename(props.localPath)
+
+        const isAllowedFile =
+          allowedExtensions.includes(fileExt) || allowedFileName.includes(fileName) || !fileExt // 无扩展名的文件也允许打开
+
+        // 检查是否在黑名单中
+        const isBlacklisted = blacklistedExtensions.includes(fileExt)
+
+        if (isAllowedFile && !isBlacklisted) {
+          // 加载文件内容
+          await loadFileByType(props.localPath)
+
+          // 构建面包屑路径
+          const breadcrumbPath = buildBreadcrumb(props.localPath)
+
+          // 添加或切换到对应的标签页
+          addOrSwitchTab({
+            path: props.localPath,
+            name: path.basename(props.localPath),
+            breadcrumbs: breadcrumbPath
+          })
+        } else {
+          // 显示不支持的文件类型警告
+          store.dispatch('snackbar/showSnackbar', {
+            message: `不支持的文件类型: ${fileExt || '无扩展名'}`,
+            type: 'warning'
+          })
+
+          // 仍然选择文件所在目录
+          handleNodeSelection([rootDir])
+        }
+      } else {
+        // 如果是目录路径，则选择该目录
+        handleNodeSelection([rootDir])
+      }
+
+      // 更新路径选择器的值
+      newRootPath.value = rootDir
     } else {
       loading.value = false
       // 没有路径时不加载任何目录树
     }
   } catch (e) {
     console.error('初始化过程出错：', e)
+    store.dispatch('snackbar/showSnackbar', {
+      message: `初始化失败: ${e.message}`,
+      type: 'error'
+    })
   } finally {
     loading.value = false
   }
@@ -668,6 +762,35 @@ function resetRoot() {
     tabs.value = []
     breadcrumbs.value = []
   })
+}
+
+// 处理路径选择变更，只在用户实际选择或清除路径时触发重置
+function onPathSelectionChanged(newPath) {
+  // 如果用户选择了路径（新路径或者已有路径）
+  if (newPath) {
+    // 更新目录树
+    resetTree(newPath).then(() => {
+      handleNodeSelection([newPath])
+      tabs.value = []
+      breadcrumbs.value = []
+    })
+    // 清空文件内容和预览区域，防止切换目录时残留上次的内容
+    fileContent.value = ''
+    renderedDocx.value = ''
+    renderedXlsx.value = ''
+    selectedFileUrl.value = ''
+    selectedFileName.value = ''
+  } else if (newPath === null || newPath === '') {
+    // 用户清除了路径选择
+    tabs.value = []
+    breadcrumbs.value = []
+    fileContent.value = ''
+    treeData.value = []
+    renderedDocx.value = ''
+    renderedXlsx.value = ''
+    selectedFileUrl.value = ''
+    selectedFileName.value = ''
+  }
 }
 
 function isPDF(fileName) {
@@ -710,7 +833,8 @@ async function loadFileByType(selectedPath) {
 
   // 禁止打开无后缀或非允许类型的文件
   const ext = path.extname(selectedPath).toLowerCase()
-  if (!ext || !allowedExtensions.includes(ext)) {
+  const fileName = path.basename(selectedPath)
+  if (!allowedExtensions.includes(ext) && !allowedFileName.includes(fileName)) {
     store.dispatch('snackbar/showSnackbar', {
       message: '该文件类型不支持预览',
       type: 'warning'
@@ -761,7 +885,8 @@ async function loadFileByType(selectedPath) {
 /* 2️⃣ 判断代码文件的通用函数（路径或文件名都能用）*/
 function isCodeFileName(name) {
   const ext = path.extname(name).toLowerCase()
-  return allowedExtensions.includes(ext)
+  const fileName = path.basename(name)
+  return allowedExtensions.includes(ext) || allowedFileName.includes(fileName)
 }
 
 function updateFileState(sp, updates) {
@@ -877,6 +1002,22 @@ async function handleNodeSelection(activeItems) {
       await fetchChildren(node)
     }
   } else {
+    // 检查文件类型是否支持预览，如果不支持则不添加标签页
+    const ext = path.extname(node.path).toLowerCase()
+    const fileName = path.basename(node.path)
+    const isAllowedFile = allowedExtensions.includes(ext) || allowedFileName.includes(fileName)
+    const isBlacklisted = blacklistedExtensions.includes(ext)
+
+    if (!isAllowedFile || isBlacklisted) {
+      // 不支持的文件类型，显示提示但不添加标签页
+      store.dispatch('snackbar/showSnackbar', {
+        message: `暂不支持在线预览 "${ext || fileName}" 文件`,
+        type: 'warning'
+      })
+      return // 直接返回，不添加标签页
+    }
+
+    // 文件类型支持，加载文件并添加标签页
     await loadFileByType(node.path)
     const breadcrumbPath = buildBreadcrumb(node.path)
     addOrSwitchTab({
@@ -959,10 +1100,13 @@ async function fetchChildren(item, depth = 0) {
         children: undefined
       }
       if (child.isDirectory) {
-        node.children = await fetchChildren({
-          path: child.fullPath,
-          isDirectory: child.isDirectory
-        }, depth + 1)
+        node.children = await fetchChildren(
+          {
+            path: child.fullPath,
+            isDirectory: child.isDirectory
+          },
+          depth + 1
+        )
       }
       result.push(node)
     }
@@ -1120,10 +1264,16 @@ function isFilePath(filePath) {
   if (node) {
     if (node.isDirectory) return false
     const ext = path.extname(node.name).toLowerCase()
-    return ext && allowedExtensions.includes(ext)
+    const fileName = path.basename(node.name)
+    return (
+      (ext && allowedExtensions.includes(ext)) || (fileName && allowedFileName.includes(fileName))
+    )
   }
   const ext = path.extname(filePath).toLowerCase()
-  return ext && allowedExtensions.includes(ext)
+  const fileName = path.basename(filePath)
+  return (
+    (ext && allowedExtensions.includes(ext)) || (fileName && allowedFileName.includes(fileName))
+  )
 }
 
 async function resetTree(newPath) {
@@ -1143,16 +1293,19 @@ async function resetTree(newPath) {
     console.error('路径加载失败:', e)
   }
 }
-
 async function loadPathSuggestions() {
   await listRepos()
     .then((response) => {
       if (!response.data || !Array.isArray(response.data)) {
         return
       }
-      pathSuggestions.value = response.data.map((repo) => ({
+      // 按id降序排序
+      const sortedData = [...response.data].sort((a, b) => b.id - a.id)
+
+      pathSuggestions.value = sortedData.map((repo) => ({
         value: repo.local_path,
-        title: `${omit(repo.desc, 10)}(${repo.name})`,
+        // 如果desc为空则只显示name,否则显示desc(name)
+        title: repo.desc ? `${omit(repo.desc, 10)}(${repo.name})` : repo.name,
         repo_url: repo.local_path,
         branch: repo.branch,
         local_path: repo.local_path,
@@ -1166,7 +1319,6 @@ async function loadPathSuggestions() {
       console.error('获取仓库数据失败:', err)
     })
 }
-
 // ---------- 仓库拉取进度条 ----------
 function startProgressSimulation(title = '正在拉取代码') {
   progress.value = 0
@@ -1373,7 +1525,6 @@ body {
   color: #fff !important;
 }
 
-
 /* 左侧菜单组 */
 .mac-menu-group {
   display: flex;
@@ -1448,7 +1599,7 @@ body {
 }
 
 /* 下拉列表项也缩一点 */
-.small-autocomplete .v-list-item{
+.small-autocomplete .v-list-item {
   min-height: 24px !important;
   padding-top: 2px !important;
   padding-bottom: 2px !important;
@@ -1487,7 +1638,8 @@ body {
   line-height: 20px !important;
   margin-left: 4px !important;
 }
-.v-slide-group__container, .v-tabs {
+.v-slide-group__container,
+.v-tabs {
 }
 .vue-treeselect--single .vue-treeselect__option--selected {
   background: rgb(var(--v-theme-on-surface-variant)) !important;
