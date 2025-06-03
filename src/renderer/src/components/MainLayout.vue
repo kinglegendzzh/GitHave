@@ -224,7 +224,6 @@
               'ModelConfig',
               'GitResearch',
               // 'CommitHistory',
-              'GitResearch',
               'IDE'
             ]"
           >
