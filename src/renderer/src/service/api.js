@@ -118,6 +118,12 @@ export function enrichFileDiffs(repoID, commit) {
   })
 }
 
+export function clearCommitsCache(repoID) {
+  return instance_long.post('/commits/clean-cache', {
+    repo_id: repoID
+  })
+}
+
 /* -------------------------- 代码搜索服务 -------------------------- */
 /**
  * 深度搜索
@@ -228,34 +234,61 @@ export function updateFmConfig(data) {
 /* -------------------------- AI服务 -------------------------- */
 
 export function deepResearch(repo_id, path, without_code, stream) {
-  return fetch('http://127.0.0.1:19151/research', {
+  return fetch('http://127.0.0.1:19151/ai/research', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      {
-        repo_id: repo_id,
-        path: path,
-        without_code: without_code,
-        stream: stream,
-      }
-    ),
+    body: JSON.stringify({
+      repo_id: repo_id,
+      path: path,
+      without_code: without_code,
+      stream: stream
+    })
   })
 }
 
 export function flowChart(repo_id, path, without_code, stream) {
-  return fetch('http://127.0.0.1:19151/flowchart', {
+  return fetch('http://127.0.0.1:19151/ai/flowchart', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      {
-        repo_id: repo_id,
-        path: path,
-        without_code: without_code,
-        stream: stream,
-      }
-    ),
+    body: JSON.stringify({
+      repo_id: repo_id,
+      path: path,
+      without_code: without_code,
+      stream: stream
+    })
   })
 }
+
+/**
+ * 生成提交记录分析报告
+ * POST /commits-research
+ * body: { repo_id: number, commit_records: CommitRecord[], stream: boolean }
+ */
+export function commitsResearch(repoID, commitRecords, stream = false) {
+  return fetch('http://127.0.0.1:19151/ai/commits-research', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_id: repoID,
+      commit_records: commitRecords,
+      stream: stream
+    })
+  })
+}
+
+/**
+ * 导出提交详情为CSV文件
+ * POST /commits-details
+ * @param {Array} commitRecords - 提交记录数组
+ */
+export function exportCommitDetails(commitRecords) {
+  return instance.post('/ai/commits-details', {
+    commit_records: commitRecords
+  }, {
+    responseType: 'blob' // 用于处理文件下载
+  })
+}
+
 
 /* -------------------------- 文件操作 -------------------------- */
 // 删除文件
@@ -273,6 +306,82 @@ export function deepResearchFiles(id) {
 // 获取流程图文件列表
 export function flowChartFiles(id) {
   return instance.get(`/flow-chart-files`)
+}
+// 获取提交记录分析报告文件列表
+export function commitsResearchFiles(id) {
+  return instance.get(`/commits-research-files`)
+}
+// 获取贡献热力图文件列表
+export function heatmapFiles(id) {
+  return instance.get(`/heatmap-files`)
+}
+// 获取贡献排行榜文件列表
+export function contributionChartFiles(id) {
+  return instance.get(`/contribution-chart-files`)
+}
+
+/**
+ * 重命名文件
+ * PUT /files/{id}/rename
+ * @param {number} id - 文件ID
+ * @param {string} newFileName - 新的文件名称
+ */
+export function renameFile(id, newFileName) {
+  return instance.put(`/files/${id}/rename`, {
+    new_file_name: newFileName
+  })
+}
+
+/**
+ * 获取提交详情文件列表
+ * GET /commits-details-files
+ */
+export function commitsDetailsFileList() {
+  return instance.get('/commits-details-files')
+}
+/* -------------------------- 贡献图表生成 -------------------------- */
+/**
+ * 生成贡献热力图
+ * POST /ai/generate-heatmap
+ * @param {number} repoId - 仓库ID
+ * @param {string} authorName - 开发者名称，可选
+ * @param {string} title - 热力图标题，可选
+ * @param {number} width - 图片宽度，可选
+ * @param {number} height - 图片高度，可选
+ * @param {string} startTime - 开始时间，可选
+ * @param {string} endTime - 结束时间，可选
+ */
+export function generateHeatmap(repoId, authorName, title, width, height, startTime, endTime) {
+  const data = {
+    repo_id: repoId
+  }
+  
+  if (authorName) data.author_name = authorName
+  if (title) data.title = title
+  if (width) data.width = width
+  if (height) data.height = height
+  if (startTime) data.start_time = startTime
+  if (endTime) data.end_time = endTime
+  
+  return instance_long.post('/ai/generate-heatmap', data)
+}
+
+/**
+ * 生成贡献排行榜
+ * POST /ai/generate-contribution-chart
+ * @param {number} repoId - 仓库ID
+ * @param {string} startTime - 开始时间，可选
+ * @param {string} endTime - 结束时间，可选
+ */
+export function generateContributionChart(repoId, startTime, endTime) {
+  const data = {
+    repo_id: repoId
+  }
+  
+  if (startTime) data.start_time = startTime
+  if (endTime) data.end_time = endTime
+  
+  return instance_long.post('/ai/generate-contribution-chart', data)
 }
 
 /* -------------------------- 健康检查 -------------------------- */
