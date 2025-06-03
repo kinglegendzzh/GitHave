@@ -20,7 +20,14 @@
     <v-row class="compact-row" justify="center">
       <!-- 企业微信推送智能体 -->
       <v-col cols="12" md="4">
-        <v-card outlined class="agent-card-compact" :elevation="hoveredCard === 'wechat' ? 6 : 1" @click="openAgentDialog('wechat')" @mouseover="hoveredCard = 'wechat'" @mouseleave="hoveredCard = null">
+        <v-card
+          outlined
+          class="agent-card-compact"
+          :elevation="hoveredCard === 'wechat' ? 6 : 1"
+          @click="openAgentDialog('wechat')"
+          @mouseover="hoveredCard = 'wechat'"
+          @mouseleave="hoveredCard = null"
+        >
           <v-card-title class="card-title-compact">
             <v-icon small class="icon-compact">mdi-bell-ring</v-icon>
             <span class="tag-compact">[内置]</span>
@@ -37,7 +44,14 @@
 
       <!-- 提交记录分析智能体 -->
       <v-col cols="12" md="4">
-        <v-card outlined class="agent-card-compact" :elevation="hoveredCard === 'analysis' ? 6 : 1" @click="openAgentDialog('analysis')" @mouseover="hoveredCard = 'analysis'" @mouseleave="hoveredCard = null">
+        <v-card
+          outlined
+          class="agent-card-compact"
+          :elevation="hoveredCard === 'analysis' ? 6 : 1"
+          @click="openAgentDialog('analysis')"
+          @mouseover="hoveredCard = 'analysis'"
+          @mouseleave="hoveredCard = null"
+        >
           <v-card-title class="card-title-compact">
             <v-icon small class="icon-compact">mdi-file-document</v-icon>
             <span class="tag-compact">[内置]</span>
@@ -45,7 +59,9 @@
           </v-card-title>
           <v-card-subtitle class="subtitle-compact">生成提交记录报告</v-card-subtitle>
           <v-card-text class="text-compact">
-            <div><strong>报告路径:</strong> {{ config.reports_file_path ? '已配置' : '未配置' }}</div>
+            <div>
+              <strong>报告路径:</strong> {{ config.reports_file_path ? '已配置' : '未配置' }}
+            </div>
             <div><strong>CSV模板:</strong> {{ config.csv_file_template || '未设置' }}</div>
             <div><strong>报告模板:</strong> {{ config.doc_file_template || '未设置' }}</div>
           </v-card-text>
@@ -54,7 +70,15 @@
 
       <!-- 仓库周刊智能体 -->
       <v-col cols="12" md="4">
-        <v-card disabled outlined class="agent-card-compact" :elevation="hoveredCard === 'weekly' ? 6 : 1" @click="openAgentDialog('weekly')" @mouseover="hoveredCard = 'weekly'" @mouseleave="hoveredCard = null">
+        <v-card
+          disabled
+          outlined
+          class="agent-card-compact"
+          :elevation="hoveredCard === 'weekly' ? 6 : 1"
+          @click="openAgentDialog('weekly')"
+          @mouseover="hoveredCard = 'weekly'"
+          @mouseleave="hoveredCard = null"
+        >
           <v-card-title class="card-title-compact">
             <v-icon small class="icon-compact">mdi-calendar-text</v-icon>
             <span class="tag-compact">[内置]</span>
@@ -286,7 +310,12 @@
                       </v-col>
                     </v-row>
                     <!-- 导入与添加仓库按钮 -->
-                    <v-btn color="success" class="mt-3 mr-2" outlined @click="openImportDialog">
+                    <v-btn
+                      color="success"
+                      class="mt-3 mr-2"
+                      outlined
+                      @click="openImportDialog('repos')"
+                    >
                       💳 从仓库身份证一键导入
                     </v-btn>
                     <v-btn color="primary" class="mt-3" outlined @click="addRepo"> 添加仓库 </v-btn>
@@ -456,7 +485,7 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn color="primary" @click="saveConfig">保存配置</v-btn>
-          <v-btn text @click="agentDialog = false">关闭</v-btn>
+          <v-btn text @click="close">关闭</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -557,7 +586,7 @@ import { getConfig, updateConfig, listRepos, getRepo } from '../service/api'
 import { defineAsyncComponent } from 'vue'
 import TipBanner from '../components/TipBanner.vue'
 import EnterpriseAgent from '../components/flow/EnterpriseAgent.vue'
-import SubmitAnalysisAgent from "../components/flow/SubmitAnalysisAgent.vue";
+import SubmitAnalysisAgent from '../components/flow/SubmitAnalysisAgent.vue'
 // 新增 —— 请在同一 import 之后立刻加上
 const agentDialog = ref(false) // 控制弹窗显隐
 const currentAgent = ref('') // 记录当前选中的卡片 key
@@ -584,6 +613,11 @@ const menu = reactive({
 function openAgentDialog(agentKey) {
   currentAgent.value = agentKey
   agentDialog.value = true
+}
+
+function close() {
+  fetchConfig()
+  agentDialog.value = false
 }
 
 // 异步加载 TonePieChart 组件
@@ -993,7 +1027,8 @@ onMounted(() => {
 }
 
 /* 全局紧凑调整 */
-.compact-title, .compact-section-title {
+.compact-title,
+.compact-section-title {
   font-size: 16px;
   font-weight: 500;
   margin: 4px 0;
