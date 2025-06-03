@@ -179,6 +179,7 @@ import hljs from 'highlight.js'
 import 'highlight.js/styles/mono-blue.css'
 import path from 'path-browserify'
 import router from '../router'
+import { onBeforeRouteLeave } from 'vue-router'
 
 export default {
   name: 'DeepSearch',
@@ -224,19 +225,43 @@ export default {
       }
     })
   },
+  activated() {
+    // keep-alive组件被激活时重新添加监听器
+    window.addEventListener('keydown', this.onKeydown)
+    document.addEventListener('click', this.closeDropdownOnClickOutside)
+    // 重新聚焦搜索框
+    this.$nextTick(() => {
+      if (this.$refs.searchInput) {
+        this.$refs.searchInput.focus()
+      }
+    })
+  },
   beforeUnmount() {
     // 卸载时移除监听
     window.removeEventListener('keydown', this.onKeydown)
+    // 移除document点击监听器
+    document.removeEventListener('click', this.closeDropdownOnClickOutside)
   },
   created() {
     console.log('DeepSearch created')
     this.listRepos()
+    
+    // 使用路由守卫监听路由离开事件
+    onBeforeRouteLeave((to, from, next) => {
+      // 路由离开时清理所有监听器
+      window.removeEventListener('keydown', this.onKeydown)
+      document.removeEventListener('click', this.closeDropdownOnClickOutside)
+      next()
+    })
   },
   methods: {
     listRepos() {
       listRepos().then(async (res) => {
         if (res.status === 200 && res.data.length > 0) {
-          for (const repo of res.data) {
+          // 按id降序排序
+          const sortedData = res.data.sort((a, b) => b.id - a.id)
+          
+          for (const repo of sortedData) {
             const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(repo.local_path)
             if (hasDb && !indexing) {
               repo.tag = 'yes'
@@ -257,7 +282,7 @@ export default {
               repo.show = `${repo.name}/${repo.branch}(${omit(repo.desc, 12)})`
             }
           }
-          this.repositories = res.data
+          this.repositories = sortedData
           const lsRepo = localStorage.getItem('selectedRepo')
           console.log('lsRepo:', JSON.stringify(lsRepo))
           if (lsRepo) {
