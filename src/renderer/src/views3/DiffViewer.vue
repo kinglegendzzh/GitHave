@@ -133,39 +133,63 @@ function applyHunks(
   hunks: HunkDetail[]
 ): Array<{ lineNumber: number; text: string; type: string }> {
   const originalLines = fullContent.split('\n')
-  const lineObjects = originalLines.map((text, idx) => ({
-    lineNumber: idx + 1,
-    text,
-    type: 'normal'
-  }))
-
-  // 倒序应用 hunks，避免索引错位
-  const sortedHunks = [...hunks].sort((a, b) => b.OldStart - a.OldStart)
+  const result: Array<{ lineNumber: number; text: string; type: string }> = []
+  
+  // 按照NewStart排序，确保按正确顺序处理
+  const sortedHunks = [...hunks].sort((a, b) => a.NewStart - b.NewStart)
+  
+  let currentOriginalIndex = 0
+  let currentNewLineNumber = 1
+  
   sortedHunks.forEach(hunk => {
-    const startIndex = Math.max(0, hunk.OldStart - 1)
-    const removedCount = Math.min(hunk.OldLines, lineObjects.length - startIndex)
-
-    // 标记删除行
-    for (let i = 0; i < removedCount; i++) {
-      const obj = lineObjects[startIndex + i]
-      if (obj) obj.type = 'del'
+    // 添加hunk之前的原始行
+    while (currentOriginalIndex < hunk.OldStart - 1 && currentOriginalIndex < originalLines.length) {
+      result.push({
+        lineNumber: currentNewLineNumber++,
+        text: originalLines[currentOriginalIndex],
+        type: 'normal'
+      })
+      currentOriginalIndex++
     }
-
-    // 插入新增行
-    const addedLines = hunk.Diff.split('\n').map(line => ({
-      lineNumber: 0,
-      text: line,
-      type: 'add'
-    }))
-    lineObjects.splice(startIndex + hunk.OldLines, 0, ...addedLines)
+    
+    // 处理删除的行
+    if (hunk.OldLines > 0) {
+      for (let i = 0; i < hunk.OldLines; i++) {
+        if (currentOriginalIndex < originalLines.length) {
+          result.push({
+            lineNumber: currentNewLineNumber++,
+            text: originalLines[currentOriginalIndex],
+            type: 'del'
+          })
+          currentOriginalIndex++
+        }
+      }
+    }
+    
+    // 添加新增的行
+    if (hunk.Diff && hunk.Diff.trim()) {
+      const addedLines = hunk.Diff.split('\n')
+      addedLines.forEach(line => {
+        result.push({
+          lineNumber: currentNewLineNumber++,
+          text: line,
+          type: 'add'
+        })
+      })
+    }
   })
-
-  // 重新编号
-  return lineObjects.map((obj, idx) => ({
-    lineNumber: idx + 1,
-    text: obj.text,
-    type: obj.type
-  }))
+  
+  // 添加剩余的原始行
+  while (currentOriginalIndex < originalLines.length) {
+    result.push({
+      lineNumber: currentNewLineNumber++,
+      text: originalLines[currentOriginalIndex],
+      type: 'normal'
+    })
+    currentOriginalIndex++
+  }
+  
+  return result
 }
 
 function close() {
