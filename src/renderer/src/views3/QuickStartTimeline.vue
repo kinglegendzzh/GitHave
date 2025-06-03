@@ -143,7 +143,7 @@ const steps = ref([
     // 该步骤仅作为介绍，无子流程/跳转
   },
   {
-    title: '1. 安装必要环境，部署模型服务',
+    title: '1. 安装必要环境，初始化模型服务',
     description: '',
     icon: 'mdi-cog',
     color: 'info',
