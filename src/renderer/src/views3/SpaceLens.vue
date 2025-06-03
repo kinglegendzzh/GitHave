@@ -10,7 +10,7 @@
         <v-autocomplete
           v-model="lensPath"
           :items="pathSuggestions"
-          label="选择透镜路径..."
+          label="选择代码仓库..."
           dense
           variant="solo-filled"
           flat
@@ -57,7 +57,7 @@
             @click="toggleArchitectureDrawer"
           >
             <v-icon>mdi-sitemap</v-icon>
-            <span>生成架构流程图</span>
+            <span>生成流程图</span>
           </v-btn>
         </div>
       </v-row>
@@ -95,10 +95,31 @@
       </v-row>
 
       <!-- 色卡模板弹窗 -->
-      <v-dialog v-model="showPaletteDialog" max-width="420">
+      <v-dialog v-model="showPaletteDialog" max-width="480">
         <v-card>
           <v-card-title>选择配色方案</v-card-title>
           <v-card-text>
+            <!-- 配色模式选择 -->
+            <div class="mb-4">
+              <v-card-subtitle class="px-0 pb-2 pt-0">配色模式</v-card-subtitle>
+              <v-btn-toggle
+                v-model="colorMode"
+                mandatory
+                color="primary"
+                density="comfortable"
+                class="mb-3"
+              >
+                <v-btn value="horizontal" prepend-icon="mdi-view-parallel">
+                  <span class="text-body-2">同层级渐变</span>
+                </v-btn>
+                <v-btn value="vertical" prepend-icon="mdi-view-sequential">
+                  <span class="text-body-2">垂直子层级渐变</span>
+                </v-btn>
+              </v-btn-toggle>
+              <v-divider class="mb-3"></v-divider>
+            </div>
+            <!-- 预设色卡 -->
+            <v-card-subtitle class="px-0 pb-2 pt-0">预设色卡</v-card-subtitle>
             <div style="display: flex; flex-wrap: wrap; gap: 16px;">
               <div v-for="(palette, idx) in presetPalettes" :key="idx" style="cursor: pointer;" @click="applyPalette(palette)">
                 <div style="display: flex; gap: 0; border-radius: 8px; overflow: hidden; border: 2px solid #eee;">
@@ -127,7 +148,7 @@
                 1. 透镜路径：选择要分析的代码仓库路径，点击按钮，开始扫描代码。<br />
                 2. 与左侧多级饼图交互：可以直观地查看代码仓库的结构，以及文件分布，也可以快速跳转到任意目录；点击饼图的中心图标返回上一级目录；右键点击饼图部分，通过弹出菜单项对文件进行操作。<br />
                 3. 与右侧目录列表交互：通过面包屑导航快速跳转到任意目录；右键点击文件夹或左键点击代码文件，通过弹出菜单项对文件进行操作。<br />
-                4. 【弹出菜单项】你可以预览代码详情、复制路径、在本地目录打开、生成分析报告、生成架构流程图。
+                4. 【弹出菜单项】你可以预览代码详情、复制路径、在本地目录打开、生成分析报告、生成流程图。
               </span>
             </v-tooltip>
             <v-btn-toggle variant="outlined" v-model="renderMode" mandatory density="compact" color="purple" class="ml-2 mr-2">
@@ -192,6 +213,19 @@
                     </v-avatar>
                   </template>
                   <v-list-item-title>{{ item.name }}</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">
+                    {{
+                      renderMode === 'size'
+                        ? item.size
+                          ? item.size >= 1024
+                            ? (item.size / 1024).toFixed(1) + ' MB'
+                            : item.size + ' KB'
+                          : '0 KB'
+                        : item.count && item.isDirectory
+                          ? item.count + ' 项'
+                          : ''
+                    }}
+                  </v-list-item-subtitle>
                 </v-list-item>
               </v-list>
             </div>
@@ -241,7 +275,7 @@
       </v-card>
     </div>
 
-    <!-- 架构流程图抽屉 -->
+    <!-- 流程图抽屉 -->
     <div
       v-if="architectureDrawerVisible"
       class="modern-drawer architecture-drawer"
@@ -269,6 +303,7 @@
       :scope-text="modalScopeText"
       :whole-repo="wholeRepo"
       :api="apiType"
+      :count="count"
     />
 
     <v-snackbar
@@ -298,6 +333,7 @@ const modalTargetPath = ref('')
 const modalScopeText = ref('')
 const wholeRepo = ref(false)
 const apiType = ref('')
+const count = ref(0)
 
 // 控制弹窗显隐
 const isModalVisible = ref(false)
@@ -333,7 +369,7 @@ const tooltipX = ref(0)
 const tooltipY = ref(0)
 const lensPath = ref('')
 const pathSuggestions = ref([])
-const depth = ref(3)
+const depth = ref(20)
 const initialLoad = ref(true)
 const chartKey = ref(0)
 // 用于保存 d3 sunburst 更新函数（将在绘图函数中设置）
@@ -434,7 +470,7 @@ const generateFileAnalysisReport = async () => {
       if (selectedItem) {
         const repoID = selectedItem.id
         console.log('找到匹配的仓库ID:', repoID, targetPath)
-        
+
         const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
         if (indexing) {
           window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
@@ -447,6 +483,12 @@ const generateFileAnalysisReport = async () => {
         modalScopeText.value = scopeText
         apiType.value = 'deepResearch'
         wholeRepo.value = false
+        // 设置文件数量
+        if (selectedFile.value.isDirectory && selectedFile.value.count) {
+          count.value = selectedFile.value.count
+        } else {
+          count.value = 1 // 单文件分析
+        }
         // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
         analysisReportDrawerVisible.value = true
 
@@ -477,7 +519,7 @@ const generateFileAnalysisReport = async () => {
   }
 }
 
-// 为文件夹生成架构流程图
+// 为文件夹生成流程图
 const generateFolderArchitectureMap = async () => {
   if (
     selectedFile.value &&
@@ -489,7 +531,7 @@ const generateFolderArchitectureMap = async () => {
     try {
       const targetPath = selectedFile.value.fullPath
       const scopeText = '单点文件集'
-      console.log(`生成文件夹架构流程图，路径：${targetPath}`)
+      console.log(`生成文件夹流程图，路径：${targetPath}`)
 
       // 这里可以调用后端API生成架构图
       const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
@@ -509,20 +551,25 @@ const generateFolderArchitectureMap = async () => {
         modalScopeText.value = scopeText
         apiType.value = 'flowChart'
         wholeRepo.value = false
-
+        // 设置文件数量
+        if (selectedFile.value.isDirectory && selectedFile.value.count) {
+          count.value = selectedFile.value.count
+        } else {
+          count.value = 1 // 单文件分析
+        }
         // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
         analysisReportDrawerVisible.value = true
         store.dispatch('snackbar/showSnackbar', {
-          message: `正在为文件夹梳理架构流程图，请稍等片刻后在'文件枢纽'中查看...`,
+          message: `正在为文件夹梳理流程图，请稍等片刻后在'文件枢纽'中查看...`,
           color: 'info'
         })
       } else {
         console.warn('未找到匹配的仓库路径')
       }
     } catch (error) {
-      console.error('生成架构流程图失败:', error)
+      console.error('生成流程图失败:', error)
       store.dispatch('snackbar/showSnackbar', {
-        message: '生成架构流程图失败',
+        message: '生成流程图失败',
         color: 'error'
       })
     } finally {
@@ -546,10 +593,10 @@ const menuItems = computed(() => {
     action: generateFileAnalysisReport
   })
 
-  // 如果是文件夹，添加生成架构流程图选项
+  // 如果是文件夹，添加生成流程图选项
   // if (selectedFile.value && selectedFile.value.isDirectory) {
   baseItems.push({
-    title: '生成架构流程图',
+    title: '生成流程图',
     icon: 'mdi-sitemap',
     action: generateFolderArchitectureMap
   })
@@ -602,7 +649,7 @@ const toggleAnalysisDrawer = () => {
   analysisDrawerVisible.value = !analysisDrawerVisible.value
 }
 
-// 切换架构流程图抽屉
+// 切换流程图抽屉
 const toggleArchitectureDrawer = () => {
   if (!rootPath.value) {
     store.dispatch('snackbar/showSnackbar', {
@@ -657,6 +704,13 @@ const generateAnalysisReport = async () => {
       //   wholeRepo.value = true
       // }
       console.log('wholeRepo', wholeRepo.value)
+      // 设置文件数量
+      if (analysisScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
+        count.value = currentFocus.value.data.count || 0
+      } else {
+        // 整个仓库的文件数量，使用根节点的count
+        count.value = fileTree.value ? fileTree.value.count || 0 : 0
+      }
 
       // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
       analysisReportDrawerVisible.value = true
@@ -681,7 +735,7 @@ const generateAnalysisReport = async () => {
   }
 }
 
-// 生成架构流程图
+// 生成流程图
 const generateArchitectureMap = async () => {
   architectureDrawerVisible.value = false
   isProcessing.value = true
@@ -692,7 +746,7 @@ const generateArchitectureMap = async () => {
         : rootPath.value
     const scopeText = architectureScope.value === 'current' ? '当前层级' : '整个仓库'
 
-    console.log(`生成架构流程图，范围：${scopeText}，路径：${targetPath}`)
+    console.log(`生成流程图，范围：${scopeText}，路径：${targetPath}`)
 
     // 这里可以调用后端API生成报告
     const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
@@ -713,27 +767,35 @@ const generateArchitectureMap = async () => {
       apiType.value = 'flowChart'
 
       // 如果为整个仓库，则wholeRepo设置为true
-      wholeRepo.value = analysisScope.value !== 'current'
+      wholeRepo.value = architectureScope.value !== 'current'
       // 如果当前层级为项目根目录，则视为整个仓库
       // if (currentFocus.value.data.fullPath === rootPath.value) {
       //   console.log('当前层级为项目根目录，视为整个仓库')
       //   wholeRepo.value = true
       // }
       console.log('wholeRepo', wholeRepo.value)
+      // 设置文件数量
+      if (architectureScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
+        count.value = currentFocus.value.data.count || 0
+      } else {
+        // 整个仓库的文件数量，使用根节点的count
+        count.value = fileTree.value ? fileTree.value.count || 0 : 0
+      }
+
       // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
       analysisReportDrawerVisible.value = true
 
       store.dispatch('snackbar/showSnackbar', {
-        message: `正在为${scopeText}梳理架构流程图，请稍等片刻后在'文件枢纽'中查看...`,
+        message: `正在为${scopeText}梳理流程图，请稍等片刻后在'文件枢纽'中查看...`,
         color: 'info'
       })
     } else {
       console.warn('未找到匹配的仓库路径')
     }
   } catch (error) {
-    console.error('生成架构流程图失败:', error)
+    console.error('生成流程图失败:', error)
     store.dispatch('snackbar/showSnackbar', {
-      message: '生成架构流程图失败',
+      message: '生成流程图失败',
       color: 'error'
     })
   } finally {
@@ -898,6 +960,7 @@ const rescanNode = async (nodeData) => {
 const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = depth.value) => {
   const name = path.basename(dirPath)
   let totalSize = 0
+  let totalCount = 0 // 添加总计数变量，用于计算所有子文件和子文件夹的文件总数
   let children = []
   let files
   try {
@@ -913,6 +976,7 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
       return {
         name,
         size: 0,
+        count: 0, // 添加count属性
         group: parentName,
         fullPath: dirPath,
         isDirectory: true,
@@ -924,6 +988,7 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
     return {
       name,
       size: 0,
+      count: 0, // 添加count属性
       group: parentName,
       fullPath: dirPath,
       isDirectory: true,
@@ -935,6 +1000,7 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
     return {
       name,
       size: 0,
+      count: 0, // 添加count属性
       group: parentName,
       fullPath: dirPath,
       isDirectory: true,
@@ -951,13 +1017,16 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
         if (statData.isDirectory) {
           const subtree = await buildFileTreeAsync(fullPath, name, d + 1, maxDepth)
           totalSize += subtree.size
+          totalCount += subtree.count // 累加子目录的文件总数
           return subtree
         } else if (statData.isFile) {
           const fileSizeKB = Math.ceil(statData.size / 1024)
           totalSize += fileSizeKB
+          totalCount += 1 // 每个文件计数为1
           return {
             name: file,
             size: fileSizeKB,
+            count: 1, // 文件的count为1
             group: name,
             fullPath,
             isDirectory: false,
@@ -980,6 +1049,7 @@ const buildFileTreeAsync = async (dirPath, parentName = '', d = 0, maxDepth = de
   return {
     name,
     size: totalSize,
+    count: totalCount, // 返回该目录下所有文件的总数
     group: parentName,
     fullPath: dirPath,
     isDirectory: true,
@@ -992,9 +1062,11 @@ const loadPathSuggestions = async () => {
   try {
     const response = await listRepos()
     if (!response.data || !Array.isArray(response.data)) return
-    pathSuggestions.value = response.data.map((repo) => ({
+    // 根据id降序排序
+    const sortedData = [...response.data].sort((a, b) => b.id - a.id)
+    pathSuggestions.value = sortedData.map((repo) => ({
       value: repo.local_path,
-      title: `${omit(repo.desc, 25)}(${repo.name})`,
+      title: repo.desc ? `${omit(repo.desc, 25)}(${repo.name})` : repo.name,
       id: repo.id
     }))
   } catch (err) {
@@ -1005,7 +1077,13 @@ const loadPathSuggestions = async () => {
 // 绘制图表并添加动画与交互
 const chart = ref(null)
 const renderMode = ref('count') // 'size' 或 'count'
+const colorMode = ref('horizontal') // 'horizontal' 或 'vertical'
 watch(renderMode, () => {
+  if (fileTree.value) {
+    drawChartWithAnimation()
+  }
+})
+watch(colorMode, () => {
   if (fileTree.value) {
     drawChartWithAnimation()
   }
@@ -1065,15 +1143,57 @@ function getSiblingColors(range, count) {
   return colors
 }
 
-// 递归分配颜色，支持三色渐变
-function assignColors(node, range = colorRange.value) {
+// 递归分配颜色，支持三色渐变 - 同层级渐变模式
+function assignHorizontalColors(node, range = colorRange.value) {
   node.data._color = range[0]
   if (!node.children || node.children.length === 0) return
   const colors = getSiblingColors(range, node.children.length)
   node.children.forEach((child, idx) => {
     // 子节点继续用当前色到终点色递进
-    assignColors(child, [colors[idx], range[1], range[2]])
+    assignHorizontalColors(child, [colors[idx], range[1], range[2]])
   })
+}
+
+// 递归分配颜色，支持三色渐变 - 垂直子层级渐变模式
+function assignVerticalColors(node, range = colorRange.value) {
+  // 当前节点的颜色使用传入的范围的起始色
+  node.data._color = range[0]
+
+  if (!node.children || node.children.length === 0) return
+
+  // 对同级兄弟节点分配不同的颜色，就像水平模式一样
+  const siblingColors = getSiblingColors(range, node.children.length)
+
+  // 对每个子节点，根据其在兄弟中的位置分配不同的颜色
+  node.children.forEach((child, idx) => {
+    // 为子节点创建一个新的色范围，从当前颜色到终点色渐变
+    // 这样每个分支都有不同的起始色，但其子层级会在该颜色的基础上渐变
+    const childRange = [
+      siblingColors[idx],
+      d3.interpolateRgb(siblingColors[idx], range[1])(0.7), // 中间色
+      range[1] // 终点色
+    ]
+
+    // 为每个子节点计算垂直渐变颜色
+    assignVerticalColors(child, childRange)
+  })
+}
+
+// 根据当前颜色模式选择合适的颜色分配函数
+function assignColors(node, range = colorRange.value) {
+  if (colorMode.value === 'horizontal') {
+    assignHorizontalColors(node, range)
+  } else {
+    // 获取树的最大深度用于垂直渐变计算
+    const maxDepth = getMaxDepth(node)
+    assignVerticalColors(node, range, 0, maxDepth)
+  }
+}
+
+// 获取树的最大深度
+function getMaxDepth(node) {
+  if (!node.children || node.children.length === 0) return 0
+  return 1 + Math.max(...node.children.map(getMaxDepth))
 }
 
 const drawChartWithAnimation = () => {
@@ -1093,7 +1213,10 @@ const drawChartWithAnimation = () => {
   legendItems.value = (fileTree.value.children || []).map((child) => ({
     name: child.name,
     color: child._color,
-    fullPath: child.fullPath
+    fullPath: child.fullPath,
+    size: child.size || 0,
+    count: child.count || 0,
+    isDirectory: child.isDirectory || !!child.children
   }))
   const svg = d3.select(chart.value).append('svg').attr('width', width).attr('height', height)
   const g = svg.append('g').attr('transform', `translate(${width / 2}, ${height / 2})`)
@@ -1153,7 +1276,9 @@ const drawChartWithAnimation = () => {
     selectedFile.value = {
       name: d.data.name,
       fullPath: d.data.fullPath,
-      isDirectory: d.data.isDirectory
+      isDirectory: d.data.isDirectory,
+      count: d.data.count || 0,
+      size: d.data.size || 0
     }
     showContextMenu(event, selectedFile.value)
   }
@@ -1212,13 +1337,17 @@ const drawChartWithAnimation = () => {
           color: dir.data._color,
           fullPath: dir.data.fullPath,
           isDirectory: true,
-          icon: 'mdi-folder'
+          icon: 'mdi-folder',
+          size: dir.value || 0,
+          count: dir.data.count || 0
         })),
         ...files.map((file) => ({
           name: file.data.name,
           color: file.data._color,
           fullPath: file.data.fullPath,
-          isDirectory: false
+          isDirectory: false,
+          size: file.data.size || 0,
+          count: 1
         }))
       ]
     } else {
