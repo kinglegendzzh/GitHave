@@ -14,10 +14,10 @@
       <v-row>
         <v-toolbar class="mb-1">
           <div class="d-flex align-center ml-auto">
-            <v-select
+            <v-autocomplete
               v-model="newRootPath"
               :items="pathSuggestions"
-              label="选择访达路径..."
+              label="选择代码仓库..."
               outlined
               dense
               clearable
@@ -25,10 +25,10 @@
               item-value="value"
               color="success"
               class="mr-2"
-              style="width: 400px; height: auto"
+              style="width: 800px; height: auto"
               @focus="loadPathSuggestions"
               @update:model-value="onPathSelectionChanged"
-            ></v-select>
+            ></v-autocomplete>
             <v-tooltip text="更新代码">
               <template #activator="{ props }">
                 <v-btn v-bind="props" title="更新代码" outlined plain class="mr-2" @click="pull()">
@@ -748,7 +748,7 @@ async function loadFileByType(selectedPath) {
       // 判断文件大小，超过8MB则懒加载
       try {
         const stat = await window.electron.stat(selectedPath)
-        const maxSize = 1 * 1024 * 1024 // 1MB
+        const maxSize = 0.1 * 1024 * 1024 // 1MB
         if (stat.size > maxSize) {
           // 懒加载逻辑：先加载前1000行
           const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
@@ -1207,7 +1207,7 @@ async function loadPathSuggestions() {
       pathSuggestions.value = sortedData.map((repo) => ({
         value: repo.local_path,
         // 如果desc为空则只显示name，否则显示desc(name)
-        title: repo.desc ? `${omit(repo.desc, 10)}(${repo.name})` : repo.name,
+        title: repo.desc ? `${omit(repo.desc, 40)}(${repo.name})` : repo.name,
         repo_url: repo.local_path,
         branch: repo.branch,
         local_path: repo.local_path,
@@ -1468,35 +1468,11 @@ body {
   color: #333333; /* 亮色文本 */
 }
 
-.hljs-keyword {
-  color: #1a73e8; /* 亮色模式下关键字颜色 */
-}
-
-.hljs-string {
-  color: #d14; /* 亮色模式下字符串颜色 */
-}
-
-.hljs-comment {
-  color: #888; /* 亮色模式下注释颜色 */
-}
-
 /* 暗黑模式的样式 */
 @media (prefers-color-scheme: dark) {
   .hljs {
     background-color: #000000; /* 暗色背景 */
     color: #dcdcdc; /* 暗色文本 */
-  }
-
-  .hljs-keyword {
-    color: #ff6347; /* 暗色模式下关键字颜色 */
-  }
-
-  .hljs-string {
-    color: #32cd32; /* 暗色模式下字符串颜色 */
-  }
-
-  .hljs-comment {
-    color: #808080; /* 暗色模式下注释颜色 */
   }
 }
 .preview-content pre {
