@@ -43,14 +43,14 @@
                 </v-btn>
               </template>
             </v-tooltip>
-            <v-tooltip text="从本地目录打开">
+            <v-tooltip text="从文件夹打开">
               <template #activator="{ props }">
                 <v-btn v-bind="props" outlined plain class="mr-2" @click="openOutside(breadcrumbs, true)">
-                  <v-icon>mdi-folder-eye</v-icon> 从本地目录打开
+                  <v-icon>mdi-folder-eye</v-icon> 从文件夹打开
                 </v-btn>
               </template>
             </v-tooltip>
-            <v-tooltip text="从本地应用程序打开">
+            <v-tooltip text="从程序打开">
               <template #activator="{ props }">
                 <v-btn v-bind="props" outlined plain class="mr-2" @click="openOutside(breadcrumbs, false)">
                   <v-icon>mdi-file-search-outline</v-icon> 从本地应用程序打开
