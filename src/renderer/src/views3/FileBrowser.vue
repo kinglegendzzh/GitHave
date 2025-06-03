@@ -25,7 +25,7 @@
               item-value="value"
               color="success"
               class="mr-2"
-              style="width: 800px; height: auto"
+              style="width: 500px; height: auto"
               @focus="loadPathSuggestions"
               @update:model-value="onPathSelectionChanged"
             ></v-autocomplete>
@@ -37,33 +37,33 @@
                 </v-btn>
               </template>
             </v-tooltip>
-            <v-tooltip text="从本地目录打开">
+            <v-tooltip text="从文件夹打开">
               <template #activator="{ props }">
                 <v-btn
                   v-bind="props"
-                  title="从本地目录打开"
+                  title="从文件夹打开"
                   outlined
                   plain
                   class="mr-2"
                   @click="openOutside(breadcrumbs, true)"
                 >
                   <v-icon>mdi-folder-eye</v-icon>
-                  从本地目录打开
+                  从文件夹打开
                 </v-btn>
               </template>
             </v-tooltip>
-            <v-tooltip text="从本地应用程序打开">
+            <v-tooltip text="从应用程序打开">
               <template #activator="{ props }">
                 <v-btn
                   v-bind="props"
-                  title="从本地应用程序打开"
+                  title="从应用程序打开"
                   outlined
                   plain
                   class="mr-2"
                   @click="openOutside(breadcrumbs, false)"
                 >
                   <v-icon>mdi-file-search-outline</v-icon>
-                  从本地应用程序打开
+                  从应用程序打开
                 </v-btn>
               </template>
             </v-tooltip>
