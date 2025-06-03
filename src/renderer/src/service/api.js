@@ -12,6 +12,11 @@ const instance_long = axios.create({
   timeout: 6 * 60 * 60 * 1000
 })
 
+const instance_med = axios.create({
+  baseURL: 'http://127.0.0.1:19151',
+  timeout: 2 * 60 * 1000
+})
+
 const fm = axios.create({
   baseURL: 'http://127.0.0.1:5532/api',
   timeout: 6 * 60 * 60 * 1000
@@ -103,7 +108,7 @@ export async function switchBranch(repoID, branch) {
  * GET /commits/filter?repoID=…&branch=…&start=…&end=…&author=…&page=…&size=…
  */
 export function filterCommits(params) {
-  return instance_long.get('/commits/filter', { params })
+  return instance_med.get('/commits/filter', { params })
 }
 
 /**
@@ -289,6 +294,27 @@ export function exportCommitDetails(commitRecords) {
   })
 }
 
+/**
+ * 生成仓库报刊
+ * POST /ai/weekly-report
+ * @param {number} repoId - 仓库ID
+ * @param {string} startTime - 开始时间，格式：YYYY-MM-DD，可选
+ * @param {string} endTime - 结束时间，格式：YYYY-MM-DD，可选
+ * @param {boolean} stream - 是否启用流式响应，默认为false
+ */
+export function generateWeeklyReport(repoId, startTime, endTime, stream = false) {
+  return fetch('http://127.0.0.1:19151/ai/weekly-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo_id: repoId,
+      start_time: startTime,
+      end_time: endTime,
+      stream: stream
+    })
+  })
+}
+
 
 /* -------------------------- 文件操作 -------------------------- */
 // 删除文件
@@ -296,28 +322,32 @@ export function deleteFile(id) {
   return instance.delete(`/files/${id}`)
 }
 // 获取文件列表
-export function files(id) {
+export function files() {
   return instance.get(`/files`)
 }
 // 获取分析报告文件列表
-export function deepResearchFiles(id) {
+export function deepResearchFiles() {
   return instance.get(`/deep-research-files`)
 }
 // 获取流程图文件列表
-export function flowChartFiles(id) {
+export function flowChartFiles() {
   return instance.get(`/flow-chart-files`)
 }
 // 获取提交记录分析报告文件列表
-export function commitsResearchFiles(id) {
+export function commitsResearchFiles() {
   return instance.get(`/commits-research-files`)
 }
 // 获取贡献热力图文件列表
-export function heatmapFiles(id) {
+export function heatmapFiles() {
   return instance.get(`/heatmap-files`)
 }
 // 获取贡献排行榜文件列表
-export function contributionChartFiles(id) {
+export function contributionChartFiles() {
   return instance.get(`/contribution-chart-files`)
+}
+// 获取代码周刊文件列表
+export function weeklyReportFiles() {
+  return instance.get(`/weekly-report-files`)
 }
 
 /**
@@ -338,6 +368,10 @@ export function renameFile(id, newFileName) {
  */
 export function commitsDetailsFileList() {
   return instance.get('/commits-details-files')
+}
+// 获取报刊文件列表
+export function weeklyReportFilesList() {
+  return instance.get('/weekly-report-files')
 }
 /* -------------------------- 贡献图表生成 -------------------------- */
 /**
