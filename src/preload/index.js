@@ -62,6 +62,24 @@ const api = {
   openDirectory: async (options) => await ipcRenderer.invoke('dialog:openDirectory', options),
   readDirectory: async (dirPath) => await ipcRenderer.invoke('read-directory', dirPath),
   readFile: async (filePath) => await ipcRenderer.invoke('read-file', filePath),
+  readImageBlob: async (filePath) => await ipcRenderer.invoke('read-image-blob', filePath),
+  createReadStream: async (filePath, options) => {
+    // Check if file exists and get its stats
+    try {
+      const stats = await fs.promises.stat(filePath)
+      if (stats.size > 10 * 1024 * 1024) { // Files larger than 10MB
+        // For large files, read in chunks using IPC
+        return ipcRenderer.invoke('read-file-chunks', filePath, options)
+      } else {
+        // For smaller files, read the entire content at once
+        const content = await fs.promises.readFile(filePath, options)
+        return content.toString(options?.encoding || 'utf8')
+      }
+    } catch (error) {
+      console.error('Error reading file stream:', error)
+      throw error
+    }
+  },
 
   // 配置文件操作
   readConfig: async (configPath) => await ipcRenderer.invoke('read-config', configPath),
