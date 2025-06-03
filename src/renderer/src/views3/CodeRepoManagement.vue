@@ -9,7 +9,13 @@
       <!-- 快速导入 -->
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="openImportDialog">
+          <v-btn
+            v-bind="props"
+            size="small"
+            class="mr-2"
+            variant="outlined"
+            @click="openImportDialog"
+          >
             <v-icon>mdi-download</v-icon>
             <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
           </v-btn>
@@ -19,7 +25,13 @@
       <!-- 本地导入 -->
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="openLocalImportDialog">
+          <v-btn
+            v-bind="props"
+            size="small"
+            class="mr-2"
+            variant="outlined"
+            @click="openLocalImportDialog"
+          >
             <v-icon>mdi-folder-open</v-icon>
             <span>本地导入</span>
           </v-btn>
@@ -36,7 +48,13 @@
       </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ props }">
-          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="openNewRepoDialog">
+          <v-btn
+            v-bind="props"
+            size="small"
+            class="mr-2"
+            variant="outlined"
+            @click="openNewRepoDialog"
+          >
             <v-icon>mdi-plus</v-icon>
           </v-btn>
         </template>
@@ -46,12 +64,7 @@
 
     <!-- 卡片式仓库列表 -->
     <v-row class="mt-4 mr-4" justify="center">
-      <v-col v-for="repo in repos" :key="repo.id"
-             cols="12"
-             sm="6"
-             md="6"
-             lg="5"
-      >
+      <v-col v-for="repo in repos" :key="repo.id" cols="12" sm="6" md="6" lg="5">
         <v-card class="id-card" elevation="2" style="display: block">
           <div class="id-card-header">
             <span class="id-card-title">代码仓库身份证</span>
@@ -78,23 +91,8 @@
             </div>
           </div>
           <div class="id-card-footer">
-            <div class="id-number">仓库ID:{{repo.id}}</div>
+            <div class="id-number">仓库ID:{{ repo.id }}</div>
             <div class="action-buttons">
-              <v-tooltip text="编辑">
-                <template #activator="{ props }">
-                  <v-btn
-                    v-bind="props"
-                    small
-                    class="detail-btn mr-0"
-                    color="primary"
-                    variant="outlined"
-                    @click="viewRepo(repo)"
-                  >
-                    <v-icon>mdi-pencil</v-icon>
-                    编辑
-                  </v-btn>
-                </template>
-              </v-tooltip>
               <v-btn
                 small
                 class="detail-btn mr-0"
@@ -113,8 +111,23 @@
                 @click="previewRepo(repo)"
               >
                 <v-icon>mdi-eye</v-icon>
-                进入
+                详情
               </v-btn>
+              <v-tooltip text="编辑">
+                <template #activator="{ props }">
+                  <v-btn
+                    v-bind="props"
+                    small
+                    class="detail-btn mr-0"
+                    color="primary"
+                    variant="outlined"
+                    @click="viewRepo(repo)"
+                  >
+                    <v-icon>mdi-pencil</v-icon>
+                    编辑
+                  </v-btn>
+                </template>
+              </v-tooltip>
               <v-tooltip text="删除仓库">
                 <template #activator="{ props }">
                   <v-btn
@@ -262,34 +275,39 @@
           <div class="action-buttons">
             <v-btn
               small
+              class="local-path-btn mr-0"
+              color="success"
               size="small"
-              color="error"
-              outlined
-              @click="closeDialog"
+              variant="outlined"
+              @click="openLocalPath(repoForm)"
             >
-              <v-icon>mdi-close</v-icon>
-              取消
+              <v-icon>mdi-folder-open</v-icon>
+              打开本地路径
+            </v-btn>
+            <v-btn
+              small
+              class="git-link-btn mr-0"
+              color="info"
+              size="small"
+              variant="outlined"
+              @click="openGitLink(repoForm)"
+            >
+              <v-icon>mdi-github</v-icon>
+              打开仓库链接
             </v-btn>
             <v-btn
               small
               size="small"
               color="primary"
-              outlined
               :disabled="!selectedRepo && (!repoForm.local_path || !localFolderValid)"
               @click="saveRepo"
             >
               <v-icon>mdi-content-save</v-icon>
               {{ selectedRepo ? '保存仓库' : '创建仓库' }}
             </v-btn>
-            <v-btn
-              small
-              size="small"
-              outlined
-              color="purple"
-              @click="jumpToFm"
-            >
-              <v-icon>mdi-flash</v-icon>
-              构建AI索引
+            <v-btn small size="small" color="error" @click="closeDialog">
+              <v-icon>mdi-close</v-icon>
+              取消
             </v-btn>
           </div>
         </div>
@@ -428,26 +446,31 @@
     v-model="t.visible"
     :color="t.color"
     timeout="-1"
-  absolute
-  bottom
-  right
-  :style="{ marginBottom: (i * 60) + 'px' }"
+    absolute
+    bottom
+    right
+    :style="{ marginBottom: i * 60 + 'px' }"
   >
-  {{ t.message }}
+    {{ t.message }}
   </v-snackbar>
-
 </template>
 
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
-import { listRepos, getRepo, createRepo, updateRepo, deleteRepo, listBranches, switchBranch } from "../service/api";
+import {
+  listRepos,
+  getRepo,
+  createRepo,
+  updateRepo,
+  deleteRepo,
+  listBranches,
+  switchBranch
+} from '../service/api'
 import { omit } from '../service/str'
 import { generateAvatar } from '../components/AvatarGenerator'
-import {
-  VSelect, VSnackbar
-} from "vuetify/components";
+import { VSelect, VSnackbar } from 'vuetify/components'
 
 // 获取 Vuex store 与 Vue Router 实例
 const store = useStore()
@@ -456,45 +479,44 @@ const router = useRouter()
 // 新写法：简易 toast 列表
 const toasts = ref([]) // [{ id, message, color, timeout, visible }]
 
-function toast (message, color = 'info', timeout = 3000) {
-  const id = Date.now() + Math.random()        // 简单唯一 id
+function toast(message, color = 'info', timeout = 3000) {
+  const id = Date.now() + Math.random() // 简单唯一 id
   toasts.value.push({ id, message, color, timeout, visible: true })
   setTimeout(() => {
-    const item = toasts.value.find(t => t.id === id)
-    if (item) item.visible = false             // 触发 v-snackbar 关闭
+    const item = toasts.value.find((t) => t.id === id)
+    if (item) item.visible = false // 触发 v-snackbar 关闭
     // 再延迟一点点把对象从数组删掉
     setTimeout(() => {
-      const idx = toasts.value.findIndex(t => t.id === id)
+      const idx = toasts.value.findIndex((t) => t.id === id)
       if (idx > -1) toasts.value.splice(idx, 1)
     }, 400)
   }, timeout)
 }
 
 // 方便调用
-const toastError   = msg => toast(msg, 'error')
-const toastSuccess = msg => toast(msg, 'success')
-const toastInfo    = msg => toast(msg, 'info')
-const toastWarning = msg => toast(msg, 'warning')
-
+const toastError = (msg) => toast(msg, 'error')
+const toastSuccess = (msg) => toast(msg, 'success')
+const toastInfo = (msg) => toast(msg, 'info')
+const toastWarning = (msg) => toast(msg, 'warning')
 
 // 用来控制错误提示
 const snackbar = reactive({
   show: false,
   message: '',
   timeout: 3000,
-  color: 'info',
+  color: 'info'
 })
 /** 队列：按先进先出依次展示 snackbar */
 const snackbarQueue = ref([])
 
 /** 入队并在空闲时立即播放 */
-function enqueueSnackbar (msg, color = 'info', timeout = 3000) {
+function enqueueSnackbar(msg, color = 'info', timeout = 3000) {
   snackbarQueue.value.push({ msg, color, timeout })
   if (!snackbar.show) playNextSnackbar()
 }
 
 /** 将队首元素赋给 snackbar，触发显示 */
-function playNextSnackbar () {
+function playNextSnackbar() {
   if (snackbarQueue.value.length === 0) return
   const { msg, color, timeout } = snackbarQueue.value.shift()
   Object.assign(snackbar, { message: msg, color, timeout, show: true })
@@ -551,7 +573,6 @@ const localImportForm = reactive({
   desc: ''
 })
 
-
 const showLocalSnackbar = (message, color) => toast(message, color)
 
 const showErrorSnackbar = (message) => toastError(message)
@@ -572,7 +593,7 @@ async function ensureBranch(repoID) {
     }
   } catch (e) {
     console.error('获取分支列表失败', e.response.data)
-    showErrorSnackbar((e.response.data || e))
+    showErrorSnackbar(e.response.data || e)
   }
 }
 
@@ -584,17 +605,16 @@ async function ensureBranch(repoID) {
  * @returns {boolean}
  */
 async function applyBranch(repoID) {
-  if (!repoForm.branch) return true   // 没选分支，直接视为成功
+  if (!repoForm.branch) return true // 没选分支，直接视为成功
   try {
     await switchBranch(repoID, repoForm.branch)
     return true
   } catch (e) {
     console.error('切换分支失败', e.response.data)
-    showErrorSnackbar((e.response.data || e))
+    showErrorSnackbar(e.response.data || e)
     return false
   }
 }
-
 
 const openLocalImportDialog = () => {
   Object.assign(localImportForm, {
@@ -627,13 +647,13 @@ const selectLocalRepoPath = async () => {
   }
 }
 
-
 // 获取仓库列表（尽量用 async/await，提高可读性和错误处理能力）
 const fetchRepos = async () => {
   try {
     const response = await listRepos()
     if (response.status === 200) {
-      repos.value = response.data
+      // 按照id降序排序后赋值
+      repos.value = response.data.sort((a, b) => b.id - a.id)
     } else {
       // 处理非200状态码，从响应体中提取错误信息
       const errorMsg = response.data || '无法获取仓库列表'
@@ -667,6 +687,48 @@ const jumpToFm = () => {
   router.push({
     name: 'scan'
   })
+}
+
+// 打开本地路径
+const openLocalPath = (repo) => {
+  if (!repo.local_path) {
+    toastWarning('该仓库未配置本地路径')
+    return
+  }
+
+  // 使用electron的shell模块打开本地文件夹
+  window.electron.shell.openPath(repo.local_path)
+    .then(() => {
+      toastSuccess('已打开本地路径')
+    })
+    .catch((error) => {
+      toastError('打开本地路径失败：' + error.message)
+    })
+}
+
+// 打开Git链接的小窗口
+const openGitLink = (repo) => {
+  if (!repo.repo_url) {
+    toastWarning('该仓库未配置Git链接')
+    return
+  }
+
+  // 优先使用 Electron 的 openNewWindow 方法
+  if (window.electron && typeof window.electron.openNewWindow === 'function') {
+    window.electron.openNewWindow(repo.repo_url)
+  } else {
+    // 降级到使用 window.open
+    const gitWindow = window.open(
+      repo.repo_url,
+      'gitLink',
+      'width=800,height=600,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no'
+    )
+    
+    if (!gitWindow) {
+      // 如果弹窗被阻止，提示用户
+      toastError('弹窗被浏览器阻止，请允许弹窗或手动访问：' + repo.repo_url)
+    }
+  }
 }
 
 // 打开新增仓库对话框，同时重置表单
@@ -772,9 +834,9 @@ const saveRepo = async () => {
   startProgressSimulation()
   try {
     if (selectedRepo.value) {
-      console.log("now branch", repoForm.branch);
-      const repo = await getRepo(selectedRepo.value.id);
-      console.log('old branch', repo.data.branch);
+      console.log('now branch', repoForm.branch)
+      const repo = await getRepo(selectedRepo.value.id)
+      console.log('old branch', repo.data.branch)
       await updateRepo(selectedRepo.value.id, {
         repo_url: repoForm.repo_url,
         branch: repoForm.branch,
@@ -787,7 +849,7 @@ const saveRepo = async () => {
       })
       // ② 只有分支真的改动才切换
       if (repo.data.branch !== repoForm.branch) {
-        console.log('yes!');
+        console.log('yes!')
         await applyBranch(selectedRepo.value.id)
       }
     } else {
@@ -848,7 +910,10 @@ const confirmDeleteRepo = async () => {
     // 调用后端删除接口，并根据复选框状态传递 deleteLocal 参数
     await deleteRepo(repoId, { deleteLocal: shouldDeleteLocal }) // 正确传递查询参数
     fetchRepos() // 重新获取列表
-    showLocalSnackbar(`仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''), 'error')
+    showLocalSnackbar(
+      `仓库 ${repoName} 删除成功` + (shouldDeleteLocal ? '（本地目录已删除）' : ''),
+      'error'
+    )
   } catch (err) {
     console.error('删除仓库错误:', err)
     const errorMsg = err.response?.data || err.message || '删除仓库失败'
@@ -904,9 +969,9 @@ const handleLocalPathClick = async () => {
         repoForm.local_path = selectedPath
         showLocalSnackbar('选中的文件夹为空，直接使用该目录。', 'info')
       } else {
-        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点
+        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点和.git后缀
         const rawName = repoForm.name
-        const safeName = rawName.replace(/\./g, '')
+        const safeName = rawName.replace(/\./g, '').replace(/\.git$/, '')
         const newFolderPath = path.join(selectedPath, safeName)
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
@@ -937,9 +1002,9 @@ const selectImportLocalPath = async () => {
         importForm.local_path = selectedPath
         showLocalSnackbar('选中的文件夹为空，直接使用该目录。', 'info')
       } else {
-        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点
+        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点和.git后缀
         const rawRepoName = extractNameFromUrl(importForm.repo_url)
-        const safeRepoName = rawRepoName.replace(/\./g, '')
+        const safeRepoName = rawRepoName.replace(/\./g, '').replace(/\.git$/, '')
         const newFolderPath = path.join(selectedPath, safeRepoName)
         if (!fs.existsSync(newFolderPath)) {
           fs.mkdirSync(newFolderPath)
@@ -963,9 +1028,29 @@ const importForm = reactive({
   local_path: ''
 })
 
-const openImportDialog = () => {
+// 监听 repo_url 变化，自动更新本地路径
+watch(
+  () => importForm.repo_url,
+  async (newUrl) => {
+    if (newUrl && newUrl.trim()) {
+      const repoName = extractNameFromUrl(newUrl)
+      if (repoName !== 'unknown') {
+        // 获取当前基础路径（保留父目录）
+        const homeDir = await window.electron.homeDir
+        // 如果基础路径为空，则使用用户主目录
+        const basePath = homeDir
+        // 更新本地路径，使用仓库名作为文件夹名
+        importForm.local_path = window.electron.path.join(basePath, 'githave', repoName)
+      }
+    }
+  }
+)
+
+const openImportDialog = async () => {
+  // 本地路径默认为用户主目录
+  const homeDir = await window.electron.homeDir
+  importForm.local_path = window.electron.path.join(homeDir, 'githave')
   importForm.repo_url = ''
-  importForm.local_path = ''
   importDialog.value = true
 }
 
@@ -976,7 +1061,7 @@ const closeImportDialog = () => {
 // 工具：从 git URL 提取仓库名作为默认名称
 const extractNameFromUrl = (url) => {
   if (!url) return 'unknown'
-  const match = url.match(/([^/]+)(?:\.git)?$/)
+  const match = url.match(/([^/]+?)(?:\.git)?(?:\/)?$/)
   return match ? match[1] : 'unknown'
 }
 
@@ -1049,7 +1134,7 @@ onMounted(() => {
 .id-card {
   width: 100%;
   height: 100%;
-  margin: 10px 10px ;
+  margin: 10px 10px;
   padding: 20px 20px 40px;
   font-size: calc(14px + 0.3vw); /* 随屏幕宽度变化字体大小 */
   background: linear-gradient(135deg, #f5f7fa 0%, #e4e7eb 100%);
@@ -1199,7 +1284,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")
+  background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.343 4-4s-1.343-4-4-4-4 1.79-4 4 1.343 3 3 3zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E")
     repeat;
   opacity: 0.3;
   z-index: 0;
