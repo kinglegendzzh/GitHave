@@ -1921,7 +1921,19 @@ async function initializeUserDataBin() {
 
   // 1. 确定目标目录（生产环境用 userData，开发环境指向项目 bin）
   const isProd = app.isPackaged
-  const userDataPath = isProd ? app.getPath('userData') : path.join(app.getAppPath(), 'bin')
+  const userDataPath = isProd
+    ? path.join(app.getPath('userData'), 'bin')
+    : path.join(app.getAppPath(), 'bin')
+
+  // 如果是开发环境且源目录和目标目录相同，则直接返回，无需复制
+  const sourceBinPath = isProd
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
+    : path.join(app.getAppPath(), 'bin')
+
+  if (!isProd && sourceBinPath === userDataPath) {
+    console.log('[initializeUserDataBin] 开发环境，源目录和目标目录相同，跳过复制。')
+    return
+  }
 
   // 2. 版本文件路径
   const versionFilePath = path.join(userDataPath, 'app_version.json')
@@ -1968,11 +1980,6 @@ async function initializeUserDataBin() {
     )
   }
 
-  // 7. 准备源目录路径
-  const sourceBinPath = isProd
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
-    : path.join(app.getAppPath(), 'bin')
-
   if (!fs.existsSync(sourceBinPath)) {
     console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`)
     return
@@ -1990,7 +1997,8 @@ async function initializeUserDataBin() {
     'fm',
     'fm.exe',
     'fm_http',
-    'fm_http.exe'
+    'fm_http.exe',
+    'static'
   ]
 
   // 10. 遍历复制或覆盖
@@ -2013,7 +2021,7 @@ async function initializeUserDataBin() {
           }
         }
       }
-    } else {
+    } else { // 文件处理
       if (shouldForce || !fs.existsSync(dest)) {
         await fsPromises.copyFile(src, dest)
         console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖文件' : '复制文件'}：${name}`)
@@ -2026,7 +2034,7 @@ async function initializeUserDataBin() {
           }
         }
       }
-    }
+    } // 文件处理结束
   }
 
   // 11. 新版本时写入新版号到文件
