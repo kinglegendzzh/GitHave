@@ -73,6 +73,8 @@ import {
   VBtnToggle,
   VSelect,
   VAlert,
+  VChipGroup,
+  VExpandTransition,
 } from 'vuetify/components'
 import { Ripple, Tooltip } from 'vuetify/directives'
 import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
@@ -164,6 +166,8 @@ const vuetify = createVuetify({
     VBtnToggle,
     VSelect,
     VAlert,
+    VChipGroup,
+    VExpandTransition,
   },
   directives: {
     Ripple,
