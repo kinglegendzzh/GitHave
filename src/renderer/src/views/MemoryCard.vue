@@ -303,6 +303,7 @@ interface Repository {
   excludeRule: string[];
   resetIcon: string;
   resetText: string;
+  estimating?: boolean; // 是否正在进行函数量估算
 }
 
 // 表头定义
@@ -317,7 +318,7 @@ const headers = [
   { title: '仓库名称', key: 'name'},
   { title: '描述', key: 'omitDesc'},
   { title: '索引状态', key: 'hasMemoryFlash'},
-  { title: '当前构建进度/预估索引量', key: 'totalProgress', minWidth: '300px'},
+  { title: '实际构建完成度/预估索引量', key: 'totalProgress', minWidth: '300px'},
   { title: '操作', key: 'actions', maxWidth: '500px'},
 ]
 
@@ -325,7 +326,7 @@ const messages = ref([
   {
     date: '2025.5.5',
     message:
-      '目前对Go、Java、Python、C/C++、PHP六种语言，支持了构建“函数级”的精确粒度索引，提高了AI分析这些代码任务的能力',
+      '目前对Go、Java、Python、C/C++、PHP、JS七种语言，支持了构建“函数级”的精确粒度索引，提高了AI分析这些代码任务的能力',
     href: 'https://your.link/3'
   },
 ])
@@ -337,7 +338,7 @@ const fetchRepositories = async () => {
   try {
     loading.value = true;
     const response = await listRepos();
-    const repos = response.data;
+    const repos = response.data.sort((a, b) => b.id - a.id)
 
     repositories.value = await Promise.all(
       repos.map(async (repo: any) => {
@@ -353,8 +354,8 @@ const fetchRepositories = async () => {
         };
         let { functionsTotal, scannedCount, indexProgress } = saved || fallback;
         console.log('进度', { functionsTotal, scannedCount, indexProgress });
-        repo.resetText = indexing ? '强制停止' : '重置索引';
-        repo.resetIcon = indexing ? 'mdi-stop-circle' : 'mdi-lock-reset';
+        repo.resetText = indexing ? '强制停止' : '当构建出现异常时，点我重置索引';
+        repo.resetIcon = indexing ? 'mdi-stop-circle' : 'mdi-reload';
         return {
           ...repo,
           omitDesc: omit(repo.desc, 20),
@@ -364,6 +365,7 @@ const fetchRepositories = async () => {
           scannedCount,
           indexProgress,
           loading: indexing,
+          estimating: false, // 初始化为非估算状态
         } as Repository;
       })
     );
@@ -375,6 +377,11 @@ const fetchRepositories = async () => {
 };
 
 const clickProgress = async (repo: Repository) => {
+  // 防止重复点击，如果当前仓库正在估算中则直接返回
+  if (repo.loading || repo.estimating) {
+    return;
+  }
+  
   await store.dispatch('snackbar/showSnackbar', {
     message: `正在扫描AI索引量（较大的仓库可能会花费几分钟）...`,
     color: 'primary'
@@ -383,6 +390,8 @@ const clickProgress = async (repo: Repository) => {
 }
 
 const viewProgress = async (repo: Repository) => {
+  // 设置用于估算的特殊标记，防止自动刷新任务重置 loading 状态
+  repo.estimating = true;
   repo.loading = true;
   try {
     const fn = await listFunctions(repo.local_path);
@@ -402,19 +411,29 @@ const viewProgress = async (repo: Repository) => {
 
     // 更新 UI
     repo.functionsTotal  = total;
-    repo.scannedCount    = scanned;
-    repo.indexProgress   = progress;
+    // repo.scannedCount    = scanned;
+    // repo.indexProgress   = progress;
 
     // 新：保存到 localStorage
     const p: RepoProgress = { functionsTotal: total, scannedCount: scanned, indexProgress: progress };
     saveRepoProgress(repo.id, p);
     console.log('saveRepoProgress', repo.id, p);
+    
+    // 只有在估算完成后才取消 loading 状态
     repo.loading = false;
-    // 强制 vue 响应（若仍需 slice）
+    repo.estimating = false;
+    
+    // 更新repositories数组中对应的仓库，保持其他仓库的引用不变
     const idx = repositories.value.findIndex(r => r.id === repo.id);
     if (idx !== -1) {
-      repositories.value[idx] = { ...repo };
-      repositories.value = repositories.value.slice();
+      // 直接更新数组中的对象属性，而不是替换整个对象
+      Object.assign(repositories.value[idx], {
+        functionsTotal: repo.functionsTotal,
+        scannedCount: repo.scannedCount,
+        indexProgress: repo.indexProgress,
+        loading: repo.loading,
+        estimating: repo.estimating
+      });
     }
     await store.dispatch('snackbar/showSnackbar', {
       message: `${repo.name}(${repo.desc}) 扫描进度已更新`,
@@ -422,6 +441,18 @@ const viewProgress = async (repo: Repository) => {
     });
   } catch (error) {
     console.error(`加载 ${repo.name} 进度失败:`, error);
+    // 出错时也需要重置状态
+    repo.loading = false;
+    repo.estimating = false;
+    
+    // 更新repositories数组中对应的仓库状态
+    const idx = repositories.value.findIndex(r => r.id === repo.id);
+    if (idx !== -1) {
+      Object.assign(repositories.value[idx], {
+        loading: repo.loading,
+        estimating: repo.estimating
+      });
+    }
   }
 };
 
@@ -489,17 +520,30 @@ const buildMemoryFlash = async (repo: Repository) => {
       repoSizeType = '超大型仓库';
       canBuildFullIndex = false;
     }
-
+    // 估算扫描时间：扫描每个函数平均需要n秒，则扫描total个函数需要total * n 秒
+    const min_n = 0.5
+    const max_n = 2
     // 4. 构建确认信息
     let confirmMessage = '';
     if (exists) {
-      confirmMessage = `该仓库(${repoSizeType})已构建AI索引，完整度为${progress}%。是否重新构建AI索引？`;
+      // 小数量后2位忽略，自动正则 秒 和 分钟 的转换
+      const minEstimatedTime = scanned * min_n < 60 ? scanned * min_n + '秒' : (scanned * min_n / 60).toFixed(0) + '分钟'
+      const maxEstimatedTime = scanned * max_n < 60 ? scanned * max_n + '秒' : (scanned * max_n / 60).toFixed(0) + '分钟'
+      confirmMessage = `该仓库(${repoSizeType})已构建AI索引，包含${scanned}个函数，完整度为${progress}%。是否重新构建AI索引？
+      预计需要花费${minEstimatedTime}~${maxEstimatedTime}。`;
     } else {
-      confirmMessage = `该仓库为${repoSizeType}，包含${total}个函数。`;
+      // 小数量后2位忽略，自动正则 秒 和 分钟 的转换
+      const minEstimatedTime = total * min_n < 60 ? total * min_n + '秒' : (total * min_n / 60).toFixed(0) + '分钟'
+      const maxEstimatedTime = total * max_n < 60 ? total * max_n + '秒' : (total * max_n / 60).toFixed(0) + '分钟'
+      confirmMessage = `该仓库为${repoSizeType}，包含${total}个函数，预计需要花费${minEstimatedTime}~${maxEstimatedTime}。`;
       if (canBuildFullIndex) {
         confirmMessage += '是否构建AI索引？';
       } else {
-        confirmMessage += '为了节省电脑性能，对于大于1000个函数的仓库，我们建议你1. 使用云端模型构建AI索引，2. 从社区一键导入索引，3. 从‘空间透镜’自行批量构建索引。是否继续构建？';
+        confirmMessage += `为了节省电脑性能，对于大于1000个函数的仓库，建议你
+        1. 使用云端模型构建AI索引，
+        2. 从社区一键导入索引，
+        3. 从‘空间透镜’自行批量构建索引。
+        是否继续构建？`;
       }
     }
     if (!dialogHasIndex.value && progress > 0 && progress < 100) {
@@ -675,7 +719,11 @@ const startAutoRefresh = () => {
               // 如果仓库已进行初始化，则更新仓库的加载状态
               const { exists, indexing } = await window.electron.checkMemoryFlashStatus(repo.local_path);
               repo.hasMemoryFlash = exists;
-              repo.loading = indexing;
+              
+              // 只有在不处于估算状态时，才更新loading状态
+              if (!repo.estimating) {
+                repo.loading = indexing;
+              }
               repo.indexing = indexing;
             }
           }
@@ -778,7 +826,6 @@ onBeforeUnmount(() => {
 .v-data-table :deep(th) {
   position: sticky;
   top: 0;
-  background-color: #fff;
   z-index: 2;
 }
 
