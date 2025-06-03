@@ -18,7 +18,8 @@
       </div>
       <div class="flex items-center justify-between px-6 py-4 border-b">
         <h3 v-if="props.api  === 'deepResearch'" class="text-xl font-semibold">代码分析报告</h3>
-        <h3 v-else class="text-xl font-semibold">架构流程图</h3>
+        <h3 v-else-if="props.api === 'commitsResearch'" class="text-xl font-semibold">提交记录分析报告</h3>
+        <h3 v-else class="text-xl font-semibold">流程图</h3>
       </div>
 
       <!-- Status -->
@@ -48,8 +49,15 @@
             </router-link>
             <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
           </div>
+          <div v-else-if="props.api === 'commitsResearch'" class="ml-auto flex space-x-2">
+            <span class="text-green-600"> 提交记录分析报告已生成，请前往'文件枢纽'查看！</span>
+            <router-link :to="{ name: 'report' }">
+              <v-btn color="primary" @click="close" size="small">文件枢纽</v-btn>
+            </router-link>
+            <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
+          </div>
           <div v-else class="ml-auto flex space-x-2">
-            <span class="text-green-600"> 架构流程图已生成成功！</span>
+            <span class="text-green-600"> 流程图已生成成功！</span>
             <v-btn color="error" variant="outlined" size="small" @click="restartStreaming">不满意?重新生成</v-btn>
             <v-btn variant="outlined" size="small" @click="exportDiagram">
               <v-icon>mdi-download</v-icon> 导出
@@ -63,7 +71,7 @@
 
       <!-- Content: flex-1 + min-h-0 + overflow-auto -->
       <div class="flex-1 min-h-0 overflow-auto px-6 py-4 prose max-w-none" style="max-height: 70vh; max-width: 90vw;">
-        <div v-if="props.api === 'deepResearch'">
+        <div v-if="props.api === 'deepResearch' || props.api === 'commitsResearch'">
           <div v-html="renderedMarkdown"></div>
         </div>
         <div v-else>
@@ -91,7 +99,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
 import MarkdownIt from 'markdown-it'
-import { deepResearch, flowChart, deleteFile } from '../../service/api.js'
+import { deepResearch, flowChart, deleteFile, commitsResearch } from '../../service/api.js'
 import { useStore } from 'vuex'
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs'
 import { useRouter } from 'vue-router'
@@ -122,6 +130,8 @@ const props = defineProps<{
   scopeText: string
   wholeRepo: boolean
   api: string
+  count: number
+  commitRecord?: any
 }>()
 const emit = defineEmits(['update:modelValue'])
 
@@ -137,6 +147,7 @@ const scopeText = ref('')
 const lastEndIndex = ref(-1)
 const isRendering = ref(false)
 let fileIds = []
+const MAX_TREE_COUNT = 10
 
 // —— 1. 初始化 Mermaid ——
 mermaid.initialize({ startOnLoad: false, theme: 'default' })
@@ -257,14 +268,21 @@ async function startStreaming() {
     const repoID = parseInt(props.repoID)
     const without_code = props.wholeRepo
     let response
+    // 估算扫描时间：扫描每个文件平均需要n秒，则扫描props.count个文件需要props.count * n 秒
+    const min_n = 2
+    const max_n = 6
+    // 小数量后2位忽略，自动正则 秒 和 分钟 的转换
+    const minEstimatedTime = props.count * min_n < 60 ? props.count * min_n + '秒' : (props.count * min_n / 60).toFixed(0) + '分钟'
+    const maxEstimatedTime = props.count * max_n < 60 ? props.count * max_n + '秒' : (props.count * max_n / 60).toFixed(0) + '分钟'
     if (props.api  === 'deepResearch') {
       const saved = loadRepoProgress(repoID);
       if (saved != null) {
         console.log('从 localStorage 读取进度', saved);
         const progress = saved.indexProgress;
-        if (progress < 75) {
+        if (progress < 75 && props.count > MAX_TREE_COUNT) {
           const confirmed = window.confirm(
-            `检测到你对该仓库构建的索引量少于75%，这可能会花费不少时间，确定要继续吗？`
+            `当前路径下需要分析${props.count}个代码文件，
+            检测到你对该仓库构建的索引量少于75%，如果从未构建过这个路径的索引，可能需要${minEstimatedTime}~${maxEstimatedTime}进行初始化，确定要继续吗？`
           )
           if (!confirmed) {
             visible.value = false
@@ -276,14 +294,20 @@ async function startStreaming() {
         message: `正在异步${scopeText.value}生成代码分析报告…`, color: 'info'
       })
       response = await deepResearch(repoID, props.targetPath, without_code, true)
+    } else if (props.api === 'commitsResearch') {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `正在异步${scopeText.value}生成提交记录分析报告…`, color: 'info'
+      })
+      response = await commitsResearch(repoID, props.commitRecord, true)
     } else {
       const saved = loadRepoProgress(repoID);
       if (saved != null) {
         console.log('从 localStorage 读取进度', saved);
         const progress = saved.indexProgress;
-        if (progress < 75) {
+        if (progress < 75 && props.count > MAX_TREE_COUNT) {
           const confirmed = window.confirm(
-            `检测到你对该仓库构建的索引量少于75%，这可能会花费不少时间，确定要继续吗？`
+            `当前路径下需要分析${props.count}个代码文件，
+            检测到你对该仓库构建的索引量少于75%，如果从未构建过这个路径的索引，可能需要${minEstimatedTime}~${maxEstimatedTime}进行初始化，确定要继续吗？`
           )
           if (!confirmed) {
             visible.value = false
@@ -351,8 +375,10 @@ async function startStreaming() {
     isProcessing.value = false
     store.dispatch('snackbar/showSnackbar', {
       message: success.value
-        ? (props.api === 'deepResearch' ? '代码分析报告生成成功' : '流程图生成成功')
-        : (props.api === 'deepResearch' ? '代码分析报告生成失败' : '流程图生成失败'),
+        ? (props.api === 'deepResearch' ? '代码分析报告生成成功' : 
+           props.api === 'commitsResearch' ? '提交记录分析报告生成成功' : '流程图生成成功')
+        : (props.api === 'deepResearch' ? '代码分析报告生成失败' : 
+           props.api === 'commitsResearch' ? '提交记录分析报告生成失败' : '流程图生成失败'),
       color: success.value ? 'success' : 'error'
     })
   }
