@@ -993,6 +993,108 @@ ipcMain.handle('read-file', async (event, filePath) => {
   }
 })
 
+// Handle image file reading as blob
+ipcMain.handle('read-image-blob', async (event, filePath) => {
+  console.log('[IPC read-image-blob] Received filePath:', filePath)
+  try {
+    // Read image file as buffer (binary data)
+    const imageBuffer = await fs.promises.readFile(filePath)
+    console.log('[IPC read-image-blob] Image file read successfully, size:', imageBuffer.length)
+    
+    // Convert buffer to base64
+    const base64Data = imageBuffer.toString('base64')
+    
+    // Determine MIME type based on file extension
+    const ext = path.extname(filePath).toLowerCase()
+    let mimeType = 'image/jpeg' // default
+    
+    switch (ext) {
+      case '.png':
+        mimeType = 'image/png'
+        break
+      case '.jpg':
+      case '.jpeg':
+        mimeType = 'image/jpeg'
+        break
+      case '.gif':
+        mimeType = 'image/gif'
+        break
+      case '.webp':
+        mimeType = 'image/webp'
+        break
+      case '.svg':
+        mimeType = 'image/svg+xml'
+        break
+      case '.bmp':
+        mimeType = 'image/bmp'
+        break
+      default:
+        mimeType = 'image/jpeg'
+    }
+    
+    // Return data URL format
+    return `data:${mimeType};base64,${base64Data}`
+  } catch (err) {
+    console.error('[IPC read-image-blob] Error reading image file:', err)
+    throw err
+  }
+})
+
+// Handle large file reading in chunks
+ipcMain.handle('read-file-chunks', async (event, filePath, options = {}) => {
+  console.log('[IPC read-file-chunks] Reading large file:', filePath)
+  try {
+    const stats = await fs.promises.stat(filePath)
+    const fileSize = stats.size
+    const encoding = options.encoding || 'utf-8'
+    const chunkSize = 1024 * 1024 // 1MB chunks
+    
+    // For files smaller than 10MB, read the entire file
+    if (fileSize < 10 * 1024 * 1024) {
+      const content = await fs.promises.readFile(filePath, { encoding })
+      return content
+    }
+    
+    // For larger files, read the first portion (up to maxLines)
+    const maxLines = options.maxLines || 1000
+    const fileHandle = await fs.promises.open(filePath, 'r')
+    const buffer = Buffer.alloc(chunkSize)
+    let bytesRead = 0
+    let content = ''
+    let lineCount = 0
+    
+    try {
+      while (lineCount < maxLines) {
+        const { bytesRead: read } = await fileHandle.read(buffer, 0, chunkSize, bytesRead)
+        if (read === 0) break // End of file
+        
+        const chunk = buffer.toString(encoding, 0, read)
+        content += chunk
+        
+        // Count lines
+        const lines = content.split(/\r?\n/)
+        lineCount = lines.length
+        
+        if (lineCount >= maxLines) {
+          // Truncate to maxLines
+          content = lines.slice(0, maxLines).join('\n')
+          break
+        }
+        
+        bytesRead += read
+        if (bytesRead >= fileSize) break // End of file
+      }
+      
+      return content + '\n...\n(文件过大，仅显示部分内容)'
+    } finally {
+      await fileHandle.close()
+    }
+  } catch (error) {
+    console.error('[IPC read-file-chunks] Error reading large file:', error)
+    throw error
+  }
+})
+
 ipcMain.handle('get-app-path', async (event, appName) => {
   console.log('[IPC get-app-path] Received appName:', appName)
   const command = process.platform === 'win32' ? `where ${appName}` : `which ${appName}`
