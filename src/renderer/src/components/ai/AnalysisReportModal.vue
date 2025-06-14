@@ -1,8 +1,8 @@
 <template>
-  <v-dialog v-model="visible" max-height="90vh" persistent>
+  <v-dialog v-model="visible" max-height="90vh" persistent scrollable>
     <div
-      class="bg-white bg-opacity-90 rounded-2xl shadow-lg w-11/12 max-w-3xl max-h-[90vh] flex flex-col"
-      style=" margin: 10px; border-radius: 5px; "
+      class="bg-white bg-opacity-90 rounded-2xl shadow-lg flex flex-col"
+      :style="dialogStyle"
     >
       <!-- Header -->
       <div style="position: absolute; top: 12px; right: 16px; z-index: 10;">
@@ -88,7 +88,15 @@
             <v-btn variant="outlined" size="small" @click="zoomOut"><v-icon>mdi-magnify-minus</v-icon> 缩小</v-btn>
             <v-btn variant="outlined" size="small" @click="resetZoom"><v-icon>mdi-refresh</v-icon> 重置</v-btn>
           </div>
-          <div ref="mermaidContainer" class="prose max-w-none"></div>
+          <div 
+            ref="mermaidContainer" 
+            class="prose max-w-none mermaid-draggable"
+            :style="mermaidContainerStyle"
+            @mousedown="startDrag"
+            @mousemove="onDrag"
+            @mouseup="endDrag"
+            @mouseleave="endDrag"
+          ></div>
         </div>
       </div>
     </div>
@@ -116,16 +124,96 @@ import { loadRepoProgress } from "../../storage/progress-storage";
 
 const mermaidContainer = ref<HTMLElement|null>(null)
 const zoomLevel = ref(1)
+
+// 窗口大小相关
+const dialogWidth = ref('w-11/12 max-w-3xl')
+const dialogHeight = ref('max-h-[90vh]')
+const mermaidWidth = ref(0)
+const mermaidHeight = ref(0)
+
+// 拖动相关
+const isDragging = ref(false)
+const dragStartX = ref(0)
+const dragStartY = ref(0)
+const translateX = ref(0)
+const translateY = ref(0)
+
+// 计算样式
+const dialogStyle = computed(() => ({
+  width: mermaidWidth.value > 800 ? '90vw' : '66vw',
+  maxWidth: mermaidWidth.value > 1200 ? '95vw' : '80vw',
+  height: mermaidHeight.value > 600 ? '85vh' : 'auto',
+  maxHeight: '90vh',
+  margin: '0 auto',
+  borderRadius: '16px',
+  position: 'relative'
+}))
+
+const mermaidContainerStyle = computed(() => ({
+  cursor: isDragging.value ? 'grabbing' : 'grab',
+  overflow: 'hidden',
+  position: 'relative'
+}))
+
 function applyZoom() {
   const svg = mermaidContainer.value?.querySelector<SVGSVGElement>('svg')
   if (svg) {
     svg.style.transformOrigin = '0 0'
-    svg.style.transform = `scale(${zoomLevel.value})`
+    svg.style.transform = `scale(${zoomLevel.value}) translate(${translateX.value}px, ${translateY.value}px)`
   }
 }
+
 function zoomIn()   { zoomLevel.value += 0.1; applyZoom() }
 function zoomOut()  { zoomLevel.value = Math.max(0.1, zoomLevel.value - 0.1); applyZoom() }
-function resetZoom(){ zoomLevel.value = 1; applyZoom() }
+function resetZoom(){ 
+  zoomLevel.value = 1
+  translateX.value = 0
+  translateY.value = 0
+  applyZoom() 
+}
+
+// 拖动功能
+function startDrag(event: MouseEvent) {
+  if (props.api !== 'flowChart') return
+  isDragging.value = true
+  dragStartX.value = event.clientX - translateX.value
+  dragStartY.value = event.clientY - translateY.value
+  event.preventDefault()
+}
+
+function onDrag(event: MouseEvent) {
+  if (!isDragging.value || props.api !== 'flowChart') return
+  translateX.value = event.clientX - dragStartX.value
+  translateY.value = event.clientY - dragStartY.value
+  applyZoom()
+  event.preventDefault()
+}
+
+function endDrag() {
+  isDragging.value = false
+}
+
+// 自动调整窗口大小
+function autoResizeDialog() {
+  if (props.api !== 'flowChart') return
+  
+  nextTick(() => {
+    const svg = mermaidContainer.value?.querySelector<SVGSVGElement>('svg')
+    if (svg) {
+      const bbox = svg.getBBox()
+      mermaidWidth.value = bbox.width
+      mermaidHeight.value = bbox.height
+      
+      console.log('Mermaid图尺寸:', { width: mermaidWidth.value, height: mermaidHeight.value })
+      
+      // 如果图很宽但不高，优先适应宽度
+      if (mermaidWidth.value > 800 && mermaidHeight.value < 400) {
+        // 宽图，调整窗口以适应宽度
+        console.log('检测到宽图，调整窗口大小')
+      }
+    }
+  })
+}
 
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
@@ -136,12 +224,13 @@ const props = defineProps<{
   repoID: string
   targetPath: string
   scopeText: string
-  wholeRepo: boolean
+  wholeCode: boolean
   api: string
   count: number
   commitRecord?: any
   startTime?: string
   endTime?: string
+  config?: any
 }>()
 const emit = defineEmits(['update:modelValue'])
 
@@ -193,6 +282,10 @@ watch(renderedMarkdown, async () => {
       mermaid.init(undefined, '.prose .mermaid')
       applyZoom()
       isRendering.value = true
+      // 渲染完成后自动调整窗口大小
+      setTimeout(() => {
+        autoResizeDialog()
+      }, 100)
     }
   } catch (e) {
     console.error('Mermaid 渲染失败：', e)
@@ -266,6 +359,10 @@ async function renderingMermaid() {
     mermaidContainer.value!.innerHTML = renderedMarkdown.value
     mermaid.init(undefined, '.prose .mermaid')
     applyZoom()
+    // 渲染完成后自动调整窗口大小
+    setTimeout(() => {
+      autoResizeDialog()
+    }, 100)
   } catch (e) {
     console.error('Mermaid 渲染失败：', e)
   }
@@ -276,7 +373,7 @@ async function startStreaming() {
   success.value = false
   try {
     const repoID = parseInt(props.repoID)
-    const without_code = props.wholeRepo
+    const without_code = !props.wholeCode
     let response
     // 估算扫描时间：扫描每个文件平均需要n秒，则扫描props.count个文件需要props.count * n 秒
     const min_n = 2
@@ -303,7 +400,7 @@ async function startStreaming() {
       store.dispatch('snackbar/showSnackbar', {
         message: `正在异步${scopeText.value}生成代码分析报告…`, color: 'info'
       })
-      response = await deepResearch(repoID, props.targetPath, without_code, true)
+      response = await deepResearch(repoID, props.targetPath, without_code, true, props.config)
     } else if (props.api === 'commitsResearch') {
       store.dispatch('snackbar/showSnackbar', {
         message: `正在异步${scopeText.value}生成提交记录分析报告…`, color: 'info'
@@ -333,7 +430,7 @@ async function startStreaming() {
       store.dispatch('snackbar/showSnackbar', {
         message: `正在异步${scopeText.value}生成流程图…`, color: 'info'
       })
-      response = await flowChart(repoID, props.targetPath, without_code, true)
+      response = await flowChart(repoID, props.targetPath, without_code, true, props.config)
     }
     if (!response.body) throw new Error('Streaming not supported')
 
@@ -402,7 +499,7 @@ async function startStreaming() {
 }
 
 function close() {
-  if (isProcessing.value == true) {
+  if (isProcessing.value == true && props.api!== 'flowChart') {
     store.dispatch('snackbar/showSnackbar', {
       message: '请等待当前任务完成',
       color: 'error'
@@ -414,4 +511,18 @@ function close() {
 </script>
 
 <style scoped>
+.mermaid-draggable {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.mermaid-draggable svg {
+  transition: transform 0.1s ease-out;
+}
+
+.mermaid-draggable:active {
+  cursor: grabbing !important;
+}
 </style>
