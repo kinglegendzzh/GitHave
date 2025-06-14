@@ -20,6 +20,15 @@ const { readdir, stat } = require('fs/promises')
 const semver = require('semver')
 const { copyFile, mkdir, readFile, writeFile } = fs.promises
 const AdmZip = require('adm-zip')
+const si = require('systeminformation')
+let pty
+try {
+  pty = require('node-pty')
+} catch (error) {
+  pty = null
+  console.warn('node-pty is not available on this platform')
+  // 使用替代方案或禁用相关功能
+}
 
 const env = process.env
 
@@ -1000,14 +1009,14 @@ ipcMain.handle('read-image-blob', async (event, filePath) => {
     // Read image file as buffer (binary data)
     const imageBuffer = await fs.promises.readFile(filePath)
     console.log('[IPC read-image-blob] Image file read successfully, size:', imageBuffer.length)
-    
+
     // Convert buffer to base64
     const base64Data = imageBuffer.toString('base64')
-    
+
     // Determine MIME type based on file extension
     const ext = path.extname(filePath).toLowerCase()
     let mimeType = 'image/jpeg' // default
-    
+
     switch (ext) {
       case '.png':
         mimeType = 'image/png'
@@ -1031,7 +1040,7 @@ ipcMain.handle('read-image-blob', async (event, filePath) => {
       default:
         mimeType = 'image/jpeg'
     }
-    
+
     // Return data URL format
     return `data:${mimeType};base64,${base64Data}`
   } catch (err) {
@@ -1048,13 +1057,13 @@ ipcMain.handle('read-file-chunks', async (event, filePath, options = {}) => {
     const fileSize = stats.size
     const encoding = options.encoding || 'utf-8'
     const chunkSize = 1024 * 1024 // 1MB chunks
-    
+
     // For files smaller than 10MB, read the entire file
     if (fileSize < 10 * 1024 * 1024) {
       const content = await fs.promises.readFile(filePath, { encoding })
       return content
     }
-    
+
     // For larger files, read the first portion (up to maxLines)
     const maxLines = options.maxLines || 1000
     const fileHandle = await fs.promises.open(filePath, 'r')
@@ -1062,29 +1071,29 @@ ipcMain.handle('read-file-chunks', async (event, filePath, options = {}) => {
     let bytesRead = 0
     let content = ''
     let lineCount = 0
-    
+
     try {
       while (lineCount < maxLines) {
         const { bytesRead: read } = await fileHandle.read(buffer, 0, chunkSize, bytesRead)
         if (read === 0) break // End of file
-        
+
         const chunk = buffer.toString(encoding, 0, read)
         content += chunk
-        
+
         // Count lines
         const lines = content.split(/\r?\n/)
         lineCount = lines.length
-        
+
         if (lineCount >= maxLines) {
           // Truncate to maxLines
           content = lines.slice(0, maxLines).join('\n')
           break
         }
-        
+
         bytesRead += read
         if (bytesRead >= fileSize) break // End of file
       }
-      
+
       return content + '\n...\n(文件过大，仅显示部分内容)'
     } finally {
       await fileHandle.close()
@@ -1159,7 +1168,7 @@ async function resolveCommand(cmd) {
     const command = `which ${cmd}`
     console.log(`[resolveCommand] Executing: ${command}`)
     exec(
-      `bash -l -c "export PATH=$PATH:${arch === 'arm64' ? '/opt/homebrew/bin' : '/usr/local/bin'} &&  ${command}"`,
+      `bash -l -c "export PATH=$PATH:/opt/homebrew/bin:/usr/local/bin &&  ${command}"`,
       { env },
       (error, stdout, stderr) => {
         console.log(`stdout: ${stdout}`)
@@ -1474,6 +1483,79 @@ ipcMain.handle('save-file', async (event, filePath, data) => {
   }
 })
 
+// 文件操作相关接口
+ipcMain.handle('create-directory', async (event, dirPath) => {
+  console.log(`[IPC create-directory] 创建目录: ${dirPath}`)
+  try {
+    await fs.promises.mkdir(dirPath, { recursive: true })
+    return { success: true }
+  } catch (err) {
+    console.error(`[IPC create-directory] 创建目录失败:`, err)
+    throw err
+  }
+})
+
+ipcMain.handle('delete-file', async (event, filePath) => {
+  console.log(`[IPC delete-file] 删除文件: ${filePath}`)
+  try {
+    const stats = await fs.promises.stat(filePath)
+    if (stats.isDirectory()) {
+      await fs.promises.rmdir(filePath, { recursive: true })
+    } else {
+      await fs.promises.unlink(filePath)
+    }
+    return { success: true }
+  } catch (err) {
+    console.error(`[IPC delete-file] 删除失败:`, err)
+    throw err
+  }
+})
+
+ipcMain.handle('copy-file', async (event, sourcePath, targetPath) => {
+  console.log(`[IPC copy-file] 复制文件: ${sourcePath} -> ${targetPath}`)
+  try {
+    await fs.promises.copyFile(sourcePath, targetPath)
+    return { success: true }
+  } catch (err) {
+    console.error(`[IPC copy-file] 复制失败:`, err)
+    throw err
+  }
+})
+
+ipcMain.handle('move-file', async (event, sourcePath, targetPath) => {
+  console.log(`[IPC move-file] 移动文件: ${sourcePath} -> ${targetPath}`)
+  try {
+    await fs.promises.rename(sourcePath, targetPath)
+    return { success: true }
+  } catch (err) {
+    console.error(`[IPC move-file] 移动失败:`, err)
+    throw err
+  }
+})
+
+ipcMain.handle('show-item-in-folder', async (event, filePath) => {
+  console.log(`[IPC show-item-in-folder] 在文件夹中显示: ${filePath}`)
+  try {
+    shell.showItemInFolder(filePath)
+    return { success: true }
+  } catch (err) {
+    console.error(`[IPC show-item-in-folder] 显示失败:`, err)
+    throw err
+  }
+})
+
+ipcMain.handle('show-message-box', async (event, options) => {
+  console.log(`[IPC show-message-box] 显示消息框`)
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = await dialog.showMessageBox(win, options)
+    return result
+  } catch (err) {
+    console.error(`[IPC show-message-box] 显示消息框失败:`, err)
+    throw err
+  }
+})
+
 // ─── 窗口缩放接口 ──────────────────────────────────────────────────────────
 ipcMain.handle('set-zoom-factor', (event, factor) => {
   const win = BrowserWindow.fromWebContents(event.sender)
@@ -1526,6 +1608,18 @@ async function createSkeletonWindow() {
     return { action: 'deny' }
   })
 
+  // 监听窗口关闭事件，清理终端实例
+  win.on('closed', () => {
+    terminals.forEach((terminal, terminalId) => {
+      try {
+        terminal.kill()
+        terminals.delete(terminalId)
+      } catch (e) {
+        console.error('窗口关闭时清理终端实例出错:', e)
+      }
+    })
+  })
+
   return win
 }
 
@@ -1547,7 +1641,7 @@ app.on('ready', async () => {
   await initBrewPath()
   clearOccupiedPorts().catch((err) => winstonLogger.log('error', '清理端口时出现错误: ' + err))
 
-  await new Promise((resolve) => setTimeout(resolve, 500))
+  await new Promise((resolve) => setTimeout(resolve, 1500))
   try {
     setTimeout(async () => {
       await loadMainInterface(win)
@@ -1621,6 +1715,16 @@ app.on('before-quit', async (event) => {
         //   killPort(BOT_PORT),
         //   killPort(APP_PORT)
         // ]);
+        // 清理所有终端实例
+        terminals.forEach((terminal, terminalId) => {
+          try {
+            terminal.kill()
+            terminals.delete(terminalId)
+          } catch (e) {
+            console.error('清理终端实例时出错:', e)
+          }
+        })
+        
         // 遍历全局 childProcesses 数组，逐一杀死子进程
         childProcesses.forEach((proc) => {
           if (proc && !proc.killed) {
@@ -1818,7 +1922,6 @@ async function checkPortAndStore(port, executableName) {
     return null
   }
 }
-
 // 打开新窗口
 ipcMain.on('open-new-window-ide', (event, url) => {
   const win = new BrowserWindow({
@@ -1827,6 +1930,7 @@ ipcMain.on('open-new-window-ide', (event, url) => {
     frame: true,
     autoHideMenuBar: false,
     show: true,
+    title: 'GitHave IDE',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -1852,7 +1956,6 @@ ipcMain.on('open-new-window-ide', (event, url) => {
     win.loadFile(indexPath, { hash })
   }
 })
-
 ipcMain.handle('check-memory-flash', async (_event, args) => {
   const dir = args.local_path
   const gitgoDir = path.join(dir, '.gitgo')
@@ -1921,19 +2024,7 @@ async function initializeUserDataBin() {
 
   // 1. 确定目标目录（生产环境用 userData，开发环境指向项目 bin）
   const isProd = app.isPackaged
-  const userDataPath = isProd
-    ? path.join(app.getPath('userData'), 'bin')
-    : path.join(app.getAppPath(), 'bin')
-
-  // 如果是开发环境且源目录和目标目录相同，则直接返回，无需复制
-  const sourceBinPath = isProd
-    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
-    : path.join(app.getAppPath(), 'bin')
-
-  if (!isProd && sourceBinPath === userDataPath) {
-    console.log('[initializeUserDataBin] 开发环境，源目录和目标目录相同，跳过复制。')
-    return
-  }
+  const userDataPath = isProd ? app.getPath('userData') : path.join(app.getAppPath(), 'bin')
 
   // 2. 版本文件路径
   const versionFilePath = path.join(userDataPath, 'app_version.json')
@@ -1941,6 +2032,15 @@ async function initializeUserDataBin() {
 
   console.log('内测阶段删除版本标识文件，正式生产上线时删掉这段')
   await fsPromises.rm(versionFilePath, { recursive: true, force: true })
+
+  // 如果是生产环境，清理userData下的static
+  if (isProd) {
+    const staticPath = path.join(app.getPath('userData'), 'static', 'deep_research')
+    if (fs.existsSync(staticPath)) {
+      console.log('[initializeUserDataBin] 清理 static/deep_research 目录...')
+      await fsPromises.rm(staticPath, { recursive: true, force: true })
+    }
+  }
 
   // 3. 确保目标目录存在
   await fsPromises.mkdir(userDataPath, { recursive: true })
@@ -1980,6 +2080,11 @@ async function initializeUserDataBin() {
     )
   }
 
+  // 7. 准备源目录路径
+  const sourceBinPath = isProd
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', 'bin')
+    : path.join(app.getAppPath(), 'bin')
+
   if (!fs.existsSync(sourceBinPath)) {
     console.warn(`[initializeUserDataBin] 源 bin 目录不存在：${sourceBinPath}`)
     return
@@ -1994,8 +2099,8 @@ async function initializeUserDataBin() {
     'app.exe',
     'bot',
     'bot.exe',
-    'fm',
-    'fm.exe',
+    // 'fm',
+    // 'fm.exe',
     'fm_http',
     'fm_http.exe',
     'static'
@@ -2021,7 +2126,7 @@ async function initializeUserDataBin() {
           }
         }
       }
-    } else { // 文件处理
+    } else {
       if (shouldForce || !fs.existsSync(dest)) {
         await fsPromises.copyFile(src, dest)
         console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖文件' : '复制文件'}：${name}`)
@@ -2034,7 +2139,7 @@ async function initializeUserDataBin() {
           }
         }
       }
-    } // 文件处理结束
+    }
   }
 
   // 11. 新版本时写入新版号到文件
@@ -2192,5 +2297,322 @@ ipcMain.handle('unzip-file', (event, zipFile, outputDir) => {
     return { success: false, message: error.message }
   }
 })
+
+// Terminal management
+const terminals = new Map() // 存储终端实例
+let terminalCounter = 0 // 终端ID计数器
+
+// Terminal IPC handlers
+ipcMain.handle('terminal-init', async (event, { cwd, cols, rows, shell }) => {
+  if (pty === null) {
+    return { success: false, error: 'Terminal not initialized' }
+  }
+  try {
+    const terminalId = `terminal_${++terminalCounter}`
+    
+    // 确定要使用的 shell
+    let shellToUse
+    if (shell) {
+      shellToUse = shell
+    } else if (process.platform === 'win32') {
+      shellToUse = 'powershell.exe'
+    } else {
+      shellToUse = 'bash'
+    }
+    
+    // 创建新的终端实例
+    const terminal = pty.spawn(shellToUse, [], {
+      name: 'xterm-color',
+      cols: cols || 80,
+      rows: rows || 24,
+      cwd: cwd || process.cwd(),
+      env: process.env
+    })
+    
+    // 存储终端实例
+    terminals.set(terminalId, terminal)
+    
+    // 监听终端输出
+    terminal.on('data', (data) => {
+      // 检查渲染进程是否已销毁
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('terminal-data', { terminalId, data })
+      }
+    })
+    
+    // 监听终端退出
+    terminal.on('exit', (code) => {
+      terminals.delete(terminalId)
+      // 检查渲染进程是否已销毁
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('terminal-exit', { terminalId, code })
+      }
+    })
+    
+    return { success: true, terminalId }
+  } catch (error) {
+    console.error('Terminal init error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('terminal-write', async (event, { terminalId, data }) => {
+  if (pty === null) {
+    return { success: false, error: 'Terminal not initialized' }
+  }
+  try {
+    const terminal = terminals.get(terminalId)
+    if (!terminal) {
+      return { success: false, error: 'Terminal not found' }
+    }
+    
+    terminal.write(data)
+    return { success: true }
+  } catch (error) {
+    console.error('Terminal write error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+ipcMain.handle('terminal-resize', async (event, { terminalId, cols, rows }) => {
+  try {
+    const terminal = terminals.get(terminalId)
+    if (!terminal) {
+      return { success: false, error: 'Terminal not found' }
+    }
+    
+    terminal.resize(cols, rows)
+    return { success: true }
+  } catch (error) {
+    console.error('Terminal resize error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+// 清理终端实例的辅助函数
+ipcMain.handle('terminal-destroy', async (event, { terminalId }) => {
+  if (pty === null) {
+    return { success: false, error: 'Terminal not initialized' }
+  }
+  try {
+    const terminal = terminals.get(terminalId)
+    if (terminal) {
+      terminal.kill()
+      terminals.delete(terminalId)
+    }
+    return { success: true }
+  } catch (error) {
+    console.error('Terminal destroy error:', error)
+    return { success: false, error: error.message }
+  }
+})
+
+// Git command IPC handler
+ipcMain.handle('git-command', async (event, { command, cwd }) => {
+  try {
+    const gitPath = await getGitPath()
+    const fullCommand = `${gitPath} ${command}`
+    
+    console.log('Executing git command:', fullCommand, 'in', cwd)
+    
+    const { stdout, stderr } = await execAsync(fullCommand, {
+      cwd: cwd || process.cwd(),
+      encoding: 'utf8'
+    })
+    
+    return {
+      success: true,
+      output: stdout,
+      error: stderr
+    }
+  } catch (error) {
+    console.error('Git command error:', error)
+    return {
+      success: false,
+      output: '',
+      error: error.message
+    }
+  }
+})
+
+// Execute command IPC handler
+ipcMain.handle('execute-command', async (event, command) => {
+  try {
+    console.log('Executing command:', command)
+    
+    const { stdout, stderr } = await execAsync(command, {
+      encoding: 'utf8'
+    })
+    
+    return {
+      success: true,
+      stdout: stdout,
+      stderr: stderr
+    }
+  } catch (error) {
+    console.error('Execute command error:', error)
+    return {
+      success: false,
+      stdout: '',
+      stderr: error.message
+    }
+  }
+})
+
+// 网络速度监控相关变量
+let networkMonitorInterval = null
+let previousNetworkStats = null
+
+// 获取网络速度
+ipcMain.handle('get-network-speed', async () => {
+  try {
+    const networkStats = await si.networkStats()
+    const currentTime = Date.now()
+    
+    if (!networkStats || networkStats.length === 0) {
+      return {
+        success: false,
+        error: '无法获取网络统计信息'
+      }
+    }
+    
+    // 获取主要网络接口的统计信息
+    const mainInterface = networkStats[0]
+    
+    if (previousNetworkStats && previousNetworkStats.timestamp) {
+      const timeDiff = (currentTime - previousNetworkStats.timestamp) / 1000 // 转换为秒
+      const rxBytesDiff = mainInterface.rx_bytes - previousNetworkStats.rx_bytes
+      const txBytesDiff = mainInterface.tx_bytes - previousNetworkStats.tx_bytes
+      
+      const downloadSpeed = rxBytesDiff / timeDiff // bytes/s
+      const uploadSpeed = txBytesDiff / timeDiff // bytes/s
+      
+      // 更新之前的统计信息
+      previousNetworkStats = {
+        rx_bytes: mainInterface.rx_bytes,
+        tx_bytes: mainInterface.tx_bytes,
+        timestamp: currentTime
+      }
+      
+      return {
+        success: true,
+        downloadSpeed: Math.max(0, downloadSpeed), // 确保不为负数
+        uploadSpeed: Math.max(0, uploadSpeed),
+        downloadSpeedFormatted: formatBytes(downloadSpeed) + '/s',
+        uploadSpeedFormatted: formatBytes(uploadSpeed) + '/s',
+        interface: mainInterface.iface
+      }
+    } else {
+      // 首次调用，保存当前统计信息
+      previousNetworkStats = {
+        rx_bytes: mainInterface.rx_bytes,
+        tx_bytes: mainInterface.tx_bytes,
+        timestamp: currentTime
+      }
+      
+      return {
+        success: true,
+        downloadSpeed: 0,
+        uploadSpeed: 0,
+        downloadSpeedFormatted: '0 B/s',
+        uploadSpeedFormatted: '0 B/s',
+        interface: mainInterface.iface
+      }
+    }
+  } catch (error) {
+    console.error('获取网络速度失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 开始网络速度监控
+ipcMain.handle('start-network-monitor', async (event) => {
+  try {
+    // 如果已经在监控，先停止
+    if (networkMonitorInterval) {
+      clearInterval(networkMonitorInterval)
+    }
+    
+    // 重置之前的统计信息
+    previousNetworkStats = null
+    
+    // 每秒获取一次网络速度
+    networkMonitorInterval = setInterval(async () => {
+      try {
+        const speedData = await si.networkStats()
+        if (speedData && speedData.length > 0) {
+          const currentTime = Date.now()
+          const mainInterface = speedData[0]
+          
+          if (previousNetworkStats && previousNetworkStats.timestamp) {
+            const timeDiff = (currentTime - previousNetworkStats.timestamp) / 1000
+            const rxBytesDiff = mainInterface.rx_bytes - previousNetworkStats.rx_bytes
+            const txBytesDiff = mainInterface.tx_bytes - previousNetworkStats.tx_bytes
+            
+            const downloadSpeed = Math.max(0, rxBytesDiff / timeDiff)
+            const uploadSpeed = Math.max(0, txBytesDiff / timeDiff)
+            
+            // 发送速度数据到渲染进程
+            event.sender.send('network-speed-update', {
+              downloadSpeed,
+              uploadSpeed,
+              downloadSpeedFormatted: formatBytes(downloadSpeed) + '/s',
+              uploadSpeedFormatted: formatBytes(uploadSpeed) + '/s',
+              interface: mainInterface.iface
+            })
+          }
+          
+          previousNetworkStats = {
+            rx_bytes: mainInterface.rx_bytes,
+            tx_bytes: mainInterface.tx_bytes,
+            timestamp: currentTime
+          }
+        }
+      } catch (error) {
+        console.error('网络监控错误:', error)
+      }
+    }, 1000)
+    
+    return { success: true }
+  } catch (error) {
+    console.error('启动网络监控失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 停止网络速度监控
+ipcMain.handle('stop-network-monitor', async () => {
+  try {
+    if (networkMonitorInterval) {
+      clearInterval(networkMonitorInterval)
+      networkMonitorInterval = null
+    }
+    previousNetworkStats = null
+    return { success: true }
+  } catch (error) {
+    console.error('停止网络监控失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 格式化字节数
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B'
+  
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
 
 console.log('main/index.js loaded!')
