@@ -119,7 +119,7 @@
         </v-col>
         <v-col cols="auto">
           <v-btn
-            color="warning"
+            color="error"
             @click="openMap1Dialog"
             :disabled="filter.repoID == null || isGeneratingChart"
             :loading="isGeneratingChart"
@@ -131,7 +131,7 @@
         </v-col>
         <v-col cols="auto">
           <v-btn
-            color="warning"
+            color="error"
             @click="openMap2Dialog"
             :disabled="filter.repoID == null || isGeneratingHeatmap"
             :loading="isGeneratingHeatmap"
@@ -619,6 +619,7 @@
       :commit-record="analysisCommitRecord"
       :start-time="analysisStartTime"
       :end-time="analysisEndTime"
+      :whole-code="false"
     />
     <v-snackbar
       v-model="snackbar.show"
@@ -651,7 +652,7 @@ import {
 import { useStore } from "vuex";
 import DiffViewer from './DiffViewer.vue'
 import AnalysisReportModal from '../components/ai/AnalysisReportModal.vue'
-import { CommitRecord } from '../types/commit.js'
+import { CommitRecord } from '../types/commit.ts'
 const showDiffViewer = ref(false)
 const diffCommitRecord = ref<CommitRecord | null>(null)
 const showAnalysisModal = ref(false)
