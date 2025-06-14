@@ -2,7 +2,10 @@ appId: com.githave.app
 productName: GitHave
 directories:
   buildResources: build
+
 files:
+  - 'bin/watermark.png'
+  - 'bin/watermark.svg'
   - 'bin/static/**/*'
   - 'bin/FAISSService/**/*'
   - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
@@ -17,6 +20,7 @@ files:
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - 'out/**/*'  # 包括 out 目录下的所有文件
   - 'public/**/*'
+
 asarUnpack:
   - resources/**
   - 'bin/static/**/*'
@@ -26,13 +30,19 @@ asarUnpack:
   - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - 'public/**/*'
 #  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
+
 win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+  compression: maximum
   executableName: GitHave
   files:
     - 'bin/app.exe'
     - 'bin/bot.exe'
     - 'bin/config.yaml'
-    - 'bin/fm.exe'
     - 'bin/fm.yaml'
     - 'bin/fm_http.exe'
 
@@ -40,15 +50,25 @@ win:
     - 'bin/app.exe'
     - 'bin/bot.exe'
     - 'bin/config.yaml'
-    - 'bin/fm.exe'
     - 'bin/fm.yaml'
     - 'bin/fm_http.exe'
+
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ${name}-${version}-setup-${arch}.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+
 mac:
+  # ⚠ 如需三份产物请写三种架构
+  target:
+    - target: dmg
+      arch: universal
+      # arch: x64
+      # arch: arm64
+      # arch: [ x64, arm64, universal ]
+      # arch: [ x64, arm64 ]
+  compression: maximum
   files:
     - 'bin/app'
     - 'bin/bot'
@@ -64,6 +84,7 @@ mac:
     - 'bin/fm'
     - 'bin/fm.yaml'
     - 'bin/fm_http'
+
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
@@ -71,8 +92,11 @@ mac:
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
+
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  # 根据不同架构添加标识
+  artifactName: ${name}-${version}-${arch}.${ext}
+
 linux:
   target:
     - AppImage
@@ -80,18 +104,21 @@ linux:
     - deb
   maintainer: electronjs.org
   category: Utility
+
 appImage:
   artifactName: ${name}-${version}.${ext}
+
 npmRebuild: false
+
 publish:
   provider: generic
   url: https://example.com/auto-updates
+
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
+
 asar: true
-#protocols: # win.loadURL时启动
-#  name: gitgo
-#  schemes: [gitgo]
+
 extraResources:
   - from: "src/renderer/skeleton.html"
     to: "renderer/skeleton.html"
