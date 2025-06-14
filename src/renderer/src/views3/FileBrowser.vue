@@ -24,7 +24,7 @@
               item-title="title"
               item-value="value"
               color="success"
-              class="mr-2"
+              class="mr-2 mt-4"
               style="width: 500px; height: auto"
               @focus="loadPathSuggestions"
               @update:model-value="onPathSelectionChanged"
@@ -102,7 +102,7 @@
               v-model="treeselectValue"
               :options="treeData"
               :normalizer="nodeNormalizer"
-              placeholder="选择目录树..."
+              placeholder="搜索..."
               :item="[]"
               item-key="path"
               :load-options="loadDirectoryOptions"
@@ -115,6 +115,8 @@
               class="mt-2"
               style="min-width: 800px"
               :menu-height="1000"
+              no-options-text="暂无文件"
+              no-results-text="未找到匹配项"
               @click="handleOptionClick"
             ></Treeselect>
           </v-card>
@@ -386,63 +388,78 @@ const openNodes = ref([])
 // 初始化时目录树为空，不自动加载根目录
 const treeData = ref([])
 
-// 常量配置
-const allowedExtensions = [
-  '.txt',
-  '.js',
-  '.java',
-  '.go',
-  '.md',
-  '.markdown',
-  '.yml',
-  '.yaml',
-  '.json',
-  '.xml',
-  '.html',
-  '.css',
-  '.scss',
-  '.h',
-  '.glsl',
-  '.c',
-  '.cpp',
-  '.vue',
-  '.ts',
-  '.sh',
-  '.bash',
-  '.php',
-  '.py',
-  '.rb',
-  '.pl',
-  '.erb',
-  '.tsx',
-  '.jsx',
-  '.log',
-  '.pdf',
-  '.xls',
-  '.xlsx',
-  '.doc',
-  '.docx',
-  '.sql',
-  '.conf',
-  '.ini',
-  '.properties',
-  '.csv',
-  '.ipynb',
-  '.iml',
-  '.mod',
-  '.sum',
-  '.toml',
-  '.lock',
-  '.lic',
-  '.model',
-  '.spec',
-  '.svg',
-  '.rs',
-  '.rsx',
-  '.hpp',
-  '.hxx',
-  '.rust'
-]
+// allowedExtensions 常量已删除，现在使用 checkIfTextFile 函数进行智能文件类型检测
+
+// checkIfTextFile 函数：智能检测文件是否为文本文件
+async function checkIfTextFile(filePath) {
+  try {
+    // 首先检查路径是否为目录，如果是目录则直接返回false
+    try {
+      const stats = await window.electron.getFileStats(filePath)
+      if (stats && stats.isDirectory) {
+        return false
+      }
+    } catch (error) {
+      // 如果获取文件状态失败，继续后续检查
+      console.warn('获取文件状态失败:', error)
+    }
+    
+    // 然后检查文件扩展名，对于已知的二进制文件类型直接返回false
+    const ext = path.extname(filePath).toLowerCase()
+    const binaryExtensions = ['.zip', '.rar', '.7z', '.dmg', '.exe', '.tar', '.gz', '.iso', '.apk', 
+                             '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.ico', '.tiff', '.webp',
+                             '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm',
+                             '.mp3', '.wav', '.flac', '.aac', '.ogg', '.wma',
+                             '.bin', '.dll', '.so', '.dylib', '.class', '.jar']
+    
+    if (binaryExtensions.includes(ext)) {
+      return false
+    }
+    
+    // 对于已知的文本文件类型直接返回true
+    const textExtensions = ['.txt', '.js', '.ts', '.jsx', '.tsx', '.vue', '.html', '.css', '.scss', '.sass',
+                           '.json', '.xml', '.yaml', '.yml', '.md', '.markdown', '.py', '.java', '.go',
+                           '.c', '.cpp', '.h', '.hpp', '.cs', '.php', '.rb', '.pl', '.sh', '.bash',
+                           '.sql', '.log', '.conf', '.ini', '.properties', '.csv', '.toml', '.lock']
+    
+    if (textExtensions.includes(ext)) {
+      return true
+    }
+    
+    // 对于无扩展名或未知扩展名的文件，尝试读取前10个字符
+    try {
+      const content = await window.electron.readFile(filePath, { 
+        encoding: 'utf8',
+        maxBytes: 10 
+      })
+      
+      // 如果能成功读取并解析为UTF-8字符串，就认为是文本文件
+      if (content && typeof content === 'string') {
+        return true
+      }
+    } catch {
+      // UTF-8解析失败，尝试作为二进制读取检查
+      const buffer = await window.electron.readFile(filePath, { 
+        encoding: null,
+        maxBytes: 1024 
+      })
+      
+      // 检查是否包含null字节或其他二进制字符
+      for (let i = 0; i < Math.min(buffer.length, 10); i++) {
+        const byte = buffer[i]
+        if (byte === 0 || (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13)) {
+          return false
+        }
+      }
+      return true
+    }
+    
+    return false
+  } catch (error) {
+    console.error('检查文件类型失败:', error)
+    return false
+  }
+}
 const allowedFileName = [
   'Dockerfile',
   'README.md',
@@ -533,14 +550,19 @@ const md = new MarkdownIt({
 })
 
 // 计算属性：是否为代码文件（非 Markdown）
-const isCodeFile = computed(() => {
-  const ext = path.extname(selectedFileName.value).toLowerCase()
+const isCodeFile = ref(false)
+
+// 更新isCodeFile状态的函数
+async function updateIsCodeFile() {
+  if (!selectedFileName.value) {
+    isCodeFile.value = false
+    return
+  }
   const fileName = path.basename(selectedFileName.value)
-  return (
-    (allowedExtensions.includes(ext) || allowedFileName.includes(fileName)) &&
-    !isMarkdown(selectedFileName.value)
-  )
-})
+  const isTextFile = await checkIfTextFile(selectedFileName.value)
+  isCodeFile.value =
+    (isTextFile || allowedFileName.includes(fileName)) && !isMarkdown(selectedFileName.value)
+}
 
 // 懒加载大文件：滚动时加载更多
 async function loadMoreLines(selectedPath, loadedLines = 1000, step = 1000) {
@@ -602,31 +624,46 @@ async function initializePage() {
 
 async function initialize(initialPath) {
   let rootDir = ''
-  if (props.forceReplace == 'true' && initialPath) {
-    newRootPath.value = initialPath
-    rootDir = isFilePath(
-      initialPath,
-      allowedExtensions,
+  // 对URL编码的路径进行解码
+  const decodedInitialPath = initialPath ? decodeURIComponent(initialPath) : initialPath
+  const decodedRootPath = props.rootPath ? decodeURIComponent(props.rootPath) : props.rootPath
+  
+  if (props.forceReplace == 'true' && decodedInitialPath) {
+    newRootPath.value = decodedInitialPath
+    rootDir = (await isFilePath(
+      decodedInitialPath,
+      checkIfTextFile,
       allowedFileName,
       findNodeByPath,
       treeData.value
-    )
-      ? path.dirname(initialPath)
-      : initialPath
+    ))
+      ? path.dirname(decodedInitialPath)
+      : decodedInitialPath
   }
   if (rootDir) {
     fileContent.value = ''
     await resetTree(rootDir)
     if (initialPath) {
       if (props.forceReplace == 'true') {
-        isFilePath(initialPath, allowedExtensions, allowedFileName, findNodeByPath, treeData.value)
-          ? expandToPath(initialPath)
-          : handleNodeSelection([rootDir])
+        const isFile = await isFilePath(
+          initialPath,
+          checkIfTextFile,
+          allowedFileName,
+          findNodeByPath,
+          treeData.value
+        )
+        isFile ? expandToPath(initialPath) : handleNodeSelection([rootDir])
       } else {
         expandToPath(initialPath)
       }
       if (
-        isFilePath(initialPath, allowedExtensions, allowedFileName, findNodeByPath, treeData.value)
+        await isFilePath(
+          initialPath,
+          checkIfTextFile,
+          allowedFileName,
+          findNodeByPath,
+          treeData.value
+        )
       ) {
         await loadFileByType(initialPath)
         const breadcrumbPath = buildBreadcrumb(initialPath)
@@ -668,6 +705,7 @@ function onPathSelectionChanged(newPath) {
     renderedXlsx.value = ''
     selectedFileUrl.value = ''
     selectedFileName.value = ''
+    updateIsCodeFile() // 更新代码文件状态
   } else if (newPath === null || newPath === '') {
     // 用户清除了路径选择
     tabs.value = []
@@ -678,6 +716,7 @@ function onPathSelectionChanged(newPath) {
     renderedXlsx.value = ''
     selectedFileUrl.value = ''
     selectedFileName.value = ''
+    updateIsCodeFile() // 更新代码文件状态
   }
 }
 
@@ -748,7 +787,7 @@ async function loadFileByType(selectedPath) {
       // 判断文件大小，超过8MB则懒加载
       try {
         const stat = await window.electron.stat(selectedPath)
-        const maxSize = 0.1 * 1024 * 1024 // 1MB
+        const maxSize = 0.5 * 1024 * 1024
         if (stat.size > maxSize) {
           // 懒加载逻辑：先加载前1000行
           const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
@@ -759,9 +798,7 @@ async function loadFileByType(selectedPath) {
             content += chunk
             let lines = content.split(/\r?\n/)
             if (lines.length >= maxLines) {
-              content =
-                lines.slice(0, maxLines).join('\n') +
-                '\n...\n(文件过大，仅显示前1000行，滚动可继续加载)'
+              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前1000行)'
               break
             }
           }
@@ -787,6 +824,7 @@ async function loadFileByType(selectedPath) {
 
 function updateFileState(selectedPath, updates) {
   selectedFileName.value = path.basename(selectedPath)
+  updateIsCodeFile() // 更新代码文件状态
   Object.keys(updates).forEach((key) => {
     if (key === 'fileContent') {
       fileContent.value = updates[key]
@@ -802,6 +840,7 @@ function updateFileState(selectedPath, updates) {
 
 function restoreState(tab) {
   selectedFileName.value = tab.selectedFileName || path.basename(tab.path)
+  updateIsCodeFile() // 更新代码文件状态
   fileContent.value = tab.fileContent || ''
   renderedDocx.value = tab.renderedDocx || ''
   renderedXlsx.value = tab.renderedXlsx || ''
@@ -903,9 +942,9 @@ async function handleNodeSelection(activeItems) {
     }
   } else {
     // 只允许打开指定后缀的文件
-    const ext = path.extname(node.name).toLowerCase()
     const fileName = path.basename(node.name)
-    if (!allowedExtensions.includes(ext) && !allowedFileName.includes(fileName)) {
+    const isTextFile = await checkIfTextFile(node.path)
+    if (!isTextFile && !allowedFileName.includes(fileName)) {
       store.dispatch('snackbar/showSnackbar', {
         message: '该文件类型不支持预览',
         type: 'warning'
@@ -1065,9 +1104,9 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   }
   let url = breadcrumbsArray[breadcrumbsArray.length - 1].path
   if (url !== null) {
-    const isFile = isFilePath(
+    const isFile = await isFilePath(
       url,
-      allowedExtensions,
+      checkIfTextFile,
       allowedFileName,
       findNodeByPath,
       treeData.value
@@ -1171,13 +1210,13 @@ async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH
 
 // 重置目录树：仅在用户选定路径后调用
 async function resetTree(newPath) {
-  const targetPath = isFilePath(
+  const targetPath = (await isFilePath(
     newPath,
-    allowedExtensions,
+    checkIfTextFile,
     allowedFileName,
     findNodeByPath,
     treeData.value
-  )
+  ))
     ? path.dirname(newPath)
     : newPath
   try {
@@ -1310,7 +1349,7 @@ const previewIde = (path) => {
 }
 
 // 在IDE中打开当前文件或目录
-const openInIDE = (filePath) => {
+const openInIDE = async (filePath) => {
   // 如果没有指定文件路径，则使用当前选中的文件或目录
   const pathToOpen = filePath || (currentTab.value ? currentTab.value.path : newRootPath.value)
 
@@ -1323,16 +1362,13 @@ const openInIDE = (filePath) => {
   }
 
   // 构建路由参数
-  const rootDir = isFilePath(
-    pathToOpen,
-    allowedExtensions,
-    allowedFileName,
-    findNodeByPath,
-    treeData.value
-  )
-    ? path.dirname(pathToOpen)
-    : pathToOpen
-
+  // rootDir 应该始终是文件树的根目录，即 newRootPath.value
+  let rootDir = newRootPath.value
+  // 如果rootDir是文件，则使用其所在的目录
+  if (await isFilePath(rootDir, checkIfTextFile, allowedFileName, findNodeByPath, treeData.value)) {
+    rootDir = path.dirname(rootDir)
+  }
+  console.log('openInIDE:', encodeURIComponent(pathToOpen), encodeURIComponent(rootDir))
   // 构建带参数的URL
   const url = `${window.location.origin}/#/ide/${encodeURIComponent(pathToOpen)}?rootPath=${encodeURIComponent(rootDir)}`
 
@@ -1350,6 +1386,7 @@ watch(
     renderedXlsx.value = ''
     selectedFileUrl.value = ''
     selectedFileName.value = ''
+    updateIsCodeFile() // 更新代码文件状态
 
     if (newPath) {
       // 重置标签页和其他状态
@@ -1489,5 +1526,9 @@ body {
 }
 .preview-content code.hljs {
   white-space: pre !important;
+}
+:deep(.v-input__control) {
+  height: 50px;
+  width: auto;
 }
 </style>
