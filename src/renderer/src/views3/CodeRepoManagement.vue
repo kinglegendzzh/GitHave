@@ -5,66 +5,134 @@
       <v-toolbar-title>
         <v-icon>mdi-github</v-icon>
       </v-toolbar-title>
+      
+      <!-- 左侧按钮组 -->
+      <div class="d-flex align-center ml-4">
+        <!-- 快速导入 -->
+        <v-tooltip bottom>
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              size="small"
+              class="mr-2"
+              variant="outlined"
+              @click="openImportDialog"
+            >
+              <v-icon>mdi-download</v-icon>
+              <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
+            </v-btn>
+          </template>
+          <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
+        </v-tooltip>
+        <!-- 本地导入 -->
+        <v-tooltip bottom>
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              size="small"
+              class="mr-2"
+              variant="outlined"
+              @click="openLocalImportDialog"
+            >
+              <v-icon>mdi-folder-open</v-icon>
+              <span>本地导入</span>
+            </v-btn>
+          </template>
+          <span>从本地已有目录导入仓库</span>
+        </v-tooltip>
+      </div>
+      
       <v-spacer></v-spacer>
-      <!-- 快速导入 -->
-      <v-tooltip bottom>
-        <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            size="small"
-            class="mr-2"
-            variant="outlined"
-            @click="openImportDialog"
-          >
-            <v-icon>mdi-download</v-icon>
-            <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
-          </v-btn>
-        </template>
-        <span>从<v-icon>mdi-github</v-icon>快速导入仓库</span>
-      </v-tooltip>
-      <!-- 本地导入 -->
-      <v-tooltip bottom>
-        <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            size="small"
-            class="mr-2"
-            variant="outlined"
-            @click="openLocalImportDialog"
-          >
-            <v-icon>mdi-folder-open</v-icon>
-            <span>本地导入</span>
-          </v-btn>
-        </template>
-        <span>从本地已有目录导入仓库</span>
-      </v-tooltip>
-      <v-tooltip bottom>
-        <template #activator="{ props }">
-          <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="fetchRepos">
-            <v-icon>mdi-refresh</v-icon>
-          </v-btn>
-        </template>
-        <span>刷新列表</span>
-      </v-tooltip>
-      <v-tooltip bottom>
-        <template #activator="{ props }">
-          <v-btn
-            v-bind="props"
-            size="small"
-            class="mr-2"
-            variant="outlined"
-            @click="openNewRepoDialog"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </template>
-        <span>新增仓库</span>
-      </v-tooltip>
+      
+      <!-- 中间搜索框 -->
+      <div class="d-flex align-center mx-4" style="min-width: 300px; max-width: 400px;">
+        <v-text-field
+          v-model="searchQuery"
+          placeholder="搜索仓库"
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="search-field"
+          @input="handleSearch"
+          @click:clear="clearSearch"
+        >
+          <template #append-inner>
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-icon v-bind="props" size="small" class="ml-1">mdi-help-circle-outline</v-icon>
+              </template>
+              <span>支持搜索：仓库名称、URL、本地路径、分支、描述</span>
+            </v-tooltip>
+          </template>
+        </v-text-field>
+      </div>
+      
+      <v-spacer></v-spacer>
+      
+      <!-- 右侧按钮组 -->
+      <div class="d-flex align-center">
+        <v-tooltip bottom>
+          <template #activator="{ props }">
+            <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="fetchRepos">
+              <v-icon>mdi-refresh</v-icon>
+            </v-btn>
+          </template>
+          <span>刷新列表</span>
+        </v-tooltip>
+        <v-tooltip bottom>
+          <template #activator="{ props }">
+            <v-btn
+              v-bind="props"
+              size="small"
+              class="mr-2"
+              variant="outlined"
+              @click="openNewRepoDialog"
+            >
+              <v-icon>mdi-plus</v-icon>
+            </v-btn>
+          </template>
+          <span>新增仓库</span>
+        </v-tooltip>
+      </div>
     </v-toolbar>
+
+    <!-- 剪切板监听提示横幅 -->
+    <v-alert type="info" variant="tonal" class="mt-4 mx-4" border="start" prominent closable>
+      <template #prepend>
+        <v-icon size="large">mdi-clipboard-text-outline</v-icon>
+      </template>
+      <div class="d-flex align-center">
+        <div class="flex-grow-1">
+          <div class="text-h6 mb-1">
+            <v-icon class="mr-2">mdi-magic-staff</v-icon>
+            智能剪切板监听已开启
+          </div>
+          <div class="text-body-2">
+            复制任意 GitHub 仓库链接到剪切板，系统将自动检测并弹出一键导入提示！
+            <v-chip size="small" color="primary" variant="outlined" class="ml-2">
+              <v-icon start>mdi-lightning-bolt</v-icon>
+              超便捷
+            </v-chip>
+          </div>
+        </div>
+        <v-btn
+          color="primary"
+          variant="outlined"
+          size="small"
+          class="ml-4"
+          @click="openImportDialog"
+        >
+          <v-icon start>mdi-download</v-icon>
+          手动导入
+        </v-btn>
+      </div>
+    </v-alert>
 
     <!-- 卡片式仓库列表 -->
     <v-row class="mt-4 mr-4" justify="center">
-      <v-col v-for="repo in repos" :key="repo.id" cols="12" sm="6" md="6" lg="5">
+      <v-col v-for="repo in filteredRepos" :key="repo.id" cols="12" sm="6" md="6" lg="5">
         <v-card class="id-card" elevation="2" style="display: block">
           <div class="id-card-header">
             <span class="id-card-title">代码仓库身份证</span>
@@ -264,6 +332,7 @@
                   bg-color="rgba(255,255,255,0.7)"
                   hide-details
                   rows="2"
+                  placeholder="认真填写描述信息，可以提升AI的理解能力哦"
                   class="custom-field"
                 />
               </div>
@@ -392,7 +461,7 @@
     </v-snackbar>
 
     <!-- 进度条弹窗 -->
-    <v-dialog v-model="progressDialog" persistent max-width="400">
+    <v-dialog v-model="progressDialog" persistent max-width="500">
       <v-card>
         <v-card-title class="text-center">{{ progressTitle }}</v-card-title>
         <v-card-text>
@@ -402,6 +471,31 @@
             </template>
           </v-progress-linear>
           <div class="text-center mt-2">{{ progressMessage }}</div>
+          
+          <!-- 网络速度显示区域 -->
+          <v-divider class="my-3"></v-divider>
+          <div class="network-speed-section">
+            <div class="text-subtitle2 mb-2 text-center">网络速度监控</div>
+            <v-row class="text-center">
+              <v-col cols="6">
+                <div class="speed-item">
+                  <v-icon color="success" class="mr-1">mdi-download</v-icon>
+                  <span class="speed-label">下载:</span>
+                  <span class="speed-value">{{ networkSpeed.downloadSpeedFormatted }}</span>
+                </div>
+              </v-col>
+              <v-col cols="6">
+                <div class="speed-item">
+                  <v-icon color="info" class="mr-1">mdi-upload</v-icon>
+                  <span class="speed-label">上传:</span>
+                  <span class="speed-value">{{ networkSpeed.uploadSpeedFormatted }}</span>
+                </div>
+              </v-col>
+            </v-row>
+            <div class="text-center mt-2" v-if="networkSpeed.interfaceName">
+              <span class="text-caption text-grey">网络接口: {{ networkSpeed.interfaceName }}</span>
+            </div>
+          </div>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -456,7 +550,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import {
@@ -534,6 +628,7 @@ const branchOptions = ref([])
 
 // 组件状态
 const repos = ref([])
+const searchQuery = ref('')
 const dialog = ref(false)
 const formValid = ref(false)
 const selectedRepo = ref(null)
@@ -550,6 +645,15 @@ const progress = ref(0)
 const progressTitle = ref('')
 const progressMessage = ref('')
 const progressTimer = ref(null)
+
+// 网络速度监控相关数据
+const networkSpeed = ref({
+  downloadSpeed: 0,
+  uploadSpeed: 0,
+  downloadSpeedFormatted: '0 B/s',
+  uploadSpeedFormatted: '0 B/s',
+  interfaceName: ''
+})
 
 // 仓库表单数据采用 reactive 管理
 const repoForm = reactive({
@@ -647,13 +751,49 @@ const selectLocalRepoPath = async () => {
   }
 }
 
+// 计算属性：过滤后的仓库列表
+const filteredRepos = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return repos.value
+  }
+  
+  const query = searchQuery.value.toLowerCase().trim()
+  return repos.value.filter(repo => {
+    // 搜索字段：name, repo_url, local_path, branch, desc
+    const searchFields = [
+      repo.name || '',
+      repo.repo_url || '',
+      repo.local_path || '',
+      repo.branch || '',
+      repo.desc || ''
+    ]
+    
+    return searchFields.some(field => 
+      field.toLowerCase().includes(query)
+    )
+  })
+})
+
+// 搜索处理函数
+const handleSearch = () => {
+  // 搜索是通过计算属性自动响应的，这里可以添加额外的搜索逻辑
+  console.log('搜索关键词:', searchQuery.value)
+}
+
+// 清除搜索
+const clearSearch = () => {
+  searchQuery.value = ''
+}
+
 // 获取仓库列表（尽量用 async/await，提高可读性和错误处理能力）
 const fetchRepos = async () => {
   try {
     const response = await listRepos()
     if (response.status === 200) {
       // 按照id降序排序后赋值
-      repos.value = response.data.sort((a, b) => b.id - a.id)
+      repos.value = Array.isArray(response.data)
+        ? response.data.sort((a, b) => b.id - a.id)
+        : response.data
     } else {
       // 处理非200状态码，从响应体中提取错误信息
       const errorMsg = response.data || '无法获取仓库列表'
@@ -697,7 +837,8 @@ const openLocalPath = (repo) => {
   }
 
   // 使用electron的shell模块打开本地文件夹
-  window.electron.shell.openPath(repo.local_path)
+  window.electron.shell
+    .openPath(repo.local_path)
     .then(() => {
       toastSuccess('已打开本地路径')
     })
@@ -723,7 +864,7 @@ const openGitLink = (repo) => {
       'gitLink',
       'width=800,height=600,scrollbars=yes,resizable=yes,toolbar=no,menubar=no,location=no'
     )
-    
+
     if (!gitWindow) {
       // 如果弹窗被阻止，提示用户
       toastError('弹窗被浏览器阻止，请允许弹窗或手动访问：' + repo.repo_url)
@@ -769,6 +910,44 @@ const viewRepo = async (item) => {
   }
 }
 
+// 启动网络监控
+const startNetworkMonitoring = async () => {
+  try {
+    await window.electron.startNetworkMonitor()
+    
+    // 监听网络速度更新事件
+    window.electron.onNetworkSpeedUpdate((data) => {
+      networkSpeed.value = {
+        downloadSpeed: data.downloadSpeed,
+        uploadSpeed: data.uploadSpeed,
+        downloadSpeedFormatted: data.downloadSpeedFormatted,
+        uploadSpeedFormatted: data.uploadSpeedFormatted,
+        interfaceName: data.interfaceName
+      }
+    })
+  } catch (error) {
+    console.error('启动网络监控失败:', error)
+  }
+}
+
+// 停止网络监控
+const stopNetworkMonitoring = async () => {
+  try {
+    await window.electron.stopNetworkMonitor()
+    window.electron.removeNetworkSpeedListener()
+    // 重置网络速度数据
+    networkSpeed.value = {
+      downloadSpeed: 0,
+      uploadSpeed: 0,
+      downloadSpeedFormatted: '0 B/s',
+      uploadSpeedFormatted: '0 B/s',
+      interfaceName: ''
+    }
+  } catch (error) {
+    console.error('停止网络监控失败:', error)
+  }
+}
+
 // 启动进度条模拟
 const startProgressSimulation = () => {
   // 设置初始状态
@@ -776,6 +955,9 @@ const startProgressSimulation = () => {
   progressTitle.value = selectedRepo.value ? '正在更新仓库' : '正在创建仓库'
   progressMessage.value = '正在初始化...'
   progressDialog.value = true
+
+  // 启动网络监控
+  startNetworkMonitoring()
 
   // 清除可能存在的旧定时器
   if (progressTimer.value) {
@@ -802,7 +984,10 @@ const startProgressSimulation = () => {
 }
 
 // 完成进度条
-const completeProgress = (success = true) => {
+const completeProgress = async (success = true) => {
+  // 停止网络监控
+  await stopNetworkMonitoring()
+  
   // 清除定时器
   if (progressTimer.value) {
     clearInterval(progressTimer.value)
@@ -1126,7 +1311,14 @@ const importLocalRepo = async () => {
 
 onMounted(() => {
   fetchRepos()
+  // 监听全局仓库导入事件
+  window.addEventListener('repo-imported', handleRepoImported)
 })
+
+// 处理仓库导入成功事件
+const handleRepoImported = () => {
+  fetchRepos()
+}
 </script>
 
 <style scoped>
@@ -1335,5 +1527,23 @@ onMounted(() => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* 搜索框样式 */
+.search-field {
+  transition: all 0.3s ease;
+}
+
+.search-field:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-field .v-field {
+  border-radius: 25px;
+}
+
+.search-field .v-field--focused {
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
 }
 </style>
