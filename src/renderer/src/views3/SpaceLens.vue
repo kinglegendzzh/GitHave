@@ -1,26 +1,53 @@
 <template>
-  <v-container class="cover-fill space-lens-container-modern">
+  <v-container class="cover-fill space-lens-container-modern" style="overflow-y: unset">
     <!-- 全局加载遮罩：在调用 IPC 时显示 -->
     <v-overlay :value="isProcessing" absolute class="modern-overlay">
       <v-progress-circular indeterminate color="purple" size="64" />
     </v-overlay>
 
     <v-container fluid class="cover-fill">
-      <v-row style="display: flex">
-        <v-autocomplete
-          v-model="lensPath"
-          :items="pathSuggestions"
-          label="选择代码仓库..."
-          dense
-          variant="solo-filled"
-          flat
-          clearable
-          item-title="title"
-          item-value="value"
-          style="width: 55%"
-          color="purple"
-          @focus="loadPathSuggestions"
-        />
+      <v-row style="display: block">
+        <div style="display: flex">
+          <v-autocomplete
+            v-model="lensPath"
+            :items="pathSuggestions"
+            label="选择代码仓库..."
+            dense
+            variant="solo-filled"
+            flat
+            clearable
+            item-title="title"
+            item-value="value"
+            style="width: 55%"
+            color="purple"
+            @focus="loadPathSuggestions"
+            @click="loadPathSuggestions"
+          />
+          <v-btn color="purple" class="ml-2 mt-2 modern-btn" elevation="0" @click="applyLensPath">
+            <v-icon color="white">mdi-line-scan</v-icon>
+            <span style="color: white">深度扫描</span>
+          </v-btn>
+          <v-switch
+            v-model="fullScan"
+            label="全量扫描"
+            color="purple"
+            class="ml-2 pb-7"
+            density="compact"
+            hide-details
+            style="width: 110px"
+          />
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-icon v-bind="props" color="grey" size="small" class="ml-0 mt-2 pt-2">
+                mdi-information-outline
+              </v-icon>
+            </template>
+            <span
+              >开启全量扫描可获得更精确的文件类型分布信息，<br />但会增加扫描时间和性能消耗</span
+            >
+          </v-tooltip>
+        </div>
+
         <div
           class="button-group-modern"
           style="
@@ -33,9 +60,16 @@
             gap: 8px;
           "
         >
-          <v-btn color="purple" class="mr-2 modern-btn" elevation="0" @click="applyLensPath">
-            <v-icon color="white">mdi-line-scan</v-icon>
-            <span style="color: white">深度扫描</span>
+          <v-btn
+            ref="codeViewBtn"
+            variant="outlined"
+            color="thirdary"
+            class="modern-btn"
+            elevation="0"
+            @click="toggleCodeViewDrawer"
+          >
+            <v-icon>mdi-code-braces</v-icon>
+            <span>从代码视窗查看</span>
           </v-btn>
           <v-btn
             ref="analysisBtn"
@@ -52,13 +86,63 @@
             ref="architectureBtn"
             variant="outlined"
             color="teal"
-            class="modern-btn"
+            class="mr-2 modern-btn"
             elevation="0"
             @click="toggleArchitectureDrawer"
           >
             <v-icon>mdi-sitemap</v-icon>
             <span>生成流程图</span>
           </v-btn>
+
+          <!-- 权重配置按钮 -->
+          <div v-if="showAiReferenceSwitch" class="weight-config-button ml-4">
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn
+                  v-bind="props"
+                  size="small"
+                  variant="outlined"
+                  color="primary"
+                  @click="weightConfigDialog = true"
+                >
+                  <v-icon size="16">mdi-tune</v-icon>
+                  分析场景权重配置
+                </v-btn>
+              </template>
+              <span>
+                配置不同分析场景的权重<br />
+                可以根据分析需求调整各维度的重要性
+              </span>
+            </v-tooltip>
+          </div>
+
+          <!-- AI参考信息选择开关 -->
+          <div v-if="showAiReferenceSwitch" class="ai-reference-switch ml-3">
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-switch
+                  v-bind="props"
+                  v-model="aiReferenceChoice"
+                  color="deep-purple"
+                  density="compact"
+                  hide-details
+                  @click="toggleAiReference"
+                >
+                  <template #label>
+                    <span class="text-caption" style="min-width: 150px">
+                      <v-icon size="14" class="mr-1">mdi-brain</v-icon>
+                      {{ aiReferenceChoice ? 'AI参考索引+源码' : 'AI仅参考索引' }}
+                    </span>
+                  </template>
+                </v-switch>
+              </template>
+              <span>
+                控制AI分析时的参考信息范围<br />
+                开启：索引和源代码（提供更详细的分析结果，适合中小型项目，或者专项分析少量代码文件的场景）<br />
+                关闭：仅索引（推荐用于扫描大型项目和复杂代码库，或者层级目录代码文件较多的场景，避免信息过载）
+              </span>
+            </v-tooltip>
+          </div>
         </div>
       </v-row>
       <!--      <v-row>-->
@@ -78,6 +162,130 @@
       <!--        </div>-->
       <!--      </v-row>-->
 
+      <!-- 新增：文件类型统计展示区域 -->
+      <v-row v-if="showFileTypeStats">
+        <v-col cols="12" style="padding-top: 0px; margin-top: 0px; max-height: 80px; z-index: 99">
+          <!-- 紧凑模式：显示前4个类型 + Other -->
+          <div v-if="!fileTypeStatsExpanded" class="file-type-compact-stats">
+            <div class="compact-header">
+              <div class="compact-title">
+                <v-icon color="primary" size="14" class="mr-1">mdi-chart-donut</v-icon>
+                <span class="text-caption font-weight-medium">文件类型分布</span>
+                <v-chip color="primary" variant="outlined" size="x-small" class="ml-1">
+                  {{ fileTypeStats.length }} 种
+                </v-chip>
+              </div>
+              <v-btn
+                size="x-small"
+                variant="text"
+                color="primary"
+                @click="fileTypeStatsExpanded = true"
+              >
+                详情
+                <v-icon size="12" class="ml-1">mdi-chevron-down</v-icon>
+              </v-btn>
+            </div>
+            <div class="compact-bars">
+              <!-- 统一比例条 -->
+              <div class="unified-progress-bar">
+                <div
+                  v-for="(type, index) in getCompactFileTypes"
+                  :key="type.extension"
+                  class="progress-segment"
+                  :style="{
+                    width: type.percentage + '%',
+                    backgroundColor: getTypeColor(index)
+                  }"
+                  :title="`${type.extension}: ${type.percentage}%`"
+                ></div>
+              </div>
+              <!-- 图例 -->
+              <div class="compact-legend">
+                <div
+                  v-for="(type, index) in getCompactFileTypes"
+                  :key="type.extension"
+                  class="legend-item"
+                >
+                  <div class="legend-color" :style="{ backgroundColor: getTypeColor(index) }"></div>
+                  <span class="legend-text text-caption">{{ type.extension }}</span>
+                  <span class="legend-percentage text-caption font-weight-bold"
+                    >{{ type.percentage }}%</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 展开模式：显示所有类型 -->
+          <v-card v-else class="file-type-stats-card modern-surface" elevation="2">
+            <v-card-title class="d-flex align-center">
+              <v-icon color="primary" class="mr-2">mdi-chart-pie</v-icon>
+              <span>代码文件类型分布</span>
+              <v-spacer />
+              <v-btn
+                size="small"
+                variant="text"
+                color="primary"
+                @click="fileTypeStatsExpanded = false"
+              >
+                收起
+                <v-icon size="16" class="ml-1">mdi-chevron-up</v-icon>
+              </v-btn>
+            </v-card-title>
+            <v-card-text>
+              <v-row>
+                <!-- 左侧：饼图 -->
+                <v-col cols="5">
+                  <div class="file-type-chart-container">
+                    <div id="file-type-chart" :key="fileTypeChartKey"></div>
+                  </div>
+                </v-col>
+                <!-- 右侧：详细列表 -->
+                <v-col cols="7">
+                  <div class="file-type-list">
+                    <div
+                      v-for="(type, index) in fileTypeStats"
+                      :key="type.extension"
+                      class="file-type-item"
+                      :style="{ animationDelay: `${index * 100}ms` }"
+                    >
+                      <div class="file-type-info">
+                        <v-avatar size="32" class="mr-3">
+                          <v-icon :color="getTypeColorName(index)" size="20">{{
+                            type.icon
+                          }}</v-icon>
+                        </v-avatar>
+                        <div class="file-type-details">
+                          <div class="file-type-name">{{ type.extension }}</div>
+                          <div class="file-type-stats-text">{{ type.count }} 个文件</div>
+                        </div>
+                        <div class="file-type-percentage">
+                          <v-chip
+                            :color="getTypeColorName(index)"
+                            variant="flat"
+                            size="small"
+                            class="percentage-chip"
+                          >
+                            {{ type.percentage }}%
+                          </v-chip>
+                        </div>
+                      </div>
+                      <v-progress-linear
+                        :model-value="type.percentage"
+                        :color="getTypeColorName(index)"
+                        height="4"
+                        rounded
+                        class="mt-2"
+                      ></v-progress-linear>
+                    </div>
+                  </div>
+                </v-col>
+              </v-row>
+            </v-card-text>
+          </v-card>
+        </v-col>
+      </v-row>
+
       <!-- 顶部工具栏：面包屑导航 -->
       <v-row>
         <v-col cols="12">
@@ -93,7 +301,6 @@
           </v-toolbar>
         </v-col>
       </v-row>
-
       <!-- 色卡模板弹窗 -->
       <v-dialog v-model="showPaletteDialog" max-width="480">
         <v-card>
@@ -329,7 +536,7 @@
     >
       <v-card class="drawer-card-modern" elevation="2">
         <v-card-text>
-          <div class="drawer-title">选择架构图范围</div>
+          <div class="drawer-title">选择分析范围</div>
           <v-radio-group v-model="architectureScope" column dense>
             <v-radio value="current" label="当前层级" color="teal"></v-radio>
             <v-radio value="all" label="整个仓库" color="teal"></v-radio>
@@ -341,16 +548,260 @@
         </v-card-text>
       </v-card>
     </div>
+
+    <!-- 代码视窗查看抽屉 -->
+    <div
+      v-if="codeViewDrawerVisible"
+      class="modern-drawer code-view-drawer"
+      :style="codeViewDrawerStyle"
+    >
+      <v-card class="drawer-card-modern" elevation="2">
+        <v-card-text>
+          <div class="drawer-title">选择查看范围</div>
+          <v-radio-group v-model="codeViewScope" column dense>
+            <v-radio value="current" label="当前层级" color="orange"></v-radio>
+            <v-radio value="all" label="整个仓库" color="orange"></v-radio>
+          </v-radio-group>
+          <div class="drawer-actions">
+            <v-btn color="orange" variant="flat" small @click="openCodeView">确认</v-btn>
+            <v-btn variant="text" small @click="codeViewDrawerVisible = false">取消</v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+    </div>
     <!-- 引入弹窗 -->
     <AnalysisReportModal
       v-model="analysisReportDrawerVisible"
       :repo-i-d="modalRepoID"
       :target-path="modalTargetPath"
       :scope-text="modalScopeText"
-      :whole-repo="wholeRepo"
+      :whole-code="wholeCode"
       :api="apiType"
       :count="count"
+      :config="weightConfig"
     />
+
+    <!-- AI参考信息选择对话框 -->
+    <v-dialog v-model="aiReferenceDialog" max-width="500" persistent>
+      <v-card class="modern-surface" elevation="8">
+        <v-card-title class="d-flex align-center">
+          <v-icon color="deep-purple" class="mr-2">mdi-brain</v-icon>
+          <span>AI分析参考信息设置</span>
+        </v-card-title>
+        <v-card-text>
+          <div class="mb-4">
+            <p class="text-body-2 mb-3">请选择您希望AI在分析代码时参考哪些信息：</p>
+            <v-radio-group v-model="aiReferenceChoice" column>
+              <v-radio :value="false" color="deep-purple">
+                <template #label>
+                  <div>
+                    <div class="font-weight-medium">仅索引</div>
+                    <div class="text-caption text-grey-600">
+                      推荐用于扫描大型项目和复杂代码库，或者层级目录代码文件较多的场景，避免信息过载
+                    </div>
+                  </div>
+                </template>
+              </v-radio>
+              <v-radio :value="true" color="deep-purple">
+                <template #label>
+                  <div>
+                    <div class="font-weight-medium">索引和源代码</div>
+                    <div class="text-caption text-grey-600">
+                      提供更详细的分析结果，适合中小型项目，或者专项分析少量代码文件的场景
+                    </div>
+                  </div>
+                </template>
+              </v-radio>
+            </v-radio-group>
+            <v-alert type="info" variant="tonal" class="mt-3">
+              <v-icon>mdi-information</v-icon>
+              此设置会保存到本地，后续可通过右上角开关随时调整
+            </v-alert>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="deep-purple"
+            variant="flat"
+            :disabled="aiReferenceChoice === null"
+            @click="saveAiReferenceChoice(aiReferenceChoice)"
+          >
+            确认设置
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 权重配置对话框 -->
+    <v-dialog v-model="weightConfigDialog" max-width="600" persistent>
+      <v-card class="modern-surface" elevation="8">
+        <v-card-title class="d-flex align-center">
+          <v-icon color="primary" class="mr-2">mdi-tune</v-icon>
+          <span>分析场景权重配置</span>
+        </v-card-title>
+        <v-card-text>
+          <div class="mb-4">
+            <p class="text-body-2 mb-3">请选择您的分析偏好，不同场景会影响AI分析的重点：</p>
+
+            <!-- 预设配置选择 -->
+            <v-radio-group v-model="selectedPreset" column @update:model-value="applyPresetConfig">
+              <v-radio
+                v-for="(preset, key) in presetConfigs"
+                :key="key"
+                :value="key"
+                color="primary"
+              >
+                <template #label>
+                  <div>
+                    <div class="font-weight-medium">{{ preset.name }}</div>
+                    <div class="text-caption text-grey-600">{{ preset.description }}</div>
+                  </div>
+                </template>
+              </v-radio>
+            </v-radio-group>
+
+            <!-- 权重详情显示 -->
+            <v-card variant="outlined" class="mt-4">
+              <v-card-subtitle>当前权重维度配置</v-card-subtitle>
+              <v-card-text>
+                <div v-if="!isCustomConfig" class="weight-display">
+                  <div class="weight-item">
+                    <span class="weight-label">被引用次数：</span>
+                    <span class="weight-value">{{ (weightConfig.alpha * 100).toFixed(0) }}%</span>
+                  </div>
+                  <div class="weight-item">
+                    <span class="weight-label">扇出数：</span>
+                    <span class="weight-value">{{ (weightConfig.beta * 100).toFixed(0) }}%</span>
+                  </div>
+                  <div class="weight-item">
+                    <span class="weight-label">调用层级深度：</span>
+                    <span class="weight-value">{{ (weightConfig.gamma * 100).toFixed(0) }}%</span>
+                  </div>
+                  <div class="weight-item">
+                    <span class="weight-label">代码复杂度：</span>
+                    <span class="weight-value">{{ (weightConfig.delta * 100).toFixed(0) }}%</span>
+                  </div>
+                </div>
+
+                <!-- 自定义权重输入 -->
+                <div v-else class="custom-weight-inputs">
+                  <v-text-field
+                    v-model.number="weightConfig.alpha"
+                    label="被引用次数权重"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    density="compact"
+                    variant="outlined"
+                    @input="updateCustomWeight"
+                  >
+                    <template #append-inner>
+                      <span class="text-caption">{{ (weightConfig.alpha * 100).toFixed(0) }}%</span>
+                    </template>
+                  </v-text-field>
+
+                  <v-text-field
+                    v-model.number="weightConfig.beta"
+                    label="扇出数权重"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    density="compact"
+                    variant="outlined"
+                    @input="updateCustomWeight"
+                  >
+                    <template #append-inner>
+                      <span class="text-caption">{{ (weightConfig.beta * 100).toFixed(0) }}%</span>
+                    </template>
+                  </v-text-field>
+
+                  <v-text-field
+                    v-model.number="weightConfig.gamma"
+                    label="调用层级深度权重"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    density="compact"
+                    variant="outlined"
+                    @input="updateCustomWeight"
+                  >
+                    <template #append-inner>
+                      <span class="text-caption">{{ (weightConfig.gamma * 100).toFixed(0) }}%</span>
+                    </template>
+                  </v-text-field>
+
+                  <v-text-field
+                    v-model.number="weightConfig.delta"
+                    label="代码复杂度权重"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    density="compact"
+                    variant="outlined"
+                    @input="updateCustomWeight"
+                  >
+                    <template #append-inner>
+                      <span class="text-caption">{{ (weightConfig.delta * 100).toFixed(0) }}%</span>
+                    </template>
+                  </v-text-field>
+
+                  <v-alert
+                    :type="
+                      Math.abs(
+                        weightConfig.alpha +
+                          weightConfig.beta +
+                          weightConfig.gamma +
+                          weightConfig.delta -
+                          1
+                      ) < 0.01
+                        ? 'success'
+                        : 'warning'
+                    "
+                    variant="tonal"
+                    density="compact"
+                    class="mt-2"
+                  >
+                    权重总和：{{
+                      (
+                        (weightConfig.alpha +
+                          weightConfig.beta +
+                          weightConfig.gamma +
+                          weightConfig.delta) *
+                        100
+                      ).toFixed(1)
+                    }}%
+                    {{
+                      Math.abs(
+                        weightConfig.alpha +
+                          weightConfig.beta +
+                          weightConfig.gamma +
+                          weightConfig.delta -
+                          1
+                      ) < 0.01
+                        ? '✓'
+                        : '(需要等于100%)'
+                    }}
+                  </v-alert>
+                </div>
+              </v-card-text>
+            </v-card>
+
+            <v-alert type="info" variant="tonal" class="mt-3">
+              我会记住你的偏好设置，后续可以随时调整
+            </v-alert>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="primary" variant="flat" @click="saveWeightConfig"> 确认设置 </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <v-snackbar
       v-model="snackbar.show"
@@ -366,6 +817,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import * as d3 from 'd3'
 import FileContextMenu from '../components/FileContextMenu.vue'
 import { listRepos } from '../service/api'
@@ -380,9 +832,56 @@ const analysisReportDrawerVisible = ref(false)
 const modalRepoID = ref('')
 const modalTargetPath = ref('')
 const modalScopeText = ref('')
-const wholeRepo = ref(false)
+const wholeCode = ref(false)
 const apiType = ref('')
 const count = ref(0)
+
+// AI参考信息选择相关状态
+const aiReferenceDialog = ref(false)
+const aiReferenceChoice = ref(null) // null表示未选择，true表示索引和源代码，false表示仅索引
+const showAiReferenceSwitch = ref(false) // 控制开关显示
+const pendingAction = ref(null) // 保存待执行的操作
+
+// 权重配置相关状态
+const weightConfigDialog = ref(false)
+const weightConfig = ref({
+  alpha: 0.2,
+  beta: 0.2,
+  gamma: 0.1,
+  delta: 0.5
+})
+const weightPendingAction = ref(null) // 保存待执行的操作
+const isCustomConfig = ref(false) // 是否为自定义配置
+
+// 预设权重配置
+const presetConfigs = {
+  coreDependency: {
+    name: '核心依赖分析',
+    description: '重点关注核心依赖关系和模块间的耦合度，推荐用于库分析',
+    config: { alpha: 0.6, beta: 0.1, gamma: 0.2, delta: 0.1 }
+  },
+  businessComplexity: {
+    name: '业务复杂度分析',
+    description: '重点关注业务逻辑的复杂度和代码质量，推荐用于业务代码分析',
+    config: { alpha: 0.2, beta: 0.2, gamma: 0.1, delta: 0.5 }
+  },
+  callHierarchy: {
+    name: '调用层次分析',
+    description: '重点关注函数调用关系和代码执行流程，推荐用于架构分析',
+    config: { alpha: 0.2, beta: 0.2, gamma: 0.5, delta: 0.1 }
+  },
+  balanced: {
+    name: '均衡分析',
+    description: '各个维度均衡考虑，适合全面分析',
+    config: { alpha: 0.4, beta: 0.2, gamma: 0.2, delta: 0.2 }
+  },
+  custom: {
+    name: '自定义配置',
+    description: '根据需要自定义各维度权重',
+    config: { alpha: 0.25, beta: 0.25, gamma: 0.25, delta: 0.25 }
+  }
+}
+const selectedPreset = ref('businessComplexity')
 
 // 控制弹窗显隐
 const isModalVisible = ref(false)
@@ -396,6 +895,137 @@ const dummyScopeText = ref('调试模式')
 function openModal() {
   // 你也可以在这里先改 markdownContent 进行更灵活的模拟
   isModalVisible.value = true
+}
+
+// 初始化AI参考信息选择
+const initAiReferenceChoice = () => {
+  const saved = localStorage.getItem('aiReferenceChoice')
+  if (saved !== null) {
+    aiReferenceChoice.value = saved === 'true'
+    showAiReferenceSwitch.value = true
+  } else {
+    // 第一次使用，显示开关但不设置默认值，让用户在需要时选择
+    showAiReferenceSwitch.value = true
+  }
+}
+
+// 初始化权重配置
+const initWeightConfig = () => {
+  const saved = localStorage.getItem('analysisWeightConfig')
+  const savedPreset = localStorage.getItem('analysisWeightPreset')
+
+  if (saved !== null) {
+    try {
+      weightConfig.value = JSON.parse(saved)
+      // 找到匹配的预设
+      for (const [key, preset] of Object.entries(presetConfigs)) {
+        const config = preset.config
+        if (
+          Math.abs(config.alpha - weightConfig.value.alpha) < 0.01 &&
+          Math.abs(config.beta - weightConfig.value.beta) < 0.01 &&
+          Math.abs(config.gamma - weightConfig.value.gamma) < 0.01 &&
+          Math.abs(config.delta - weightConfig.value.delta) < 0.01
+        ) {
+          selectedPreset.value = key
+          break
+        }
+      }
+    } catch (e) {
+      console.error('解析权重配置失败:', e)
+      // 使用默认配置
+      weightConfig.value = presetConfigs.businessComplexity.config
+      selectedPreset.value = 'businessComplexity'
+    }
+  }
+
+  if (savedPreset) {
+    selectedPreset.value = savedPreset
+    isCustomConfig.value = savedPreset === 'custom'
+  }
+}
+
+// 保存AI参考信息选择
+const saveAiReferenceChoice = (choice) => {
+  aiReferenceChoice.value = choice
+  localStorage.setItem('aiReferenceChoice', choice.toString())
+  showAiReferenceSwitch.value = true
+  aiReferenceDialog.value = false
+
+  // 如果有待执行的操作，继续执行
+  if (pendingAction.value) {
+    const action = pendingAction.value
+    pendingAction.value = null
+    action()
+  }
+}
+
+// 保存权重配置
+const saveWeightConfig = () => {
+  // 验证权重总和是否为1
+  const total =
+    weightConfig.value.alpha +
+    weightConfig.value.beta +
+    weightConfig.value.gamma +
+    weightConfig.value.delta
+  if (Math.abs(total - 1) > 0.01) {
+    ElMessage.warning('权重总和必须等于1，当前总和为：' + total.toFixed(2))
+    return
+  }
+
+  localStorage.setItem('analysisWeightConfig', JSON.stringify(weightConfig.value))
+  localStorage.setItem('analysisWeightPreset', selectedPreset.value)
+  weightConfigDialog.value = false
+
+  ElMessage.success('权重配置已保存')
+
+  // 如果有待执行的操作，继续执行
+  if (weightPendingAction.value) {
+    const action = weightPendingAction.value
+    weightPendingAction.value = null
+    action()
+  }
+}
+
+// 应用预设配置
+const applyPresetConfig = () => {
+  if (selectedPreset.value && presetConfigs[selectedPreset.value]) {
+    weightConfig.value = { ...presetConfigs[selectedPreset.value].config }
+    isCustomConfig.value = selectedPreset.value === 'custom'
+  }
+}
+
+// 更新自定义权重
+const updateCustomWeight = () => {
+  if (selectedPreset.value === 'custom') {
+    presetConfigs.custom.config = { ...weightConfig.value }
+  }
+}
+
+// 检查权重配置是否已初始化
+const checkWeightConfig = (callback) => {
+  const saved = localStorage.getItem('analysisWeightConfig')
+  if (saved === null) {
+    weightPendingAction.value = callback
+    weightConfigDialog.value = true
+    return false // 需要等待用户选择
+  }
+  return true // 可以继续执行
+}
+
+// 检查是否需要显示AI参考信息选择对话框
+const checkAiReferenceChoice = (callback) => {
+  if (aiReferenceChoice.value === null) {
+    pendingAction.value = callback
+    aiReferenceDialog.value = true
+    return false // 需要等待用户选择
+  }
+  return true // 可以继续执行
+}
+
+// 切换AI参考信息选择
+const toggleAiReference = () => {
+  const newChoice = !aiReferenceChoice.value
+  saveAiReferenceChoice(newChoice)
 }
 
 // Electron 内置模块（使用 top-level await）
@@ -419,18 +1049,28 @@ const tooltipY = ref(0)
 const lensPath = ref('')
 const pathSuggestions = ref([])
 const depth = ref(20)
+const fullScan = ref(false) // 全量扫描模式
 const initialLoad = ref(true)
 const chartKey = ref(0)
 // 用于保存 d3 sunburst 更新函数（将在绘图函数中设置）
 const updateSunburst = ref(null)
 
+// 文件类型统计相关状态
+const fileTypeStats = ref([])
+const showFileTypeStats = ref(false)
+const fileTypeChartKey = ref(0)
+const fileTypeStatsExpanded = ref(false)
+
 // 抽屉状态管理
 const analysisScope = ref('current')
 const architectureScope = ref('current')
+const codeViewScope = ref('current')
 const analysisDrawerVisible = ref(false)
 const architectureDrawerVisible = ref(false)
+const codeViewDrawerVisible = ref(false)
 const analysisBtn = ref(null)
 const architectureBtn = ref(null)
+const codeViewBtn = ref(null)
 
 // 抽屉位置计算
 const analysisDrawerStyle = computed(() => {
@@ -457,6 +1097,18 @@ const architectureDrawerStyle = computed(() => {
   }
 })
 
+const codeViewDrawerStyle = computed(() => {
+  if (!codeViewBtn.value) return {}
+  const rect = codeViewBtn.value.$el.getBoundingClientRect()
+  return {
+    position: 'absolute',
+    top: `${rect.bottom + 5}px`,
+    left: `${rect.left}px`,
+    zIndex: 100,
+    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1)'
+  }
+})
+
 // FileContextMenu 引用
 const contextMenu = ref(null)
 
@@ -472,13 +1124,11 @@ const snackbar = computed(() => store.state.snackbar)
 // menuItems 定义，同时引用下面定义的三个操作函数
 const viewFileDetails = () => {
   if (selectedFile.value && selectedFile.value.fullPath) {
-    console.log('跳转到文件浏览器页面，文件路径：', selectedFile.value.fullPath)
+    console.log('跳转到文件浏览器页面，文件路径：', selectedFile.value.fullPath, rootPath.value)
     router.push({
       name: 'finder',
       params: {
         localPath: selectedFile.value.fullPath,
-        forceDeep: true,
-        forceReplace: 'true',
         rootPath: rootPath.value
       }
     })
@@ -512,7 +1162,17 @@ const generateFileAnalysisReport = async () => {
       const targetPath = selectedFile.value.fullPath
       const scopeText = '单点文件集'
 
-      console.log(`生成文件代码分析报告，范围：${scopeText}，路径：${targetPath}`)
+      // 检查是否为单个文件分析
+      let isAnalyzingSingleFile = false
+      // 判断targetPath是否为文件
+      if (!selectedFile.value.isDirectory) {
+        isAnalyzingSingleFile = true
+        console.log('当前焦点是否为文件：', isAnalyzingSingleFile, aiReferenceChoice.value)
+      }
+
+      console.log(
+        `生成文件代码分析报告，范围：${scopeText}，路径：${targetPath}，单文件分析：${isAnalyzingSingleFile}`
+      )
 
       // 这里可以调用后端API生成报告
       const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
@@ -531,9 +1191,14 @@ const generateFileAnalysisReport = async () => {
         modalTargetPath.value = targetPath
         modalScopeText.value = scopeText
         apiType.value = 'deepResearch'
-        wholeRepo.value = false
+        // 根据用户选择设置wholeCode参数，如果未选择则使用false作为默认值
+        wholeCode.value = aiReferenceChoice.value !== null ? aiReferenceChoice.value : false
+        if (isAnalyzingSingleFile) {
+          wholeCode.value = true
+          console.log('已为单文件分析设置wholeCode为true')
+        }
         // 设置文件数量
-        if (selectedFile.value.isDirectory && selectedFile.value.count) {
+        if (selectedFile.value && selectedFile.value.isDirectory && selectedFile.value.count) {
           count.value = selectedFile.value.count
         } else {
           count.value = 1 // 单文件分析
@@ -567,7 +1232,6 @@ const generateFileAnalysisReport = async () => {
     }
   }
 }
-
 // 为文件夹生成流程图
 const generateFolderArchitectureMap = async () => {
   if (
@@ -580,7 +1244,18 @@ const generateFolderArchitectureMap = async () => {
     try {
       const targetPath = selectedFile.value.fullPath
       const scopeText = '单点文件集'
-      console.log(`生成文件夹流程图，路径：${targetPath}`)
+
+      // 检查是否为单个文件分析
+      let isAnalyzingSingleFile = false
+      // 判断targetPath是否为文件
+      if (!selectedFile.value.isDirectory) {
+        isAnalyzingSingleFile = true
+        console.log('当前焦点是否为文件：', isAnalyzingSingleFile, aiReferenceChoice.value)
+      }
+
+      console.log(
+        `生成流程图，范围：${scopeText}，路径：${targetPath}，单文件分析：${isAnalyzingSingleFile}`
+      )
 
       // 这里可以调用后端API生成架构图
       const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
@@ -599,9 +1274,14 @@ const generateFolderArchitectureMap = async () => {
         modalTargetPath.value = targetPath
         modalScopeText.value = scopeText
         apiType.value = 'flowChart'
-        wholeRepo.value = false
+        // 根据用户选择设置wholeCode参数，如果未选择则使用false作为默认值
+        wholeCode.value = aiReferenceChoice.value !== null ? aiReferenceChoice.value : false
+        if (isAnalyzingSingleFile) {
+          wholeCode.value = true
+          console.log('已为单文件分析设置wholeCode为true')
+        }
         // 设置文件数量
-        if (selectedFile.value.isDirectory && selectedFile.value.count) {
+        if (selectedFile.value && selectedFile.value.isDirectory && selectedFile.value.count) {
           count.value = selectedFile.value.count
         } else {
           count.value = 1 // 单文件分析
@@ -630,9 +1310,10 @@ const generateFolderArchitectureMap = async () => {
 // 动态菜单项，根据选中项是文件还是文件夹显示不同的菜单
 const menuItems = computed(() => {
   const baseItems = []
-  if (isMacOS.value) {
+  // 非 (Windows平台且选中的是文件）时，添加预览代码选项
+  if (selectedFile.value && (isMacOS.value || (!isMacOS.value && selectedFile.value.isDirectory))) {
     baseItems.push({
-      title: '预览代码',
+      title: '从代码视窗查看',
       icon: 'mdi-information',
       action: viewFileDetails
     })
@@ -671,6 +1352,37 @@ const breadcrumbs = computed(() => {
   return crumbs.reverse()
 })
 
+// 紧凑模式文件类型计算（前4个 + Other）
+const getCompactFileTypes = computed(() => {
+  if (!fileTypeStats.value || fileTypeStats.value.length === 0) return []
+
+  const stats = [...fileTypeStats.value]
+  if (stats.length <= 4) {
+    return stats
+  }
+
+  // 取前4个类型
+  const top4 = stats.slice(0, 4)
+  // 计算其余类型的总和
+  const others = stats.slice(4)
+  const otherCount = others.reduce((sum, type) => sum + type.count, 0)
+  const otherSize = others.reduce((sum, type) => sum + type.size, 0)
+  const otherPercentage = others.reduce((sum, type) => sum + parseFloat(type.percentage || 0), 0)
+
+  // 如果有其他类型，添加Other项
+  if (others.length > 0) {
+    top4.push({
+      extension: 'Other',
+      icon: 'mdi-file-multiple',
+      count: otherCount,
+      size: otherSize,
+      percentage: Math.round(otherPercentage * 10) / 10
+    })
+  }
+
+  return top4
+})
+
 // 以下函数均为组件内业务逻辑
 
 const showContextMenu = (event, item) => {
@@ -698,8 +1410,9 @@ const toggleAnalysisDrawer = () => {
     })
     return
   }
-  // 关闭另一个抽屉
+  // 关闭其他抽屉
   architectureDrawerVisible.value = false
+  codeViewDrawerVisible.value = false
   // 切换当前抽屉
   analysisDrawerVisible.value = !analysisDrawerVisible.value
 }
@@ -713,16 +1426,72 @@ const toggleArchitectureDrawer = () => {
     })
     return
   }
-  // 关闭另一个抽屉
+  // 关闭其他抽屉
   analysisDrawerVisible.value = false
+  codeViewDrawerVisible.value = false
   // 切换当前抽屉
   architectureDrawerVisible.value = !architectureDrawerVisible.value
+}
+
+// 切换代码视窗查看抽屉
+const toggleCodeViewDrawer = () => {
+  if (!rootPath.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先选择一个目录并进行扫描',
+      color: 'warning'
+    })
+    return
+  }
+  // 关闭其他抽屉
+  analysisDrawerVisible.value = false
+  architectureDrawerVisible.value = false
+  // 切换当前抽屉
+  codeViewDrawerVisible.value = !codeViewDrawerVisible.value
+}
+
+// 打开代码视窗查看
+const openCodeView = () => {
+  codeViewDrawerVisible.value = false
+
+  let targetPath = rootPath.value
+
+  // 根据选择的范围确定路径
+  if (codeViewScope.value === 'current' && currentFocus.value && currentFocus.value.data.fullPath) {
+    targetPath = currentFocus.value.data.fullPath
+  }
+
+  if (targetPath) {
+    console.log('跳转到代码视窗查看，路径：', targetPath, rootPath.value)
+    router.push({
+      name: 'finder',
+      params: {
+        localPath: targetPath,
+        rootPath: rootPath.value
+      }
+    })
+  } else {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '无法确定目标路径',
+      color: 'error'
+    })
+  }
 }
 
 // 生成代码分析报告
 const generateAnalysisReport = async () => {
   analysisReportDrawerVisible.value = false
   analysisDrawerVisible.value = false
+
+  // 检查是否需要显示AI参考信息选择对话框
+  if (!checkAiReferenceChoice(() => generateAnalysisReport())) {
+    return // 等待用户选择
+  }
+
+  // 检查权重配置是否已初始化
+  if (!checkWeightConfig(() => generateAnalysisReport())) {
+    return // 等待用户选择权重配置
+  }
+
   isProcessing.value = true
   try {
     const targetPath =
@@ -731,7 +1500,17 @@ const generateAnalysisReport = async () => {
         : rootPath.value
     const scopeText = analysisScope.value === 'current' ? '当前层级' : '整个仓库'
 
-    console.log(`生成代码分析报告，范围：${scopeText}，路径：${targetPath}`)
+    // 检查是否为单个文件分析
+    let isAnalyzingSingleFile = false
+    if (analysisScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
+      // 检查当前焦点是否为文件（非目录）
+      isAnalyzingSingleFile = !currentFocus.value.data.isDirectory
+      console.log('当前焦点是否为文件：', isAnalyzingSingleFile, aiReferenceChoice.value)
+    }
+
+    console.log(
+      `生成代码分析报告，范围：${scopeText}，路径：${targetPath}，单文件分析：${isAnalyzingSingleFile}`
+    )
 
     // 这里可以调用后端API生成报告
     const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
@@ -751,14 +1530,13 @@ const generateAnalysisReport = async () => {
       modalScopeText.value = scopeText
       apiType.value = 'deepResearch'
 
-      // 如果为整个仓库，则wholeRepo设置为true
-      wholeRepo.value = analysisScope.value !== 'current'
-      // 如果当前层级为项目根目录，则视为整个仓库
-      // if (currentFocus.value.data.fullPath === rootPath.value) {
-      //   console.log('当前层级为项目根目录，视为整个仓库')
-      //   wholeRepo.value = true
-      // }
-      console.log('wholeRepo', wholeRepo.value)
+      // 根据用户选择设置wholeCode参数
+      wholeCode.value = aiReferenceChoice.value
+      console.log('wholeCode', wholeCode.value, 'aiReferenceChoice', aiReferenceChoice.value)
+      if (isAnalyzingSingleFile) {
+        wholeCode.value = true
+        console.log('已为单文件分析设置wholeCode为true')
+      }
       // 设置文件数量
       if (analysisScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
         count.value = currentFocus.value.data.count || 0
@@ -771,11 +1549,6 @@ const generateAnalysisReport = async () => {
       analysisReportDrawerVisible.value = true
 
       console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
-
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在'文件枢纽'中查看...`,
-        color: 'info'
-      })
     } else {
       console.warn('未找到匹配的仓库路径')
     }
@@ -793,6 +1566,17 @@ const generateAnalysisReport = async () => {
 // 生成流程图
 const generateArchitectureMap = async () => {
   architectureDrawerVisible.value = false
+
+  // 检查是否需要显示AI参考信息选择对话框
+  if (!checkAiReferenceChoice(() => generateArchitectureMap())) {
+    return // 等待用户选择
+  }
+
+  // 检查权重配置是否已初始化
+  if (!checkWeightConfig(() => generateArchitectureMap())) {
+    return // 等待用户选择权重配置
+  }
+
   isProcessing.value = true
   try {
     const targetPath =
@@ -801,7 +1585,17 @@ const generateArchitectureMap = async () => {
         : rootPath.value
     const scopeText = architectureScope.value === 'current' ? '当前层级' : '整个仓库'
 
-    console.log(`生成流程图，范围：${scopeText}，路径：${targetPath}`)
+    // 检查是否为单个文件分析
+    let isAnalyzingSingleFile = false
+    if (architectureScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
+      // 检查当前焦点是否为文件（非目录）
+      isAnalyzingSingleFile = !currentFocus.value.data.isDirectory
+      console.log('当前焦点是否为文件：', isAnalyzingSingleFile, aiReferenceChoice.value)
+    }
+
+    console.log(
+      `生成流程图，范围：${scopeText}，路径：${targetPath}，单文件分析：${isAnalyzingSingleFile}`
+    )
 
     // 这里可以调用后端API生成报告
     const selectedItem = pathSuggestions.value.find((item) => item.value === rootPath.value)
@@ -821,14 +1615,13 @@ const generateArchitectureMap = async () => {
       modalScopeText.value = scopeText
       apiType.value = 'flowChart'
 
-      // 如果为整个仓库，则wholeRepo设置为true
-      wholeRepo.value = architectureScope.value !== 'current'
-      // 如果当前层级为项目根目录，则视为整个仓库
-      // if (currentFocus.value.data.fullPath === rootPath.value) {
-      //   console.log('当前层级为项目根目录，视为整个仓库')
-      //   wholeRepo.value = true
-      // }
-      console.log('wholeRepo', wholeRepo.value)
+      // 根据用户选择设置wholeCode参数
+      wholeCode.value = aiReferenceChoice.value
+      console.log('wholeCode', wholeCode.value, 'aiReferenceChoice', aiReferenceChoice.value)
+      if (isAnalyzingSingleFile) {
+        wholeCode.value = true
+        console.log('已为单文件分析设置wholeCode为true')
+      }
       // 设置文件数量
       if (architectureScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
         count.value = currentFocus.value.data.count || 0
@@ -839,11 +1632,6 @@ const generateArchitectureMap = async () => {
 
       // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
       analysisReportDrawerVisible.value = true
-
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在为${scopeText}梳理流程图，请稍等片刻后在'文件枢纽'中查看...`,
-        color: 'info'
-      })
     } else {
       console.warn('未找到匹配的仓库路径')
     }
@@ -867,17 +1655,33 @@ const applyLensPath = async () => {
       lensPath.value = window.electron.normalize(lensPath.value)
       const parts = lensPath.value.split(window.electron.sep).filter(Boolean)
       const pathDepth = parts.length
-      const adaptiveDepth = Math.floor((pathDepth - 3) / 0.3) + 3
-      const scanDepth = Math.min(Math.max(adaptiveDepth, 3), 14)
-      console.log(
-        `路径深度: ${pathDepth}, 自适应扫描深度: ${adaptiveDepth}, 最终扫描深度: ${scanDepth}`
-      )
-      depth.value = adaptiveDepth
+
+      let scanDepth
+      if (fullScan.value) {
+        // 全量扫描模式：使用更大的扫描深度
+        scanDepth = 50 // 设置为50层深度，基本可以扫描到所有文件
+        depth.value = 50
+        console.log(`全量扫描模式，扫描深度: ${scanDepth}`)
+      } else {
+        // 普通扫描模式：使用自适应深度
+        const adaptiveDepth = Math.floor((pathDepth - 3) / 0.3) + 3
+        scanDepth = Math.min(Math.max(adaptiveDepth, 3), 14)
+        depth.value = adaptiveDepth
+        console.log(
+          `路径深度: ${pathDepth}, 自适应扫描深度: ${adaptiveDepth}, 最终扫描深度: ${scanDepth}`
+        )
+      }
       rootPath.value = lensPath.value
       chartLoading.value = true
       legendLoading.value = true
       fileTree.value = await buildFileTreeAsync(rootPath.value, '', 0, scanDepth)
       drawChartWithAnimation()
+
+      // 分析文件类型并绘制图表
+      analyzeFileTypes(fileTree.value)
+      setTimeout(() => {
+        drawFileTypeChart()
+      }, 100)
     } catch (error) {
       console.error('扫描失败：', error)
       store.dispatch('snackbar/showSnackbar', {
@@ -901,6 +1705,8 @@ const applyLensPath = async () => {
     currentFocus.value = null
     chartKey.value++
     initialLoad.value = true
+    showFileTypeStats.value = false
+    fileTypeStats.value = []
     d3.select(chart.value).selectAll('*').remove()
     initialLoad.value = true
   }
@@ -1145,7 +1951,7 @@ watch(colorMode, () => {
 })
 
 // 支持三色渐变，默认蓝-紫
-const colorRange = ref(['#b98eff', '#7C4DFF', '#4a04ff'])
+const colorRange = ref(['#FCE38A', '#F38181', '#EAFFD0'])
 
 // 色卡弹窗控制
 const showPaletteDialog = ref(false)
@@ -1255,7 +2061,7 @@ const drawChartWithAnimation = () => {
   if (!fileTree.value) return
   initialLoad.value = false
   d3.select(chart.value).selectAll('*').remove()
-  const width = 600,
+  const width = 1000,
     height = 600
   const radius = Math.min(width, height) / 2
   const innerRadius = 60
@@ -1275,6 +2081,20 @@ const drawChartWithAnimation = () => {
   }))
   const svg = d3.select(chart.value).append('svg').attr('width', width).attr('height', height)
   const g = svg.append('g').attr('transform', `translate(${width / 2}, ${height / 2})`)
+
+  // 添加缩放功能 - 基于鼠标位置为中心
+  const zoom = d3
+    .zoom()
+    .scaleExtent([0.5, 3]) // 缩放范围：0.5倍到3倍
+    .on('zoom', (event) => {
+      g.attr('transform', event.transform)
+    })
+
+  // 设置初始变换，使图表居中
+  const initialTransform = d3.zoomIdentity.translate(width / 2, height / 2)
+  svg.call(zoom.transform, initialTransform)
+
+  svg.call(zoom)
   const diameter = innerRadius * 2.5
   const defs = svg.append('defs')
   const pattern = defs
@@ -1485,8 +2305,254 @@ function assignValueByMode(node) {
   return node.value
 }
 
+// 文件类型分析函数
+const getFileTypeIcon = (extension) => {
+  const iconMap = {
+    '.js': 'mdi-language-javascript',
+    '.ts': 'mdi-language-typescript',
+    '.vue': 'mdi-vuejs',
+    '.py': 'mdi-language-python',
+    '.java': 'mdi-language-java',
+    '.cpp': 'mdi-language-cpp',
+    '.c': 'mdi-language-c',
+    '.cs': 'mdi-language-csharp',
+    '.php': 'mdi-language-php',
+    '.rb': 'mdi-language-ruby',
+    '.go': 'mdi-language-go',
+    '.rs': 'mdi-language-rust',
+    '.swift': 'mdi-language-swift',
+    '.kt': 'mdi-language-kotlin',
+    '.html': 'mdi-language-html5',
+    '.css': 'mdi-language-css3',
+    '.scss': 'mdi-sass',
+    '.less': 'mdi-language-css3',
+    '.json': 'mdi-code-json',
+    '.xml': 'mdi-xml',
+    '.yaml': 'mdi-file-code',
+    '.yml': 'mdi-file-code',
+    '.md': 'mdi-language-markdown',
+    '.txt': 'mdi-file-document',
+    '.sql': 'mdi-database',
+    '.sh': 'mdi-console',
+    '.bat': 'mdi-console',
+    '.dockerfile': 'mdi-docker',
+    '.gitignore': 'mdi-git'
+  }
+  return iconMap[extension.toLowerCase()] || 'mdi-file-code'
+}
+
+const analyzeFileTypes = (tree) => {
+  const typeMap = new Map()
+
+  // 获取iconMap中定义的文件扩展名
+  const iconMap = {
+    '.js': 'mdi-language-javascript',
+    '.ts': 'mdi-language-typescript',
+    '.vue': 'mdi-vuejs',
+    '.py': 'mdi-language-python',
+    '.java': 'mdi-language-java',
+    '.cpp': 'mdi-language-cpp',
+    '.c': 'mdi-language-c',
+    '.cs': 'mdi-language-csharp',
+    '.php': 'mdi-language-php',
+    '.rb': 'mdi-language-ruby',
+    '.go': 'mdi-language-go',
+    '.rs': 'mdi-language-rust',
+    '.swift': 'mdi-language-swift',
+    '.kt': 'mdi-language-kotlin',
+    '.html': 'mdi-language-html5',
+    '.css': 'mdi-language-css3',
+    '.scss': 'mdi-sass',
+    '.less': 'mdi-language-css3',
+    '.json': 'mdi-code-json',
+    '.xml': 'mdi-xml',
+    '.yaml': 'mdi-file-code',
+    '.yml': 'mdi-file-code',
+    '.md': 'mdi-language-markdown',
+    '.txt': 'mdi-file-document',
+    '.sql': 'mdi-database',
+    '.sh': 'mdi-console',
+    '.bat': 'mdi-console',
+    '.dockerfile': 'mdi-docker',
+    '.gitignore': 'mdi-git'
+  }
+
+  const traverse = (node) => {
+    if (!node.isDirectory && node.name) {
+      const ext = path.extname(node.name).toLowerCase()
+      // 只统计在iconMap中定义的文件类型
+      if (ext && iconMap[ext]) {
+        if (!typeMap.has(ext)) {
+          typeMap.set(ext, { count: 0, size: 0, extension: ext })
+        }
+        const current = typeMap.get(ext)
+        current.count++
+        current.size += node.size || 0
+      }
+    }
+
+    if (node.children) {
+      node.children.forEach(traverse)
+    }
+  }
+
+  traverse(tree)
+
+  // 转换为数组并排序（按文件数量排序，取前10个）
+  const sortedTypes = Array.from(typeMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+
+  // 计算百分比
+  const totalCount = sortedTypes.reduce((sum, type) => sum + type.count, 0)
+  sortedTypes.forEach((type) => {
+    type.percentage = ((type.count / totalCount) * 100).toFixed(1)
+    type.icon = getFileTypeIcon(type.extension)
+  })
+
+  fileTypeStats.value = sortedTypes
+  showFileTypeStats.value = sortedTypes.length > 0
+}
+
+// 获取Vuetify颜色名称（用于v-icon、v-chip等组件）
+const getTypeColorName = (index) => {
+  const colors = [
+    'primary',
+    'secondary',
+    'accent',
+    'success',
+    'warning',
+    'error',
+    'info',
+    'purple',
+    'pink',
+    'indigo',
+    'teal',
+    'orange',
+    'brown',
+    'grey'
+  ]
+  return colors[index % colors.length]
+}
+
+// 获取十六进制颜色值（用于CSS样式）
+const getTypeColor = (index) => {
+  const colors = [
+    '#1976D2', // primary
+    '#424242', // secondary
+    '#82B1FF', // accent
+    '#4CAF50', // success
+    '#FF9800', // warning
+    '#F44336', // error
+    '#2196F3', // info
+    '#9C27B0', // purple
+    '#E91E63', // pink
+    '#3F51B5', // indigo
+    '#009688', // teal
+    '#FF5722', // orange
+    '#795548', // brown
+    '#9E9E9E' // grey
+  ]
+  return colors[index % colors.length]
+}
+
+const formatFileSize = (sizeInBytes) => {
+  if (sizeInBytes < 1024) {
+    return `${sizeInBytes} B`
+  } else if (sizeInBytes < 1024 * 1024) {
+    return `${(sizeInBytes / 1024).toFixed(1)} KB`
+  } else if (sizeInBytes < 1024 * 1024 * 1024) {
+    return `${(sizeInBytes / (1024 * 1024)).toFixed(1)} MB`
+  } else {
+    return `${(sizeInBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
+  }
+}
+
+const drawFileTypeChart = () => {
+  if (!fileTypeStats.value.length) return
+
+  // 清除之前的图表
+  d3.select('#file-type-chart').selectAll('*').remove()
+
+  const width = 200
+  const height = 200
+  const radius = Math.min(width, height) / 2
+
+  const svg = d3
+    .select('#file-type-chart')
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .append('g')
+    .attr('transform', `translate(${width / 2}, ${height / 2})`)
+
+  const color = d3
+    .scaleOrdinal()
+    .domain(fileTypeStats.value.map((d) => d.extension))
+    .range(d3.schemeCategory10)
+
+  const pie = d3
+    .pie()
+    .value((d) => d.count)
+    .sort(null)
+
+  const arc = d3
+    .arc()
+    .innerRadius(40)
+    .outerRadius(radius - 10)
+
+  const arcs = svg
+    .selectAll('.arc')
+    .data(pie(fileTypeStats.value))
+    .enter()
+    .append('g')
+    .attr('class', 'arc')
+
+  arcs
+    .append('path')
+    .attr('d', arc)
+    .attr('fill', (d) => color(d.data.extension))
+    .style('opacity', 0)
+    .transition()
+    .duration(800)
+    .style('opacity', 0.8)
+    .attrTween('d', function (d) {
+      const interpolate = d3.interpolate({ startAngle: 0, endAngle: 0 }, d)
+      return function (t) {
+        return arc(interpolate(t))
+      }
+    })
+
+  // 添加标签
+  arcs
+    .append('text')
+    .attr('transform', (d) => `translate(${arc.centroid(d)})`)
+    .attr('dy', '.35em')
+    .style('text-anchor', 'middle')
+    .style('font-size', '10px')
+    .style('font-weight', 'bold')
+    .style('fill', 'white')
+    .style('opacity', 0)
+    .text((d) => d.data.percentage + '%')
+    .transition()
+    .delay(800)
+    .duration(400)
+    .style('opacity', 1)
+
+  fileTypeChartKey.value++
+}
+
 onMounted(() => {
+  // 初始化AI参考信息选择
+  initAiReferenceChoice()
+  // 初始化权重配置
+  initWeightConfig()
   // 如有需要，可在 mounted 时做额外初始化（例如自动加载默认数据）
+})
+
+// 监听预设选择变化
+watch(selectedPreset, () => {
+  applyPresetConfig()
 })
 </script>
 
@@ -1748,6 +2814,188 @@ onMounted(() => {
   animation: slideDown 0.5s ease-out;
 }
 
+/* 文件类型统计卡片样式 */
+.file-type-stats-card {
+  border-radius: 16px !important;
+  background: rgba(var(--v-theme-surface-rgb), 0.95) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  animation: slideUp 0.6s ease-out;
+}
+
+.file-type-chart-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+}
+
+.file-type-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.file-type-item {
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-surface-variant-rgb), 0.3);
+  animation: fadeIn 0.5s ease-out;
+  animation-fill-mode: both;
+}
+
+.file-type-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.file-type-details {
+  flex: 1;
+  margin-left: 8px;
+}
+
+.file-type-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+}
+
+.file-type-stats-text {
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+  margin-top: 2px;
+}
+
+.file-type-percentage {
+  margin-left: 12px;
+}
+
+.percentage-chip {
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  min-width: 45px;
+}
+
+/* 紧凑模式文件类型统计样式 */
+.file-type-compact-stats {
+  background: rgba(var(--v-theme-surface-rgb), 0.95);
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  animation: slideUp 0.6s ease-out;
+}
+
+.compact-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 8px 0;
+  padding: 0;
+}
+
+.compact-title {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  margin: 0;
+  padding: 0;
+}
+
+.compact-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+}
+
+/* 统一比例条样式 */
+.unified-progress-bar {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background-color: rgba(var(--v-theme-on-surface-rgb), 0.05);
+  animation: slideIn 0.6s ease-out;
+  margin: 0;
+}
+
+.progress-segment {
+  height: 100%;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.progress-segment:hover {
+  filter: brightness(1.1);
+  transform: scaleY(1.1);
+}
+
+.progress-segment:first-child {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.progress-segment:last-child {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+/* 图例样式 */
+.compact-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 0 0;
+  padding: 0;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  animation: fadeIn 0.5s ease-out;
+  animation-fill-mode: both;
+  margin: 0;
+  padding: 0;
+}
+
+.legend-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+.legend-text {
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  margin: 0;
+}
+
+.legend-percentage {
+  font-weight: 600;
+  color: rgba(var(--v-theme-primary-rgb), 0.8);
+  margin: 0;
+}
+
+@keyframes slideIn {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
 .space-lens-container {
   max-width: 600px;
   margin: 0 auto;
@@ -1781,5 +3029,54 @@ onMounted(() => {
 }
 .tooltip-card span {
   color: #454545 !important;
+}
+@media (min-width: 1280px) {
+  .v-container {
+    max-width: 1200px;
+  }
+}
+@media (min-width: 960px) {
+  .v-container {
+    max-width: 1500px;
+  }
+}
+
+/* 权重配置样式 */
+.weight-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weight-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.weight-label {
+  font-size: 14px;
+}
+
+.weight-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--v-theme-primary));
+}
+
+.weight-config-button {
+  display: flex;
+  align-items: center;
+}
+
+.custom-weight-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-weight-inputs .v-text-field {
+  margin-bottom: 0;
 }
 </style>
