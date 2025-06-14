@@ -3,7 +3,32 @@
     <!-- 顶部导航栏 -->
     <v-row align="center" justify="space-between" class="header">
       <v-col >
+        <v-btn color="success" variant="outlined" @click="jumpToRepo">回到仓库身份证</v-btn>
+      </v-col>
+      <v-col >
         <v-btn color="secondary" variant="outlined" @click="importMemoryFlash" disabled>从社区导入索引</v-btn>
+      </v-col>
+      <v-col>
+        <v-text-field
+          v-model="searchQuery"
+          label="快速搜索仓库"
+          placeholder="输入仓库名称或描述进行搜索..."
+          prepend-inner-icon="mdi-magnify"
+          clearable
+          variant="outlined"
+          density="compact"
+          hide-details
+        />
+      </v-col>
+      <v-col>
+        <v-chip
+          v-if="searchQuery"
+          color="primary"
+          variant="outlined"
+          size="small"
+        >
+          找到 {{ filteredRepositories.length }} 个仓库
+        </v-chip>
       </v-col>
     </v-row>
 
@@ -27,12 +52,12 @@
       <v-col class="table-scroll" style="width: 100%;" cols="12">
         <v-data-table
           :headers="headers"
-          :items="repositories"
+          :items="filteredRepositories"
           item-key="id"
           class="elevation-1"
           loading-text="加载中..."
           items-per-page-text="每页显示行数"
-          :items-per-page-options="[7, 10, 15, 20]"
+          :items-per-page-options="[7, 20, 30, 50, 100]"
           v-model:page="page"
           v-model:items-per-page="itemsPerPage"
           density="compact"
@@ -243,7 +268,7 @@ import { loadRepoProgress, removeRepoProgress, RepoProgress, saveRepoProgress } 
 import TipBanner from "../components/TipBanner.vue";
 // 分页状态
 const page = ref<number>(1)           // 默认打开第 1 页
-const itemsPerPage = ref<number>(10)   // 默认每页 5 条
+const itemsPerPage = ref<number>(20)
 // 对话框相关状态
 const dialogVisible = ref(false);
 const dialogTitle = ref('');
@@ -316,9 +341,9 @@ interface Repository {
 // ]
 const headers = [
   { title: '仓库名称', key: 'name'},
-  { title: '描述', key: 'omitDesc'},
+  { title: '描述', key: 'omitDesc', width: '45%'},
   { title: '索引状态', key: 'hasMemoryFlash'},
-  { title: '实际构建完成度/预估索引量', key: 'totalProgress', minWidth: '300px'},
+  { title: '实际构建完成度/预估索引量', key: 'totalProgress', width: '20%'},
   { title: '操作', key: 'actions', maxWidth: '500px'},
 ]
 
@@ -333,12 +358,28 @@ const messages = ref([
 
 const repositories = ref<Repository[]>([]);
 const loading = ref(true);
+// 搜索相关
+const searchQuery = ref('');
+
+// 过滤后的仓库列表
+const filteredRepositories = computed(() => {
+  if (!searchQuery.value) {
+    return repositories.value;
+  }
+  
+  const query = searchQuery.value.toLowerCase().trim();
+  return repositories.value.filter(repo => {
+    const nameMatch = repo.name.toLowerCase().includes(query);
+    const descMatch = repo.desc.toLowerCase().includes(query);
+    return nameMatch || descMatch;
+  });
+});
 
 const fetchRepositories = async () => {
   try {
     loading.value = true;
     const response = await listRepos();
-    const repos = response.data.sort((a, b) => b.id - a.id)
+    const repos = response.status === 200 && Array.isArray(response.data) ? response.data.sort((a, b) => b.id - a.id) : response.data;
 
     repositories.value = await Promise.all(
       repos.map(async (repo: any) => {
@@ -358,7 +399,7 @@ const fetchRepositories = async () => {
         repo.resetIcon = indexing ? 'mdi-stop-circle' : 'mdi-reload';
         return {
           ...repo,
-          omitDesc: omit(repo.desc, 20),
+          omitDesc: repo.desc,
           hasMemoryFlash: exists,
           indexing,
           functionsTotal,
@@ -526,10 +567,11 @@ const buildMemoryFlash = async (repo: Repository) => {
     // 4. 构建确认信息
     let confirmMessage = '';
     if (exists) {
+      const left = total - scanned
       // 小数量后2位忽略，自动正则 秒 和 分钟 的转换
-      const minEstimatedTime = scanned * min_n < 60 ? scanned * min_n + '秒' : (scanned * min_n / 60).toFixed(0) + '分钟'
-      const maxEstimatedTime = scanned * max_n < 60 ? scanned * max_n + '秒' : (scanned * max_n / 60).toFixed(0) + '分钟'
-      confirmMessage = `该仓库(${repoSizeType})已构建AI索引，包含${scanned}个函数，完整度为${progress}%。是否重新构建AI索引？
+      const minEstimatedTime = left * min_n < 60 ? left * min_n + '秒' : (left * min_n / 60).toFixed(0) + '分钟'
+      const maxEstimatedTime = left * max_n < 60 ? left * max_n + '秒' : (left * max_n / 60).toFixed(0) + '分钟'
+      confirmMessage = `该仓库(${repoSizeType})已构建${scanned}个函数，还剩${left}，完整度为${progress}%。是否重新构建AI索引？
       预计需要花费${minEstimatedTime}~${maxEstimatedTime}。`;
     } else {
       // 小数量后2位忽略，自动正则 秒 和 分钟 的转换
@@ -590,9 +632,12 @@ const confirmBuildIndex = async () => {
       await deleteRepo(dialogRepo.value)
     }
     await store.dispatch('snackbar/showSnackbar', {
-      message: `正在构建${dialogRepo.value.name}(${dialogRepo.value.desc}) 的AI索引，点击‘扫描进度’以查看索引的实时进展...`,
+      message: `正在构建${dialogRepo.value.name}(${dialogRepo.value.desc}) 的AI索引...`,
       color: 'primary'
     });
+
+    dialogRepo.value.resetText = indexing ? '强制停止' : '当构建出现异常时，点我重置索引';
+    dialogRepo.value.resetIcon = indexing ? 'mdi-stop-circle' : 'mdi-reload';
 
     // 调用构建AI索引API
     await buildIndex(dialogRepo.value.local_path, '');
@@ -655,6 +700,14 @@ const importMemoryFlash = async () => {
     console.error('导入AI索引失败:', error);
   }
 };
+
+// 跳转到仓库身份证页面
+const jumpToRepo = async () => {
+  // 跳转到仓库身份证页面
+  router.push({
+    path: '/repo'
+  })
+}
 
 
 const exportMemoryFlash = async (repo: Repository) => {
