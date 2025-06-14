@@ -1,6 +1,8 @@
 <template>
   <div id="app" class="app-container">
     <component :is="layoutComponent" />
+    <!-- 全局剪切板仓库导入组件 -->
+    <ClipboardRepoImporter />
   </div>
 </template>
 
@@ -8,25 +10,44 @@
 import MainLayout from './components/MainLayout.vue'
 import BlankLayout from './views/BlankLayout.vue'
 import IDE from './views3/IDE.vue'
+import ClipboardRepoImporter from './components/ClipboardRepoImporter.vue'
 
 export default {
   name: 'App',
   components: {
     MainLayout,
     BlankLayout,
-    IDE
+    IDE,
+    ClipboardRepoImporter
   },
   computed: {
     layoutComponent() {
+      console.log('this.$route.meta.standalone', this.$route.path)
       // 如果路由 meta.standalone 为 true，则使用 BlankLayout
       return this.$route.meta.standalone ? BlankLayout : MainLayout
     }
   },
   mounted() {
+    if (this.checkFirstInstall()) {
+      return
+    }
     this.initializeApp()
   },
   methods: {
+    checkFirstInstall() {
+      // 检查是否是初次安装
+      const onboardingCompleted = localStorage.getItem('onboarding_completed')
+      
+      // 如果存在初次安装标识且未完成引导，则跳转到新手引导页面
+      if (!onboardingCompleted) {
+        this.$router.push('/onboarding')
+        return true
+      }
+      return false
+    },
+    
     async initializeApp() {
+      console.log('[App.vue] initializeApp')
       try {
         // 调用 checkAppHealth 检测 app 进程健康状态
         const health = await window.electron.checkAppHealth()
