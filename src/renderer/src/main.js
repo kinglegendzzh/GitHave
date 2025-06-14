@@ -75,6 +75,8 @@ import {
   VAlert,
   VChipGroup,
   VExpandTransition,
+  VTabsWindowItem,
+  VTabsWindow,
 } from 'vuetify/components'
 import { Ripple, Tooltip } from 'vuetify/directives'
 import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
@@ -168,6 +170,8 @@ const vuetify = createVuetify({
     VAlert,
     VChipGroup,
     VExpandTransition,
+    VTabsWindowItem,
+    VTabsWindow,
   },
   directives: {
     Ripple,
