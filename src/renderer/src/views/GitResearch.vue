@@ -24,7 +24,7 @@
         <div class="research-header">
           <h2>
             文件枢纽
-            <span class="subtitle">各个智能体和应用中心的洞见与分析报告都汇聚在这里...</span>
+            <span class="subtitle">各个智能体应用的洞见与分析文件都汇聚在这里...</span>
           </h2>
           <v-btn class="refresh-button" elevation="0" @click="refreshAllReports">
             <v-icon left>mdi-refresh</v-icon>
@@ -39,20 +39,66 @@
           <v-tab value="commitDetails">提交记录修改明细</v-tab>
           <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
           <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
-          <v-tab value="weeklyReport">代码仓库报刊</v-tab>
+          <v-tab value="weeklyReport">仓库报刊</v-tab>
         </v-tabs>
+
+        <!-- 搜索和筛选工具栏 -->
+        <v-row class="mb-4" align="center">
+          <v-col cols="12" md="6">
+            <v-text-field
+              v-model="searchText"
+              label="搜索文件名"
+              prepend-inner-icon="mdi-magnify"
+              variant="outlined"
+              density="compact"
+              clearable
+              hide-details
+            ></v-text-field>
+          </v-col>
+          <v-col cols="12" md="6">
+            <v-select
+              v-model="selectedFileTypes"
+              :items="availableFileTypes"
+              label="文件类型筛选"
+              variant="outlined"
+              density="compact"
+              multiple
+              chips
+              clearable
+              hide-details
+            >
+              <template #selection="{ item, index }">
+                <v-chip
+                  v-if="index < 2"
+                  size="small"
+                  :color="getFileTypeColor(item.value)"
+                  text-color="white"
+                >
+                  {{ item.title }}
+                </v-chip>
+                <span v-if="index === 2" class="text-grey text-caption align-self-center">
+                  (+{{ selectedFileTypes.length - 2 }} 其他)
+                </span>
+              </template>
+            </v-select>
+          </v-col>
+        </v-row>
 
         <v-card class="content-card" variant="flat">
           <v-card-text class="content-container">
             <!-- 代码分析报告 -->
             <div v-if="activeTab === 'codeReport'">
-              <div v-if="!files.length" class="text-center py-4">
+              <div v-if="!filteredFiles.length" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-                <div class="text-body-1 mt-2">暂无代码分析报告</div>
+                <div class="text-body-1 mt-2">
+                  {{
+                    searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无代码分析报告'
+                  }}
+                </div>
               </div>
               <recycle-scroller
                 v-else
-                :items="files.slice(0, visibleCount)"
+                :items="filteredFiles.slice(0, visibleCount)"
                 :item-size="72"
                 key-field="path"
                 class="file-scroller"
@@ -124,7 +170,7 @@
                 </template>
               </recycle-scroller>
               <!-- 加载更多 -->
-              <div v-if="files.length > visibleCount" class="text-center py-4">
+              <div v-if="filteredFiles.length > visibleCount" class="text-center py-4">
                 <v-btn
                   color="primary"
                   class="load-more-button"
@@ -133,19 +179,23 @@
                   @click="visibleCount += 40"
                 >
                   <v-icon left>mdi-arrow-down</v-icon>
-                  加载更多
+                  加载更多 ({{ filteredFiles.length - visibleCount }} 项)
                 </v-btn>
               </div>
             </div>
             <!-- 仓库提交贡献榜 -->
             <div v-else-if="activeTab === 'contributionChart'">
-              <div v-if="contributionChartFiles.length === 0" class="text-center py-4">
+              <div v-if="filteredFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-image-outline</v-icon>
-                <div class="text-body-1 mt-2">暂无贡献榜图片</div>
+                <div class="text-body-1 mt-2">
+                  {{
+                    searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无贡献榜图片'
+                  }}
+                </div>
               </div>
               <v-list v-else lines="one">
                 <v-list-item
-                  v-for="file in contributionChartFiles"
+                  v-for="file in filteredFiles"
                   :key="file.path"
                   @click="previewFile(file)"
                 >
@@ -206,15 +256,19 @@
                 </v-list-item>
               </v-list>
             </div>
-            <!-- 代码仓库报刊 -->
+            <!-- 仓库报刊 -->
             <div v-else-if="activeTab === 'weeklyReport'">
-              <div v-if="weeklyReportFiles.length === 0" class="text-center py-4">
+              <div v-if="filteredFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-                <div class="text-body-1 mt-2">暂无代码仓库报刊文件</div>
+                <div class="text-body-1 mt-2">
+                  {{
+                    searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无仓库报刊文件'
+                  }}
+                </div>
               </div>
               <v-list v-else lines="two">
                 <v-list-item
-                  v-for="file in weeklyReportFiles"
+                  v-for="file in filteredFiles"
                   :key="file.path"
                   @click="previewFile(file)"
                 >
@@ -283,13 +337,17 @@
               </v-list>
             </div>
             <div v-else-if="activeTab === 'activityHeatmap'">
-              <div v-if="activityHeatmapFiles.length === 0" class="text-center py-4">
+              <div v-if="filteredFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-image-outline</v-icon>
-                <div class="text-body-1 mt-2">暂无活跃度热力图</div>
+                <div class="text-body-1 mt-2">
+                  {{
+                    searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无活跃度热力图'
+                  }}
+                </div>
               </div>
               <v-list v-else lines="one">
                 <v-list-item
-                  v-for="file in activityHeatmapFiles"
+                  v-for="file in filteredFiles"
                   :key="file.path"
                   @click="previewFile(file)"
                 >
@@ -351,13 +409,17 @@
               </v-list>
             </div>
             <div v-else-if="activeTab === 'commitDetails'">
-              <div v-if="commitDetailFiles.length === 0" class="text-center py-4">
+              <div v-if="filteredFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-delimited-outline</v-icon>
-                <div class="text-body-1 mt-2">暂无提交记录明细</div>
+                <div class="text-body-1 mt-2">
+                  {{
+                    searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无提交记录明细'
+                  }}
+                </div>
               </div>
               <v-list v-else lines="two">
                 <v-list-item
-                  v-for="file in commitDetailFiles"
+                  v-for="file in filteredFiles"
                   :key="file.path"
                   @click="previewFile(file)"
                 >
@@ -419,13 +481,19 @@
               </v-list>
             </div>
             <div v-else-if="activeTab === 'commitAnalysis'">
-              <div v-if="commitAnalysisFiles.length === 0" class="text-center py-4">
+              <div v-if="filteredFiles.length === 0" class="text-center py-4">
                 <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-                <div class="text-body-1 mt-2">暂无提交记录分析报告</div>
+                <div class="text-body-1 mt-2">
+                  {{
+                    searchText || selectedFileTypes.length
+                      ? '未找到匹配的文件'
+                      : '暂无提交记录分析报告'
+                  }}
+                </div>
               </div>
               <v-list v-else lines="two">
                 <v-list-item
-                  v-for="file in commitAnalysisFiles"
+                  v-for="file in filteredFiles"
                   :key="file.path"
                   @click="previewFile(file)"
                 >
@@ -508,6 +576,55 @@
             <v-card-text class="preview-content">
               <div v-if="fileContent" class="pa-2">
                 <div v-if="selectedFile.type === 'md'" class="markdown-container">
+                  <!-- MD搜索工具栏 -->
+                  <div class="md-search-bar">
+                    <v-row align="center" class="mb-3">
+                      <v-col cols="12" md="6">
+                        <v-text-field
+                          v-model="mdSearchText"
+                          placeholder="搜索文档内容..."
+                          density="compact"
+                          variant="outlined"
+                          hide-details
+                          clearable
+                          @input="searchInMarkdown"
+                          @keyup.enter="nextSearchResult"
+                        >
+                          <template #prepend-inner>
+                            <v-icon size="small">mdi-magnify</v-icon>
+                          </template>
+                        </v-text-field>
+                      </v-col>
+                      <v-col v-if="mdSearchText && mdSearchResults.length > 0" cols="12" md="6">
+                        <div class="d-flex align-center">
+                          <span class="text-caption mr-3">
+                            {{ mdCurrentSearchIndex + 1 }} / {{ mdSearchResults.length }} 个结果
+                          </span>
+                          <v-btn
+                            size="small"
+                            variant="outlined"
+                            :disabled="mdSearchResults.length === 0"
+                            class="mr-2"
+                            @click="prevSearchResult"
+                          >
+                            <v-icon>mdi-chevron-up</v-icon>
+                          </v-btn>
+                          <v-btn
+                            size="small"
+                            variant="outlined"
+                            :disabled="mdSearchResults.length === 0"
+                            @click="nextSearchResult"
+                          >
+                            <v-icon>mdi-chevron-down</v-icon>
+                          </v-btn>
+                        </div>
+                      </v-col>
+                      <v-col v-if="mdSearchText && mdSearchResults.length === 0" cols="12">
+                        <div class="text-caption text-grey">未找到匹配的内容</div>
+                      </v-col>
+                    </v-row>
+                  </div>
+
                   <!-- 大文件导航控制 -->
                   <div v-if="isLargeFile && mdTotalChunks > 1" class="md-navigation sticky-md-nav">
                     <div class="md-info">
@@ -787,7 +904,7 @@ import {
   renameFile,
   heatmapFiles,
   contributionChartFiles,
-  weeklyReportFilesList,
+  weeklyReportFilesList
 } from '../service/api'
 import MarkdownIt from 'markdown-it'
 // import path from 'path-browserify'; // 移除未使用的 path
@@ -812,7 +929,7 @@ export default {
       commitDetailFiles: [], // 提交记录明细文件列表
       activityHeatmapFiles: [], // 热力图文件列表
       contributionChartFiles: [], // 贡献图表文件列表
-      weeklyReportFiles: [], // 代码仓库报刊文件列表
+      weeklyReportFiles: [], // 仓库报刊文件列表
       activeTab: 'codeReport', // 当前活动的标签页
       previewDialog: false, // 预览对话框显示状态
       selectedFile: null, // 当前选中的文件
@@ -824,20 +941,74 @@ export default {
       renameDialog: false, // 重命名对话框显示状态
       renameFile: null, // 当前要重命名的文件
       newFileName: '', // 新文件名
+      searchText: '', // 文件名搜索文本
+      selectedFileTypes: [], // 选中的文件类型
       // 性能优化相关
       csvPageSize: 100, // CSV分页大小
       csvCurrentPage: 1, // CSV当前页
       csvTotalRows: 0, // CSV总行数
       csvLoading: false, // CSV加载状态
+      // 定时刷新相关
+      refreshTimer: null, // 定时器引用
       mdChunkSize: 50000, // MD文件分块大小（字符数）
       mdCurrentChunk: 0, // MD当前显示的块
       mdTotalChunks: 0, // MD总块数
       mdLoading: false, // MD加载状态
+      mdSearchText: '', // MD文件搜索文本
+      mdSearchResults: [], // MD搜索结果
+      mdCurrentSearchIndex: 0, // 当前搜索结果索引
       isLargeFile: false, // 是否为大文件
       md: new MarkdownIt({
+        linkify: true,
         highlight: (str, lang) => {
           const validLang = hljs.getLanguage(lang) ? lang : 'plaintext'
           return hljs.highlight(str, { language: validLang }).value
+        }
+      }).use(function (md) {
+        // 自定义链接渲染器，使所有链接在新窗口中打开
+        const defaultRender =
+          md.renderer.rules.link_open ||
+          function (tokens, idx, options, env, renderer) {
+            return renderer.renderToken(tokens, idx, options)
+          }
+
+        md.renderer.rules.link_open = function (tokens, idx, options, env, renderer) {
+          const token = tokens[idx]
+          const hrefIndex = token.attrIndex('href')
+
+          if (hrefIndex >= 0) {
+            // 添加 target="_blank" 和 rel="noopener noreferrer" 属性
+            token.attrPush(['target', '_blank'])
+            token.attrPush(['rel', 'noopener noreferrer'])
+          }
+
+          return defaultRender(tokens, idx, options, env, renderer)
+        }
+
+        // 自定义图片渲染器，处理本地图片路径
+        const defaultImageRender = md.renderer.rules.image || function(tokens, idx, options, env, renderer) {
+          return renderer.renderToken(tokens, idx, options)
+        }
+
+        md.renderer.rules.image = function (tokens, idx, options, env, renderer) {
+          const token = tokens[idx]
+          const srcIndex = token.attrIndex('src')
+          
+          if (srcIndex >= 0) {
+            const src = token.attrs[srcIndex][1]
+            
+            // 检查是否为本地路径（不是http/https/data协议）
+            if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('//'))
+            {
+              // 将本地路径标记为需要异步加载
+              token.attrs[srcIndex][1] = `local-image://${src}`
+              token.attrPush(['data-original-src', src])
+              token.attrPush(['class', 'local-image-placeholder'])
+              token.attrPush(['alt', token.content || '本地图片'])
+            }
+          }
+          
+          return defaultImageRender(tokens, idx, options, env, renderer)
         }
       }),
       renderedMarkdown: '',
@@ -856,6 +1027,17 @@ export default {
         '.xml': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
         '.html': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
         '.css': { darwin: 'code', win32: 'notepad', linux: 'gedit' }
+      },
+      fileTypeMapping: {
+        csv: 'csv表格（在线预览）',
+        xlsx: 'Excel表格',
+        xls: 'Excel表格',
+        md: 'Markdown文档（在线预览）',
+        docx: 'Word文档',
+        doc: 'Word文档',
+        png: 'PNG图片（在线预览）',
+        jpg: 'JPG图片（在线预览）',
+        jpeg: 'JPEG图片（在线预览）'
       }
     }
   },
@@ -868,7 +1050,70 @@ export default {
       return this.files.filter((f) => f.category === 'codeReport')
     },
 
-    // 过滤后的CSV数据（分页优化）
+    // 可用的文件类型列表
+    availableFileTypes() {
+      // 根据当前标签页获取对应的文件列表
+      let currentFiles = this.files
+
+      if (this.activeTab === 'codeReport') {
+        currentFiles = this.codeReportFiles
+      } else if (this.activeTab === 'commitAnalysis') {
+        currentFiles = this.commitAnalysisFiles
+      } else if (this.activeTab === 'commitDetails') {
+        currentFiles = this.commitDetailFiles
+      } else if (this.activeTab === 'contributionChart') {
+        currentFiles = this.contributionChartFiles
+      } else if (this.activeTab === 'activityHeatmap') {
+        currentFiles = this.activityHeatmapFiles
+      } else if (this.activeTab === 'weeklyReport') {
+        currentFiles = this.weeklyReportFiles
+      }
+
+      // 从当前tab页的文件列表中提取所有不同的文件类型
+      const types = [...new Set(currentFiles.map((file) => file.type))]
+        .filter((type) => type) // 过滤掉空值
+        .sort() // 按字母顺序排序
+
+      // 转换为select组件需要的格式，如果fileTypeMapping中没有对应的映射，则使用原始类型名
+      return types.map((type) => ({
+        title: this.fileTypeMapping[type] || type.toUpperCase(),
+        value: type
+      }))
+    },
+
+    // 根据搜索文本和选中的文件类型筛选文件
+    filteredFiles() {
+      let result = this.files
+
+      // 根据当前标签页筛选文件类别
+      if (this.activeTab === 'codeReport') {
+        result = this.codeReportFiles
+      } else if (this.activeTab === 'commitAnalysis') {
+        result = this.commitAnalysisFiles
+      } else if (this.activeTab === 'commitDetails') {
+        result = this.commitDetailFiles
+      } else if (this.activeTab === 'contributionChart') {
+        result = this.contributionChartFiles
+      } else if (this.activeTab === 'activityHeatmap') {
+        result = this.activityHeatmapFiles
+      } else if (this.activeTab === 'weeklyReport') {
+        result = this.weeklyReportFiles
+      }
+
+      // 根据搜索文本筛选
+      if (this.searchText) {
+        const searchLower = this.searchText.toLowerCase()
+        result = result.filter((file) => file.name.toLowerCase().includes(searchLower))
+      }
+
+      // 根据选中的文件类型筛选
+      if (this.selectedFileTypes.length > 0) {
+        result = result.filter((file) => this.selectedFileTypes.includes(file.type))
+      }
+
+      return result
+    },
+
     // 过滤后的CSV数据（分页优化）
     filteredCsvData() {
       if (!this.csvSearchText || !this.csvData.length) {
@@ -894,7 +1139,7 @@ export default {
         }
       })
       // 使用方法更新，避免直接修改
-      this.setCsvFilteredIndexes(indexes);
+      this.setCsvFilteredIndexes(indexes)
       return filtered
     },
 
@@ -906,15 +1151,45 @@ export default {
 
     // 当前显示的MD内容
     displayedMarkdown() {
+      let content = ''
+
       if (!this.isLargeFile || !this.fileContent) {
-        return this.renderedMarkdown
+        content = this.renderedMarkdown
+      } else {
+        // 对于大文件，只显示当前块的内容
+        const startIndex = this.mdCurrentChunk * this.mdChunkSize
+        const endIndex = Math.min(startIndex + this.mdChunkSize, this.fileContent.length)
+        const chunk = this.fileContent.slice(startIndex, endIndex)
+        content = this.md.render(chunk)
       }
 
-      // 对于大文件，只显示当前块的内容
-      const startIndex = this.mdCurrentChunk * this.mdChunkSize
-      const endIndex = Math.min(startIndex + this.mdChunkSize, this.fileContent.length)
-      const chunk = this.fileContent.slice(startIndex, endIndex)
-      return this.md.render(chunk)
+      // 如果有搜索文本，添加高亮
+      if (this.mdSearchText && content) {
+        content = this.highlightMarkdownSearchText(content)
+      }
+
+      return content
+    }
+  },
+  watch: {
+    // 监听标签页变化，重置搜索和筛选条件
+    activeTab() {
+      this.resetFilters()
+      this.visibleCount = 10 // 重置可见数量
+    },
+
+    // 监听displayedMarkdown变化，处理本地图片
+    displayedMarkdown() {
+      if (this.selectedFile && this.selectedFile.type === 'md') {
+        this.$nextTick(() => {
+          this.processLocalImages(this.selectedFile.path)
+        })
+      }
+    },
+
+    // 监听MD搜索文本变化
+    mdSearchText() {
+      this.searchInMarkdown()
     }
   },
   created() {
@@ -924,12 +1199,54 @@ export default {
     this.fetchCommitDetailsFiles()
     this.fetchContributionChartFiles()
     this.fetchHeatmapFiles()
-    this.fetchWeeklyReportFiles() // 新增：获取代码仓库报刊文件列表
+    this.fetchWeeklyReportFiles() // 新增：获取仓库报刊文件列表
+  },
+  beforeUnmount() {
+    // 清理定时器，防止内存泄漏
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer)
+      this.refreshTimer = null
+    }
+  },
+  beforeRouteEnter(to, from, next) {
+    // 路由进入时的处理
+    next(vm => {
+      // 启动定时刷新，每5秒刷新一次
+      vm.refreshTimer = setInterval(() => {
+        vm.refreshAllReports()
+      }, 2000)
+    })
+  },
+  beforeRouteLeave(to, from, next) {
+    // 离开路由时清理定时器
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer)
+      this.refreshTimer = null
+    }
+    next()
   },
   methods: {
+    // 重置搜索和筛选条件
+    resetFilters() {
+      this.searchText = ''
+      this.selectedFileTypes = []
+    },
+
     async removeFile(file) {
       //二次确认
       if (confirm('确定要删除吗？')) {
+        if (file.raw.id === undefined || file.raw.id === null) {
+          try {
+            window.electron.deleteFile(file.raw.path)
+          } catch (error) {
+            console.error('删除示例文件失败:', error)
+            this.$store.dispatch('snackbar/showSnackbar', {
+              message: '删除示例文件失败',
+              type: 'error'
+            })
+          }
+          return
+        }
         try {
           await deleteFile(file.raw.id) // 移除未使用的 res
           this.files = this.files.filter((f) => f.raw.id !== file.raw.id)
@@ -1026,7 +1343,7 @@ export default {
             type: 'success'
           })
         } catch (error) {
-          console.error('删除代码仓库报刊文件失败:', error)
+          console.error('删除仓库报刊文件失败:', error)
           this.$store.dispatch('snackbar/showSnackbar', {
             message: '删除失败',
             type: 'error'
@@ -1056,7 +1373,7 @@ export default {
         }
       }
     },
-    // 新增：获取代码仓库报刊文件列表
+    // 新增：获取仓库报刊文件列表
     async fetchWeeklyReportFiles() {
       try {
         const res = await weeklyReportFilesList()
@@ -1072,17 +1389,20 @@ export default {
             modifiedTime: new Date(item.updated_at.Time),
             main_tags: ['代码报刊'],
             tags,
-            raw: item
+            raw: item,
+            category: 'weeklyReport'
           }
         })
         // 过滤掉状态不为success的文件
         apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        // 将仓库报刊文件添加到总文件列表中
+        this.files = this.files.filter((f) => f.category !== 'weeklyReport').concat(apiFiles)
         this.weeklyReportFiles = apiFiles
       } catch (error) {
-        console.error('获取代码仓库报刊文件列表失败:', error)
+        console.error('获取仓库报刊文件列表失败:', error)
         // 可选：显示错误提示
         this.$store.dispatch('snackbar/showSnackbar', {
-          message: '获取代码仓库报刊文件列表失败',
+          message: '获取仓库报刊文件列表失败',
           type: 'error'
         })
       }
@@ -1171,7 +1491,8 @@ export default {
             modifiedTime: new Date(item.updated_at.Time),
             main_tags: ['来源于空间透镜'],
             tags,
-            raw: item
+            raw: item,
+            category: 'codeReport'
           }
         })
         // 过滤掉状态不为success的文件
@@ -1189,12 +1510,16 @@ export default {
             modifiedTime: new Date(file.creationDate),
             main_tags: ['示例文件'], // 可以改成你需要的标签
             tags,
-            raw: file
+            raw: file,
+            category: 'codeReport'
           }
         })
 
         // 4. 合并两部分到 this.files
-        this.files = [...apiFiles, ...exampleFiles]
+        // 先过滤掉已有的代码分析报告文件，再添加新的
+        this.files = this.files
+          .filter((f) => f.category !== 'codeReport')
+          .concat([...apiFiles, ...exampleFiles])
       } catch (error) {
         console.error('获取代码分析报告失败：', error)
       }
@@ -1214,11 +1539,14 @@ export default {
             modifiedTime: new Date(item.updated_at.Time),
             main_tags: ['提交记录分析'],
             tags,
-            raw: item
+            raw: item,
+            category: 'commitAnalysis'
           }
         })
         // 过滤掉状态不为success的文件
         apiFiles = apiFiles.filter((item) => item.raw.status === 'success')
+        // 将提交分析文件添加到总文件列表中
+        this.files = this.files.filter((f) => f.category !== 'commitAnalysis').concat(apiFiles)
         this.commitAnalysisFiles = apiFiles
       } catch (error) {
         console.error('获取提交记录分析报告失败：', error)
@@ -1347,6 +1675,7 @@ export default {
       this.fetchCommitDetailsFiles()
       this.fetchContributionChartFiles()
       this.fetchHeatmapFiles()
+      this.fetchWeeklyReportFiles()
     },
     // 选择目录
     async selectDirectory() {
@@ -1502,6 +1831,8 @@ export default {
             )
           } else {
             this.renderedMarkdown = this.md.render(raw)
+            // 处理本地图片
+            await this.processLocalImages(file.path)
           }
         } catch (err) {
           console.error('加载 Markdown 失败：', err)
@@ -1594,7 +1925,7 @@ export default {
     },
     // 新增方法来设置 csvFilteredIndexes，避免在计算属性中产生副作用
     setCsvFilteredIndexes(indexes) {
-      this.csvFilteredIndexes = indexes;
+      this.csvFilteredIndexes = indexes
     },
 
     // 在外部打开文件
@@ -1662,6 +1993,8 @@ export default {
         case 'docx':
           return 'mdi-file-word-outline'
         case 'csv':
+        case 'xlsx':
+        case 'xls':
           return 'mdi-file-delimited-outline'
         case 'png':
         case 'jpg':
@@ -1680,6 +2013,8 @@ export default {
         case 'docx':
           return 'indigo'
         case 'csv':
+        case 'xlsx':
+        case 'xls':
           return 'green'
         case 'png':
         case 'jpg':
@@ -2012,6 +2347,163 @@ export default {
         regex,
         '<mark style="background-color: #ffeb3b; padding: 1px 2px; border-radius: 2px;">$1</mark>'
       )
+    },
+
+    // MD文件搜索功能
+    searchInMarkdown() {
+      if (!this.mdSearchText || !this.fileContent) {
+        this.mdSearchResults = []
+        this.mdCurrentSearchIndex = 0
+        return
+      }
+
+      const searchText = this.mdSearchText.toLowerCase()
+      const content = this.fileContent.toLowerCase()
+      const results = []
+      let index = 0
+
+      while ((index = content.indexOf(searchText, index)) !== -1) {
+        results.push(index)
+        index += searchText.length
+      }
+
+      this.mdSearchResults = results
+      this.mdCurrentSearchIndex = 0
+
+      // 如果有结果，滚动到第一个结果
+      if (results.length > 0) {
+        this.$nextTick(() => {
+          this.scrollToSearchResult()
+        })
+      }
+    },
+
+    // 高亮MD搜索文本
+    highlightMarkdownSearchText(html) {
+      if (!this.mdSearchText || !html) {
+        return html
+      }
+
+      const searchText = this.mdSearchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`(${searchText})`, 'gi')
+      let matchIndex = 0
+
+      return html.replace(regex, (match, p1) => {
+        const isCurrentResult =
+          this.mdSearchResults.length > 0 && matchIndex === this.mdCurrentSearchIndex
+        const highlightClass = isCurrentResult ? 'md-search-current' : 'md-search-highlight'
+        const result = `<span class="${highlightClass}" data-search-index="${matchIndex}">${p1}</span>`
+        matchIndex++
+        return result
+      })
+    },
+
+    // 检查是否为当前搜索结果
+    isCurrentSearchResult(matchIndex) {
+      if (this.mdSearchResults.length === 0) return false
+      return matchIndex === this.mdCurrentSearchIndex
+    },
+
+    // 处理本地图片
+    async processLocalImages(markdownFilePath) {
+      try {
+        // 获取markdown文件所在目录
+        const path = window.electron.path
+        const markdownDir = path.dirname(markdownFilePath)
+        
+        // 查找所有标记为本地图片的元素
+        await this.$nextTick()
+        
+        // 使用setTimeout确保DOM已更新
+        setTimeout(async () => {
+          const localImages = document.querySelectorAll('img[src^="local-image://"]')
+          
+          for (const img of localImages) {
+            try {
+              const originalSrc = img.getAttribute('data-original-src')
+              if (!originalSrc) continue
+              
+              // 解析相对路径为绝对路径
+              let imagePath
+              if (path.isAbsolute(originalSrc)) {
+                imagePath = originalSrc
+              } else {
+                imagePath = path.resolve(markdownDir, originalSrc)
+              }
+              
+              console.log('加载本地图片:', imagePath)
+              
+              // 使用readImageBlob读取图片并转换为base64
+              const imageDataUrl = await window.electron.readImageBlob(imagePath)
+              
+              if (imageDataUrl) {
+                img.src = imageDataUrl
+                img.removeAttribute('data-original-src')
+                img.classList.remove('local-image-placeholder')
+                console.log('本地图片加载成功:', originalSrc)
+              } else {
+                // 图片加载失败，显示占位符
+                img.alt = `图片加载失败: ${originalSrc}`
+                img.classList.add('local-image-error')
+                console.warn('本地图片加载失败:', originalSrc)
+              }
+            } catch (error) {
+              console.error('处理本地图片时出错:', error)
+              img.alt = `图片加载出错: ${img.getAttribute('data-original-src')}`
+              img.classList.add('local-image-error')
+            }
+          }
+        }, 100)
+      } catch (error) {
+        console.error('处理本地图片时出错:', error)
+      }
+    },
+
+    // 上一个搜索结果
+    prevSearchResult() {
+      if (this.mdSearchResults.length === 0) return
+
+      this.mdCurrentSearchIndex =
+        this.mdCurrentSearchIndex > 0
+          ? this.mdCurrentSearchIndex - 1
+          : this.mdSearchResults.length - 1
+
+      // 强制重新渲染高亮
+      this.$forceUpdate()
+      this.scrollToSearchResult()
+    },
+
+    // 下一个搜索结果
+    nextSearchResult() {
+      if (this.mdSearchResults.length === 0) return
+
+      this.mdCurrentSearchIndex =
+        this.mdCurrentSearchIndex < this.mdSearchResults.length - 1
+          ? this.mdCurrentSearchIndex + 1
+          : 0
+
+      // 强制重新渲染高亮
+      this.$forceUpdate()
+      this.scrollToSearchResult()
+    },
+
+    // 滚动到当前搜索结果
+    scrollToSearchResult() {
+      this.$nextTick(() => {
+        // 等待DOM更新后再查找元素
+        setTimeout(() => {
+          const currentElement = document.querySelector(
+            `[data-search-index="${this.mdCurrentSearchIndex}"]`
+          )
+          if (currentElement) {
+            currentElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center',
+              inline: 'nearest'
+            })
+          }
+        }, 50)
+      })
     }
   }
 }
@@ -2305,7 +2797,7 @@ export default {
   border-radius: 0 0 4px 4px;
 }
 
-.markdown-preview {
+:deep(.markdown-preview) {
   font-family: 'Roboto Mono', monospace;
   word-wrap: normal; /* 禁用单词换行 */
   word-break: normal; /* 禁用任意字符换行 */
@@ -2315,6 +2807,48 @@ export default {
   overflow-y: hidden; /* 可选：隐藏垂直滚动条 */
 
   font-size: 0.8rem;
+
+  /* 本地图片样式 */
+  img.local-image-placeholder {
+    background-color: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    padding: 20px;
+    display: inline-block;
+    min-width: 200px;
+    min-height: 100px;
+    position: relative;
+  }
+
+  img.local-image-placeholder::before {
+    content: '正在加载图片...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #6c757d;
+    font-size: 14px;
+  }
+
+  img.local-image-error {
+    background-color: #f8d7da;
+    border: 2px dashed #dc3545;
+    padding: 20px;
+    border-radius: 4px;
+    display: inline-block;
+    min-width: 200px;
+    min-height: 100px;
+    color: #721c24;
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  img {
+    max-width: 30%;
+    height: auto;
+    border-radius: 4px;
+    margin: 10px 0;
+  }
 }
 
 pre {
@@ -2379,5 +2913,166 @@ pre {
   margin-right: -24px; /* Adjust to counteract v-card-text padding */
   padding-left: 24px;
   padding-right: 24px;
+}
+
+/* MD搜索高亮样式 - 紧凑悬浮模式 */
+.md-search-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: rgba(248, 249, 250, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 8px 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.md-search-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: rgba(248, 249, 250, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid #dee2e6;
+  border-radius: 3px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.md-search-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 2px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.md-search-input:focus {
+  outline: none;
+  border-color: #80bdff;
+  box-shadow: 0 0 0 0.15rem rgba(0, 123, 255, 0.2);
+}
+
+.md-search-results {
+  font-size: 10px;
+  color: #6c757d;
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: center;
+}
+
+.md-search-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.md-search-btn {
+  padding: 3px 6px;
+  border: 1px solid #ced4da;
+  background: white;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1.2;
+  transition: all 0.2s;
+  min-width: 24px;
+}
+
+.md-search-btn:hover:not(:disabled) {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+.md-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 搜索高亮样式 */
+:deep(.md-search-highlight) {
+  background-color: #fff3cd;
+  padding: 1px 2px;
+  border-radius: 2px;
+  border: 1px solid #ffeaa7;
+}
+
+:deep(.md-search-current) {
+  background-color: #ff6b6b;
+  color: white;
+  padding: 1px 2px;
+  border-radius: 2px;
+  border: 1px solid #e55656;
+  box-shadow: 0 0 3px rgba(255, 107, 107, 0.5);
+}
+
+/* 暗色模式适配 */
+.v-theme--dark .md-search-bar {
+  background: rgba(30, 30, 30, 0.95);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.v-theme--dark .md-search-toolbar {
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.v-theme--dark .md-search-input {
+  background: rgba(40, 40, 40, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.v-theme--dark .md-search-input:focus {
+  border-color: #4dabf7;
+  box-shadow: 0 0 0 0.15rem rgba(77, 171, 247, 0.2);
+}
+
+.v-theme--dark .md-search-btn {
+  background: rgba(40, 40, 40, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.v-theme--dark .md-search-btn:hover:not(:disabled) {
+  background: rgba(60, 60, 60, 0.8);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.v-theme--dark .md-search-results {
+  color: #adb5bd;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .md-search-toolbar {
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 6px;
+  }
+
+  .md-search-nav {
+    justify-content: center;
+  }
+
+  .md-search-input {
+    font-size: 11px;
+  }
+
+  .md-search-btn {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+
+  .md-search-results {
+    font-size: 9px;
+  }
 }
 </style>
