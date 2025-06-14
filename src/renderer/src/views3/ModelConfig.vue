@@ -1,5 +1,5 @@
 <template>
-  <v-container>
+  <v-container style="overflow-y: unset">
     <v-col cols="12">
       <div v-if="messages.length > 0">
         <div class="news-tips compact-list">
@@ -33,31 +33,49 @@
         <span>高级配置</span>
       </v-btn>
     </v-bottom-navigation>
-    <div v-if="selectedTab === 'env'" class="bottom-nav-padding">
-      <!-- 环境检测模块 -->
-      <v-card class="pa-2 mb-4 env-card-compact" outlined>
-        <v-card-title class="d-flex align-center">
-          <v-icon color="primary" small class="mr-2">mdi-briefcase</v-icon>
-          <span class="font-weight-bold">1. 必要基础环境是否具备</span>
-        </v-card-title>
-        <v-card-text class="text-compact">
-          <!-- 一键安装功能区 -->
-          <v-alert v-if="needsInstallCount > 0" type="info" colored-border density="compact">
-            <div class="d-flex align-center flex-wrap">
-              <span>检测到 {{ needsInstallCount }} 个基础依赖未安装。</span>
-              <v-spacer></v-spacer>
-              <v-btn
-                color="primary"
-                :loading="isInstallingDeps"
-                :disabled="isInstallingDeps"
-                size="small"
-                class="ml-2"
-                @click="installRequiredPackages"
-              >
-                <v-icon small class="mr-1">mdi-package-down</v-icon>
-                一键安装所有依赖
-              </v-btn>
-              <!-- <v-btn
+    <div v-if="selectedTab === 'env'">
+      <v-container class="bottom-nav-padding">
+        <!-- 环境检测模块 -->
+        <v-card class="pa-2 mb-4 env-card-compact" outlined>
+          <v-card-title class="d-flex align-center">
+            <v-icon color="primary" small class="mr-2">mdi-briefcase</v-icon>
+            <span class="font-weight-bold">1. 必要基础环境是否具备</span>
+          </v-card-title>
+          <v-card-text class="text-compact">
+            <!-- 一键安装功能区 -->
+            <v-alert v-if="needsInstallCount > 0" type="info" colored-border density="compact">
+              <div class="d-flex align-center flex-wrap">
+                <span>检测到 {{ needsInstallCount }} 个基础依赖未安装。</span>
+                <v-spacer></v-spacer>
+                <v-btn
+                  color="primary"
+                  :loading="isInstallingDeps"
+                  :disabled="isInstallingDeps"
+                  size="small"
+                  class="ml-2"
+                  @click="installRequiredPackages"
+                >
+                  <v-icon small class="mr-1">mdi-package-down</v-icon>
+                  一键安装所有依赖
+                </v-btn>
+
+                <!-- 网络速度显示 -->
+                <div v-if="networkSpeed.isMonitoring" class="ml-4 d-flex align-center">
+                  <v-chip small color="warning" variant="outlined" class="mr-2">
+                    <v-icon small class="mr-1">mdi-download</v-icon>
+                    {{ networkSpeed.formattedDownloadSpeed }}
+                  </v-chip>
+                  <v-chip small color="warning" variant="outlined" class="mr-2">
+                    <v-icon small class="mr-1">mdi-upload</v-icon>
+                    {{ networkSpeed.formattedUploadSpeed }}
+                  </v-chip>
+                  <v-chip small color="warning" variant="outlined">
+                    <v-icon small class="mr-1">mdi-network</v-icon>
+                    {{ networkSpeed.interfaceName }}
+                  </v-chip>
+                </div>
+
+                <!-- <v-btn
                 v-else
                 color="primary"
                 size="small"
@@ -67,459 +85,462 @@
                 <v-icon small class="mr-1">mdi-microsoft-windows</v-icon>
                 Windows暂不支持
               </v-btn> -->
-            </div>
-          </v-alert>
-
-          <v-row class="mt-3">
-            <!-- Python 状态 -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Python > 3.9.0：</span>
-              <template v-if="pythonInstalled === null">
-                <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                <span class="ml-1">检测中...</span>
-              </template>
-              <template v-else-if="pythonInstalled">
-                <v-icon color="green" small>mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else-if="pythonInstalling && !pythonInstalled">
-                <v-progress-circular
-                  indeterminate
-                  size="16"
-                  width="2"
-                  color="primary"
-                  class="mr-1"
-                ></v-progress-circular>
-                <span class="ml-1">安装中 ({{ pythonProgress }}%)</span>
-              </template>
-              <template v-else-if="pythonInstalled === false || pythonInstalled === null">
-                <v-icon color="red" small>mdi-close-circle</v-icon>
-                <span class="ml-1">未安装</span>
-                <v-btn text small variant="plain" color="primary" @click="openPythonWebsite"
-                  >前往官网自行安装</v-btn
-                >
-                <v-btn
-                  v-if="isMacOS"
-                  text
-                  small
-                  variant="outlined"
-                  color="success"
-                  @click="installSinglePackage('python')"
-                  >一键安装</v-btn
-                >
-              </template>
-            </v-col>
-            <!-- Pandoc 状态 -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Pandoc：</span>
-              <template v-if="pandocInstalled === null">
-                <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                <span class="ml-1">检测中...</span>
-              </template>
-              <template v-else-if="pandocInstalled">
-                <v-icon color="green" small>mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else-if="pandocInstalling && !pandocInstalled">
-                <v-progress-circular
-                  indeterminate
-                  size="16"
-                  width="2"
-                  color="primary"
-                  class="mr-1"
-                ></v-progress-circular>
-                <span class="ml-1">安装中 ({{ pandocProgress }}%)</span>
-              </template>
-              <template v-else-if="pandocInstalled === false || pandocInstalled === null">
-                <v-icon color="red" small>mdi-close-circle</v-icon>
-                <span class="ml-1">未安装 Pandoc</span>
-                <v-btn
-                  text
-                  small
-                  variant="plain"
-                  color="primary"
-                  class="ml-2"
-                  @click="openPandocWebsite"
-                  >前往官网自行安装</v-btn
-                >
-                <v-btn
-                  v-if="isMacOS"
-                  text
-                  small
-                  variant="outlined"
-                  color="success"
-                  @click="installSinglePackage('pandoc')"
-                  >一键安装</v-btn
-                >
-              </template>
-            </v-col>
-            <!-- Git 状态 -->
-            <v-col cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Git：</span>
-              <template v-if="gitInstalled === null">
-                <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                <span class="ml-1">检测中...</span>
-              </template>
-              <template v-else-if="gitInstalled">
-                <v-icon color="green" small>mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else-if="gitInstalling && !gitInstalled">
-                <v-progress-circular
-                  indeterminate
-                  size="16"
-                  width="2"
-                  color="primary"
-                  class="mr-1"
-                ></v-progress-circular>
-                <span class="ml-1">安装中 ({{ gitProgress }}%)</span>
-              </template>
-              <template v-else-if="gitInstalled === false || gitInstalled === null">
-                <v-icon color="red" small>mdi-close-circle</v-icon>
-                <span class="ml-1">未检测到 Git</span>
-                <v-btn
-                  text
-                  small
-                  variant="plain"
-                  color="primary"
-                  class="ml-2"
-                  @click="openGitWebsite"
-                  >前往官网自行安装</v-btn
-                >
-                <v-btn
-                  v-if="isMacOS"
-                  text
-                  small
-                  variant="outlined"
-                  color="success"
-                  @click="installSinglePackage('git')"
-                  >一键安装</v-btn
-                >
-              </template>
-            </v-col>
-            <!-- Homebrew 状态 (仅在macOS上显示) -->
-            <v-col v-if="isMacOS" cols="12" md="6" class="d-flex align-center">
-              <span class="mr-2">Homebrew：</span>
-              <template v-if="brewInstalled === null">
-                <v-progress-circular indeterminate color="primary"></v-progress-circular>
-                <span class="ml-1">检测中...</span>
-              </template>
-              <template v-else-if="brewInstalled">
-                <v-icon color="green" small>mdi-check-circle</v-icon>
-                <span class="ml-1">已安装</span>
-              </template>
-              <template v-else>
-                <v-icon color="red" small>mdi-close-circle</v-icon>
-                <span class="ml-1">未安装</span>
-                <v-btn
-                  text
-                  small
-                  variant="plain"
-                  color="primary"
-                  class="ml-2"
-                  @click="openHomeBrewWebsite"
-                  >前往官网自行安装</v-btn
-                >
-              </template>
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </v-card>
-      <v-card class="pa-4 mb-4" outlined>
-        <v-card-title
-          class="d-flex align-center dark-text-force"
-          style="
-            background: linear-gradient(90deg, #e3f2fd 60%, #fff 100%);
-            border-left: 6px solid #1976d2;
-            border-radius: 8px;
-          "
-        >
-          <v-icon color="primary" class="mr-2">mdi-alert-decagram</v-icon>
-          2. 模型是否配置（二选一）
-        </v-card-title>
-        <v-card-text
-          class="d-flex flex-wrap justify-space-between align-center"
-          style="border-radius: 8px; border: 2px dashed #1976d2"
-        >
-          <v-row class="w-100 dark-text-force" align="center" justify="center">
-            <!-- 云端/本地模型一键切换 -->
-            <v-alert colored-border density="compact" class="mt-3 mb-3">
-              <div class="d-flex align-center flex-wrap">
-                <div>
-                  <span class="font-weight-bold">当前模型使用模式：</span>
-                  <v-chip :color="allCloudModelsEnabled ? 'info' : 'primary'" class="ml-2" label>
-                    {{ allCloudModelsEnabled ? '云端模型' : '本地模型' }}
-                  </v-chip>
-                </div>
-                <v-spacer></v-spacer>
-                <v-switch
-                  :model-value="allCloudModelsEnabled"
-                  color="info"
-                  hide-details
-                  density="compact"
-                  :label="allCloudModelsEnabled ? '切换至本地模型' : '切换至云端模型'"
-                  @update:model-value="toggleAllCloudModels"
-                ></v-switch>
-              </div>
-              <div class="text-caption mt-2">
-                <v-icon small color="info">mdi-information-outline</v-icon>
-                <span> 一键切换当前所有模型的启用状态。 </span>
               </div>
             </v-alert>
-          </v-row>
-          <v-row class="w-100 dark-text-force" align="center" justify="center">
-            <!-- 云端模型卡片 -->
-            <v-col cols="12" md="5">
-              <v-card
-                outlined
-                class="elevation-3 pa-4 mt-4 dark-text-force"
-                style="border: 2px solid #42a5f5; background: #e3f2fd"
-              >
-                <v-card-title class="d-flex align-center dark-text-force">
-                  <v-icon color="info" class="mr-2">mdi-cloud</v-icon>
-                  <span class="font-weight-bold dark-text-force" style="font-size: 1.2em"
-                    >云端模型</span
+
+            <v-row class="mt-3">
+              <!-- Python 状态 -->
+              <v-col cols="12" md="6" class="d-flex align-center">
+                <span class="mr-2">Python > 3.9.0：</span>
+                <template v-if="pythonInstalled === null">
+                  <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                  <span class="ml-1">检测中...</span>
+                </template>
+                <template v-else-if="pythonInstalled">
+                  <v-icon color="green" small>mdi-check-circle</v-icon>
+                  <span class="ml-1">已安装</span>
+                </template>
+                <template v-else-if="pythonInstalling && !pythonInstalled">
+                  <v-progress-circular
+                    indeterminate
+                    size="16"
+                    width="2"
+                    color="primary"
+                    class="mr-1"
+                  ></v-progress-circular>
+                  <span class="ml-1">安装中 ({{ pythonProgress }}%)</span>
+                </template>
+                <template v-else-if="pythonInstalled === false || pythonInstalled === null">
+                  <v-icon color="red" small>mdi-close-circle</v-icon>
+                  <span class="ml-1">未安装</span>
+                  <v-btn text small variant="plain" color="primary" @click="openPythonWebsite"
+                    >前往官网自行安装</v-btn
                   >
-                  <v-chip color="info" class="ml-2" label>灵活</v-chip>
-                  <v-chip color="info" class="ml-2" label>快速体验</v-chip>
-                </v-card-title>
-                <v-card-text class="dark-text-force">
-                  <div class="mb-4 dark-text-force">无需本地部署，随时体验最新AI能力。</div>
-                  <!-- 新增：云端模型配置检测信息 -->
-                  <div class="mb-2">
-                    <v-alert type="info" variant="outlined" colored-border class="pa-2 mb-2">
-                      <template #prepend>
-                        <v-icon color="info">mdi-information-outline</v-icon>
-                      </template>
-                      <div class="dark-text-force" style="overflow-x: auto; white-space: nowrap">
-                        <v-icon v-if="cloudApiCount !== 0" color="green" small
+                  <v-btn
+                    text
+                    small
+                    variant="outlined"
+                    color="success"
+                    @click="installSinglePackage('python')"
+                    >一键安装</v-btn
+                  >
+                </template>
+              </v-col>
+              <!-- Pandoc 状态 -->
+              <v-col cols="12" md="6" class="d-flex align-center">
+                <span class="mr-2">Pandoc：</span>
+                <template v-if="pandocInstalled === null">
+                  <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                  <span class="ml-1">检测中...</span>
+                </template>
+                <template v-else-if="pandocInstalled">
+                  <v-icon color="green" small>mdi-check-circle</v-icon>
+                  <span class="ml-1">已安装</span>
+                </template>
+                <template v-else-if="pandocInstalling && !pandocInstalled">
+                  <v-progress-circular
+                    indeterminate
+                    size="16"
+                    width="2"
+                    color="primary"
+                    class="mr-1"
+                  ></v-progress-circular>
+                  <span class="ml-1">安装中 ({{ pandocProgress }}%)</span>
+                </template>
+                <template v-else-if="pandocInstalled === false || pandocInstalled === null">
+                  <v-icon color="red" small>mdi-close-circle</v-icon>
+                  <span class="ml-1">未安装 Pandoc</span>
+                  <v-btn
+                    text
+                    small
+                    variant="plain"
+                    color="primary"
+                    class="ml-2"
+                    @click="openPandocWebsite"
+                    >前往官网自行安装</v-btn
+                  >
+                  <v-btn
+                    text
+                    small
+                    variant="outlined"
+                    color="success"
+                    @click="installSinglePackage('pandoc')"
+                    >一键安装</v-btn
+                  >
+                </template>
+              </v-col>
+              <!-- Git 状态 -->
+              <v-col cols="12" md="6" class="d-flex align-center">
+                <span class="mr-2">Git：</span>
+                <template v-if="gitInstalled === null">
+                  <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                  <span class="ml-1">检测中...</span>
+                </template>
+                <template v-else-if="gitInstalled">
+                  <v-icon color="green" small>mdi-check-circle</v-icon>
+                  <span class="ml-1">已安装</span>
+                </template>
+                <template v-else-if="gitInstalling && !gitInstalled">
+                  <v-progress-circular
+                    indeterminate
+                    size="16"
+                    width="2"
+                    color="primary"
+                    class="mr-1"
+                  ></v-progress-circular>
+                  <span class="ml-1">安装中 ({{ gitProgress }}%)</span>
+                </template>
+                <template v-else-if="gitInstalled === false || gitInstalled === null">
+                  <v-icon color="red" small>mdi-close-circle</v-icon>
+                  <span class="ml-1">未检测到 Git</span>
+                  <v-btn
+                    text
+                    small
+                    variant="plain"
+                    color="primary"
+                    class="ml-2"
+                    @click="openGitWebsite"
+                    >前往官网自行安装</v-btn
+                  >
+                  <v-btn
+                    text
+                    small
+                    variant="outlined"
+                    color="success"
+                    @click="installSinglePackage('git')"
+                    >一键安装</v-btn
+                  >
+                </template>
+              </v-col>
+              <!-- Homebrew 状态 (仅在macOS上显示) -->
+              <v-col v-if="isMacOS" cols="12" md="6" class="d-flex align-center">
+                <span class="mr-2">Homebrew：</span>
+                <template v-if="brewInstalled === null">
+                  <v-progress-circular indeterminate color="primary"></v-progress-circular>
+                  <span class="ml-1">检测中...</span>
+                </template>
+                <template v-else-if="brewInstalled">
+                  <v-icon color="green" small>mdi-check-circle</v-icon>
+                  <span class="ml-1">已安装</span>
+                </template>
+                <template v-else>
+                  <v-icon color="red" small>mdi-close-circle</v-icon>
+                  <span class="ml-1">未安装</span>
+                  <v-btn
+                    text
+                    small
+                    variant="plain"
+                    color="primary"
+                    class="ml-2"
+                    @click="openHomeBrewWebsite"
+                    >前往官网自行安装</v-btn
+                  >
+                </template>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+        <v-card class="pa-4 mb-4" outlined>
+          <v-card-title
+            class="d-flex align-center dark-text-force"
+            style="
+              background: linear-gradient(90deg, #e3f2fd 60%, #fff 100%);
+              border-left: 6px solid #1976d2;
+              border-radius: 8px;
+            "
+          >
+            <v-icon color="primary" class="mr-2">mdi-alert-decagram</v-icon>
+            2. 模型是否配置（二选一）
+          </v-card-title>
+          <v-card-text
+            class="d-flex flex-wrap justify-space-between align-center"
+            style="border-radius: 8px; border: 2px dashed #1976d2"
+          >
+            <v-row class="w-100 dark-text-force" align="center" justify="center">
+              <!-- 云端/本地模型一键切换 -->
+              <v-alert colored-border density="compact" class="mt-3 mb-3">
+                <div class="d-flex align-center flex-wrap">
+                  <div>
+                    <span class="font-weight-bold">当前模型使用模式：</span>
+                    <v-chip :color="allCloudModelsEnabled ? 'info' : 'primary'" class="ml-2" label>
+                      {{ allCloudModelsEnabled ? '云端模型' : '本地模型' }}
+                    </v-chip>
+                  </div>
+                  <v-spacer></v-spacer>
+                  <v-switch
+                    :model-value="allCloudModelsEnabled"
+                    color="info"
+                    hide-details
+                    density="compact"
+                    :label="allCloudModelsEnabled ? '切换至本地模型' : '切换至云端模型'"
+                    @update:model-value="toggleAllCloudModels"
+                  ></v-switch>
+                </div>
+                <div class="text-caption mt-2">
+                  <v-icon small color="info">mdi-information-outline</v-icon>
+                  <span> 一键切换当前所有模型的启用状态。 </span>
+                </div>
+              </v-alert>
+            </v-row>
+            <v-row class="w-100 dark-text-force" align="center" justify="center">
+              <!-- 云端模型卡片 -->
+              <v-col cols="12" md="5">
+                <v-card
+                  outlined
+                  class="elevation-3 pa-4 mt-4 dark-text-force"
+                  style="border: 2px solid #42a5f5; background: #e3f2fd"
+                >
+                  <v-card-title class="d-flex align-center dark-text-force">
+                    <v-icon color="info" class="mr-2">mdi-cloud</v-icon>
+                    <span class="font-weight-bold dark-text-force" style="font-size: 1.2em"
+                      >云端模型</span
+                    >
+                    <v-chip color="info" class="ml-2" label>灵活</v-chip>
+                    <v-chip color="info" class="ml-2" label>快速体验</v-chip>
+                  </v-card-title>
+                  <v-card-text class="dark-text-force">
+                    <div class="mb-4 dark-text-force">无需本地部署，随时体验最新AI能力。</div>
+                    <!-- 新增：云端模型配置检测信息 -->
+                    <div class="mb-2">
+                      <v-alert type="info" variant="outlined" colored-border class="pa-2 mb-2">
+                        <template #prepend>
+                          <v-icon color="info">mdi-information-outline</v-icon>
+                        </template>
+                        <div class="dark-text-force" style="overflow-x: auto; white-space: nowrap">
+                          <v-icon v-if="cloudApiCount !== 0" color="green" small
+                            >mdi-check-circle</v-icon
+                          >
+                          <v-icon v-else color="red" small>mdi-close-circle</v-icon>
+                          <span class="font-weight-bold dark-text-force"
+                            >已配置的云端模型API：</span
+                          >
+                          <span class="text-primary">{{ cloudApiCount }}</span>
+                          <span class="ml-3 font-weight-bold dark-text-force">涉及提供商：</span>
+                          <span class="text-info">{{ cloudVendors.join('，') || '无' }}</span>
+                        </div>
+                      </v-alert>
+                    </div>
+                    <v-btn text small variant="tonal" color="info" @click="selectedTab = 'remote'"
+                      >前往配置详情</v-btn
+                    >
+                  </v-card-text>
+                </v-card>
+              </v-col>
+              <!-- 二选一提示 -->
+              <v-col cols="12" md="auto" class="d-flex flex-column align-center justify-center">
+                <v-icon color="primary" size="36">mdi-swap-horizontal-bold</v-icon>
+                <div class="font-weight-bold text-primary">二选一</div>
+              </v-col>
+              <!-- 本地模型卡片 -->
+              <v-col cols="12" md="5">
+                <v-card
+                  outlined
+                  class="elevation-3 pa-4 mt-4 dark-text-force"
+                  style="border: 2px solid #1976d2; background: #e3f2fd"
+                >
+                  <v-card-title class="d-flex align-center dark-text-force">
+                    <v-icon color="primary" class="mr-2">mdi-harddisk</v-icon>
+                    <span class="font-weight-bold dark-text-force" style="font-size: 1.2em"
+                      >本地模型</span
+                    >
+                    <v-chip color="primary" class="ml-2" label>离线</v-chip>
+                    <v-chip color="primary" class="ml-2" label>安全可控</v-chip>
+                  </v-card-title>
+                  <v-card-text class="dark-text-force">
+                    <div class="mb-2 dark-text-force">无需联网，数据本地安全，适合隐私场景。</div>
+                  </v-card-text>
+                  <v-tooltip location="top" :open-delay="200" :close-delay="100" max-width="600">
+                    <template #activator="{ props }">
+                      <v-alert
+                        type="info"
+                        variant="outlined"
+                        colored-border
+                        class="pa-2 mb-2 d-flex align-center"
+                        style="
+                          cursor: pointer;
+                          white-space: nowrap;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                        "
+                        v-bind="props"
+                      >
+                        <template #prepend>
+                          <v-icon color="info">mdi-information-outline</v-icon>
+                        </template>
+                        <span class="dark-text-force">本地模型部署状态: </span>
+                        <v-icon v-if="ollamaInstalled && ollamaRunning" color="green" small
                           >mdi-check-circle</v-icon
                         >
+                        <template v-else-if="ollamaInstalled === null || ollamaRunning === null">
+                          <v-progress-circular
+                            size="20"
+                            indeterminate
+                            color="info"
+                          ></v-progress-circular>
+                        </template>
                         <v-icon v-else color="red" small>mdi-close-circle</v-icon>
-                        <span class="font-weight-bold dark-text-force">已配置的云端模型API：</span>
-                        <span class="text-primary">{{ cloudApiCount }}</span>
-                        <span class="ml-3 font-weight-bold dark-text-force">涉及提供商：</span>
-                        <span class="text-info">{{ cloudVendors.join('，') || '无' }}</span>
-                      </div>
-                    </v-alert>
-                  </div>
-                  <v-btn text small variant="tonal" color="info" @click="selectedTab = 'remote'"
+                      </v-alert>
+                    </template>
+
+                    <!-- 弹窗内容 -->
+                    <v-card min-width="500" class="pa-3" style="background-color: white !important">
+                      <v-card-text
+                        class="dark-text-force"
+                        style="background-color: white !important"
+                      >
+                        <v-row>
+                          <!-- Ollama 状态 -->
+                          <v-col cols="12" md="6" class="d-flex align-center">
+                            <span class="mr-2 dark-text-force">Ollama 环境状态：</span>
+
+                            <!-- 检测中 -->
+                            <template v-if="ollamaInstalled === null || ollamaRunning === null">
+                              <span class="dark-text-force">正在检测...</span>
+                            </template>
+
+                            <!-- 已安装且运行 -->
+                            <template v-else-if="ollamaInstalled && ollamaRunning">
+                              <v-icon color="green" small>mdi-check-circle</v-icon>
+                              <span class="ml-1 dark-text-force"
+                                >已安装且运行中 (pid: {{ ollamaPid }})</span
+                              >
+                            </template>
+
+                            <!-- 已安装但未运行 -->
+                            <template v-else-if="ollamaInstalled && !ollamaRunning">
+                              <v-icon color="orange" small>mdi-alert-circle</v-icon>
+                              <span class="ml-1 dark-text-force">已安装但未运行</span>
+                              <v-btn text small variant="plain" color="primary" @click="retryOllama"
+                                >重新检测</v-btn
+                              >
+                            </template>
+
+                            <!-- 未安装 -->
+                            <template v-else>
+                              <v-icon color="red" small>mdi-close-circle</v-icon>
+                              <span class="ml-1 dark-text-force">未安装 Ollama</span>
+                              <v-btn
+                                text
+                                small
+                                variant="plain"
+                                color="primary"
+                                @click="openOllamaWebsite"
+                                >前往官网自行安装</v-btn
+                              >
+                            </template>
+                          </v-col>
+                        </v-row>
+                        <v-row>
+                          <!-- nomic-embed-text -->
+                          <v-col cols="12" md="6" class="d-flex align-center">
+                            <div>
+                              <div class="font-weight-medium dark-text-force">
+                                nomic-embed-text/bge-large-zh/text2vec-large
+                              </div>
+                              <div class="text--secondary text-caption dark-text-force">
+                                <span class="text-grey">(大约需要1.1GB)</span
+                                >构建代码知识库与智能AI索引
+                              </div>
+                            </div>
+                            <template v-if="nomicInstalled === null">
+                              <span class="ml-2 dark-text-force">检测中...</span>
+                            </template>
+                            <template v-else-if="nomicInstalled">
+                              <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
+                              <span class="ml-1 dark-text-force">已安装</span>
+                            </template>
+                            <template v-else>
+                              <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
+                              <span class="ml-1 dark-text-force">未安装</span>
+                              <v-btn
+                                icon
+                                small
+                                variant="plain"
+                                color="primary"
+                                class="ml-2"
+                                @click="retryNomic"
+                              >
+                                <v-icon>mdi-refresh</v-icon>
+                              </v-btn>
+                            </template>
+                          </v-col>
+
+                          <!-- rwkv-7 -->
+                          <v-col cols="12" md="6" class="d-flex align-center">
+                            <div>
+                              <div class="font-weight-medium dark-text-force">
+                                qwen2.5-coder:1.5B,3B,7B
+                              </div>
+                              <div class="text--secondary text-caption dark-text-force">
+                                <span class="text-grey">(大约需要5.7GB)</span>意图识别与快速摘要
+                              </div>
+                            </div>
+                            <template v-if="llmInstalled === null">
+                              <span class="ml-2 dark-text-force">检测中...</span>
+                            </template>
+                            <template v-else-if="llmInstalled">
+                              <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
+                              <span class="ml-1 dark-text-force">已安装</span>
+                            </template>
+                            <template v-else>
+                              <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
+                              <span class="ml-1 dark-text-force">未安装</span>
+                              <v-btn
+                                icon
+                                small
+                                variant="plain"
+                                color="primary"
+                                class="ml-2"
+                                @click="retryRwkv"
+                              >
+                                <v-icon>mdi-refresh</v-icon>
+                              </v-btn>
+                            </template>
+                          </v-col>
+                        </v-row>
+                      </v-card-text>
+                      <v-card-text
+                        v-if="deploymentInProgressNec"
+                        class="py-1"
+                        style="background-color: white !important"
+                      >
+                        <v-progress-linear
+                          v-model="deploymentProgressNec"
+                          :value="deploymentProgressNec"
+                          color="success"
+                          height="8"
+                          striped
+                          class="mt-2"
+                          :indeterminate="false"
+                        />
+                        <div class="text-caption mt-1 dark-text-force">
+                          进度：{{ deploymentProgressNec }}%
+                        </div>
+                      </v-card-text>
+                      <v-card-actions
+                        v-if="!(nomicInstalled && llmInstalled)"
+                        style="background-color: white !important"
+                      >
+                        <v-spacer />
+                        <v-btn color="primary" @click="installNecessaryModels"
+                          >一键安装缺失模型</v-btn
+                        >
+                      </v-card-actions>
+                    </v-card>
+                  </v-tooltip>
+                  <v-btn text small variant="tonal" color="primary" @click="selectedTab = 'local'"
                     >前往配置详情</v-btn
                   >
-                </v-card-text>
-              </v-card>
-            </v-col>
-            <!-- 二选一提示 -->
-            <v-col cols="12" md="auto" class="d-flex flex-column align-center justify-center">
-              <v-icon color="primary" size="36">mdi-swap-horizontal-bold</v-icon>
-              <div class="font-weight-bold text-primary">二选一</div>
-            </v-col>
-            <!-- 本地模型卡片 -->
-            <v-col cols="12" md="5">
-              <v-card
-                outlined
-                class="elevation-3 pa-4 mt-4 dark-text-force"
-                style="border: 2px solid #1976d2; background: #e3f2fd"
-              >
-                <v-card-title class="d-flex align-center dark-text-force">
-                  <v-icon color="primary" class="mr-2">mdi-harddisk</v-icon>
-                  <span class="font-weight-bold dark-text-force" style="font-size: 1.2em"
-                    >本地模型</span
-                  >
-                  <v-chip color="primary" class="ml-2" label>离线</v-chip>
-                  <v-chip color="primary" class="ml-2" label>安全可控</v-chip>
-                </v-card-title>
-                <v-card-text class="dark-text-force">
-                  <div class="mb-2 dark-text-force">无需联网，数据本地安全，适合隐私场景。</div>
-                </v-card-text>
-                <v-tooltip location="top" :open-delay="200" :close-delay="100" max-width="600">
-                  <template #activator="{ props }">
-                    <v-alert
-                      type="info"
-                      variant="outlined"
-                      colored-border
-                      class="pa-2 mb-2 d-flex align-center"
-                      style="
-                        cursor: pointer;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                      "
-                      v-bind="props"
-                    >
-                      <template #prepend>
-                        <v-icon color="info">mdi-information-outline</v-icon>
-                      </template>
-                      <span class="dark-text-force">本地模型部署状态: </span>
-                      <v-icon v-if="ollamaInstalled && ollamaRunning" color="green" small
-                        >mdi-check-circle</v-icon
-                      >
-                      <template v-else-if="ollamaInstalled === null || ollamaRunning === null">
-                        <v-progress-circular
-                          size="20"
-                          indeterminate
-                          color="info"
-                        ></v-progress-circular>
-                      </template>
-                      <v-icon v-else color="red" small>mdi-close-circle</v-icon>
-                    </v-alert>
-                  </template>
-
-                  <!-- 弹窗内容 -->
-                  <v-card min-width="500" class="pa-3" style="background-color: white !important">
-                    <v-card-text class="dark-text-force" style="background-color: white !important">
-                      <v-row>
-                        <!-- Ollama 状态 -->
-                        <v-col cols="12" md="6" class="d-flex align-center">
-                          <span class="mr-2 dark-text-force">Ollama 环境状态：</span>
-
-                          <!-- 检测中 -->
-                          <template v-if="ollamaInstalled === null || ollamaRunning === null">
-                            <span class="dark-text-force">正在检测...</span>
-                          </template>
-
-                          <!-- 已安装且运行 -->
-                          <template v-else-if="ollamaInstalled && ollamaRunning">
-                            <v-icon color="green" small>mdi-check-circle</v-icon>
-                            <span class="ml-1 dark-text-force"
-                              >已安装且运行中 (pid: {{ ollamaPid }})</span
-                            >
-                          </template>
-
-                          <!-- 已安装但未运行 -->
-                          <template v-else-if="ollamaInstalled && !ollamaRunning">
-                            <v-icon color="orange" small>mdi-alert-circle</v-icon>
-                            <span class="ml-1 dark-text-force">已安装但未运行</span>
-                            <v-btn text small variant="plain" color="primary" @click="retryOllama"
-                              >一键启动</v-btn
-                            >
-                          </template>
-
-                          <!-- 未安装 -->
-                          <template v-else>
-                            <v-icon color="red" small>mdi-close-circle</v-icon>
-                            <span class="ml-1 dark-text-force">未安装 Ollama</span>
-                            <v-btn
-                              text
-                              small
-                              variant="plain"
-                              color="primary"
-                              @click="openOllamaWebsite"
-                              >前往官网自行安装</v-btn
-                            >
-                          </template>
-                        </v-col>
-                      </v-row>
-                      <v-row>
-                        <!-- nomic-embed-text -->
-                        <v-col cols="12" md="6" class="d-flex align-center">
-                          <div>
-                            <div class="font-weight-medium dark-text-force">
-                              nomic-embed-text/bge-large-zh/text2vec-large
-                            </div>
-                            <div class="text--secondary text-caption dark-text-force">
-                              <span class="text-grey">(大约需要1.1GB)</span
-                              >构建代码知识库与智能AI索引
-                            </div>
-                          </div>
-                          <template v-if="nomicInstalled === null">
-                            <span class="ml-2 dark-text-force">检测中...</span>
-                          </template>
-                          <template v-else-if="nomicInstalled">
-                            <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
-                            <span class="ml-1 dark-text-force">已安装</span>
-                          </template>
-                          <template v-else>
-                            <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
-                            <span class="ml-1 dark-text-force">未安装</span>
-                            <v-btn
-                              icon
-                              small
-                              variant="plain"
-                              color="primary"
-                              class="ml-2"
-                              @click="retryNomic"
-                            >
-                              <v-icon>mdi-refresh</v-icon>
-                            </v-btn>
-                          </template>
-                        </v-col>
-
-                        <!-- rwkv-7 -->
-                        <v-col cols="12" md="6" class="d-flex align-center">
-                          <div>
-                            <div class="font-weight-medium dark-text-force">
-                              qwen2.5-coder:1.5B,3B,7B
-                            </div>
-                            <div class="text--secondary text-caption dark-text-force">
-                              <span class="text-grey">(大约需要5.7GB)</span>意图识别与快速摘要
-                            </div>
-                          </div>
-                          <template v-if="llmInstalled === null">
-                            <span class="ml-2 dark-text-force">检测中...</span>
-                          </template>
-                          <template v-else-if="llmInstalled">
-                            <v-icon color="green" small class="ml-2">mdi-check-circle</v-icon>
-                            <span class="ml-1 dark-text-force">已安装</span>
-                          </template>
-                          <template v-else>
-                            <v-icon color="red" small class="ml-2">mdi-close-circle</v-icon>
-                            <span class="ml-1 dark-text-force">未安装</span>
-                            <v-btn
-                              icon
-                              small
-                              variant="plain"
-                              color="primary"
-                              class="ml-2"
-                              @click="retryRwkv"
-                            >
-                              <v-icon>mdi-refresh</v-icon>
-                            </v-btn>
-                          </template>
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                    <v-card-text
-                      v-if="deploymentInProgressNec"
-                      class="py-1"
-                      style="background-color: white !important"
-                    >
-                      <v-progress-linear
-                        v-model="deploymentProgressNec"
-                        :value="deploymentProgressNec"
-                        color="success"
-                        height="8"
-                        striped
-                        class="mt-2"
-                        :indeterminate="false"
-                      />
-                      <div class="text-caption mt-1 dark-text-force">
-                        进度：{{ deploymentProgressNec }}%
-                      </div>
-                    </v-card-text>
-                    <v-card-actions
-                      v-if="!(nomicInstalled && llmInstalled)"
-                      style="background-color: white !important"
-                    >
-                      <v-spacer />
-                      <v-btn color="primary" @click="installNecessaryModels"
-                        >一键安装缺失模型</v-btn
-                      >
-                    </v-card-actions>
-                  </v-card>
-                </v-tooltip>
-                <v-btn text small variant="tonal" color="primary" @click="selectedTab = 'local'"
-                  >前往配置详情</v-btn
-                >
-              </v-card>
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </v-card>
+                </v-card>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+      </v-container>
     </div>
     <!-- 本地模型主区域 -->
-    <div v-else-if="selectedTab === 'local'" class="bottom-nav-padding">
-      <div>
+    <div v-else-if="selectedTab === 'local'">
+      <v-container class="bottom-nav-padding">
         <v-card class="pa-2 mb-2" outlined>
           <v-card-title class="subtitle-2">1. Ollama 是否安装</v-card-title>
           <v-card-text>
@@ -544,7 +565,7 @@
                   <v-icon color="orange" small>mdi-alert-circle</v-icon>
                   <span class="ml-1">已安装但未运行</span>
                   <v-btn text small variant="plain" color="primary" @click="retryOllama"
-                    >一键启动</v-btn
+                    >重新检测</v-btn
                   >
                 </template>
 
@@ -902,12 +923,12 @@
             <v-btn color="primary" @click="saveModelConfig">保存</v-btn>
           </v-card-actions>
         </v-card>
-      </div>
+      </v-container>
     </div>
 
     <!-- 云端模型区域 -->
-    <div v-else-if="selectedTab === 'remote'" class="bottom-nav-padding">
-      <v-container>
+    <div v-else-if="selectedTab === 'remote'">
+      <v-container class="bottom-nav-padding">
         <v-card class="pa-4" outlined>
           <v-card-title class="headline">☁️ 云端模型</v-card-title>
           <!-- 新增：统一云端模型配置展示区 -->
@@ -957,662 +978,672 @@
         </v-card>
       </v-container>
     </div>
-    <div v-else-if="selectedTab === 'conf'" class="bottom-nav-padding">
-      <v-card class="pa-4" outlined>
-        <v-card-title class="headline">高级配置</v-card-title>
-        <v-card-text>
-          <v-form ref="form" v-model="valid">
-            <v-expansion-panels v-model="expandedPanels" multiple variant="popout">
-              <!-- 本地模型配置 -->
-              <v-expansion-panel>
-                <v-expansion-panel-title id="offline-panel-header">
-                  本地模型角色配置
-                  <v-card-actions>
-                    <v-spacer />
-                    <v-btn text @click="resetConfig">重置</v-btn>
-                    <v-btn color="primary" @click="saveModelConfig">保存</v-btn>
-                  </v-card-actions>
-                </v-expansion-panel-title>
-                <v-expansion-panel-text>
-                  <v-row>
-                    <v-col v-for="(value, key) in config.ollama" :key="key" cols="12" md="6">
-                      <!-- 数值字段：最大上下文长度 & 最大文件读取数量 -->
-                      <template v-if="['max_prompts', 'max_file_num'].includes(key)">
-                        <v-text-field
-                          v-model.number="config.ollama[key]"
-                          :label="getOllamaLabel(key)"
-                          type="number"
-                          outlined
-                        />
-                      </template>
+    <div v-else-if="selectedTab === 'conf'">
+      <v-container class="bottom-nav-padding">
+        <v-card class="pa-4" outlined>
+          <v-card-title class="headline">高级配置</v-card-title>
+          <v-card-text>
+            <v-form ref="form" v-model="valid">
+              <v-expansion-panels v-model="expandedPanels" multiple variant="popout">
+                <!-- 本地模型配置 -->
+                <v-expansion-panel>
+                  <v-expansion-panel-title id="offline-panel-header">
+                    本地模型角色配置
+                    <v-card-actions>
+                      <v-spacer />
+                      <v-btn text @click="resetConfig">重置</v-btn>
+                      <v-btn color="primary" @click="saveModelConfig">保存</v-btn>
+                    </v-card-actions>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-row>
+                      <v-col v-for="(value, key) in config.ollama" :key="key" cols="12" md="6">
+                        <!-- 数值字段：最大上下文长度 & 最大文件读取数量 -->
+                        <template v-if="['max_prompts', 'max_file_num'].includes(key)">
+                          <v-text-field
+                            v-model.number="config.ollama[key]"
+                            :label="getOllamaLabel(key)"
+                            type="number"
+                            outlined
+                          />
+                        </template>
 
-                      <!-- 其他字段（字符串） -->
-                      <template v-else>
+                        <!-- 其他字段（字符串） -->
+                        <template v-else>
+                          <v-text-field
+                            v-model="config.ollama[key]"
+                            :label="getOllamaLabel(key)"
+                            outlined
+                          />
+                        </template>
+                      </v-col>
+                      <v-col cols="12">
                         <v-text-field
-                          v-model="config.ollama[key]"
-                          :label="getOllamaLabel(key)"
+                          v-model.number="config.deep_research.max_prompts"
+                          label="最大上下文长度"
                           outlined
                         />
-                      </template>
-                    </v-col>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model.number="config.deep_research.max_prompts"
-                        label="最大上下文长度"
-                        outlined
-                      />
-                    </v-col>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model.number="config.deep_research.max_code_snippet_limit"
-                        label="最大代码片段数量"
-                        outlined
-                      />
-                    </v-col>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model.number="config.deep_research.code_snippet_text_limit"
-                        label="最大代码片段文本长度"
-                        outlined
-                      />
-                    </v-col>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model.number="config.flow_chart.max_prompts"
-                        label="最大流程图上下文长度"
-                        outlined
-                      />
-                    </v-col>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model.number="config.flow_chart.max_code_snippet_limit"
-                        label="最大流程图代码片段数量"
-                        outlined
-                      />
-                    </v-col>
-                    <v-col cols="12">
-                      <v-text-field
-                        v-model.number="config.flow_chart.code_snippet_text_limit"
-                        label="最大流程图代码片段文本长度"
-                        outlined
-                      />
-                    </v-col>
-                  </v-row>
-                  <v-card class="pa-4 mt-4" outlined max-height="250">
-                    <v-card-title class="subtitle-1">部署向导</v-card-title>
-                    <v-card-text>
-                      <v-stepper v-model="deploymentStep">
-                        <v-stepper-header>
-                          <v-stepper-item value="1" :complete="deploymentStep > 1"
-                            >检查 Ollama</v-stepper-item
-                          >
-                          <v-divider class="mx-2"></v-divider>
-                          <v-stepper-item value="2" :complete="deploymentStep > 2"
-                            >检查模型</v-stepper-item
-                          >
-                          <v-divider class="mx-2"></v-divider>
-                          <v-stepper-item value="3">自动部署</v-stepper-item>
-                        </v-stepper-header>
-                        <v-container>
-                          <!-- 步骤1 -->
-                          <div v-if="deploymentStep === 1">
-                            <div v-if="ollamaInstalled === null">检测中...</div>
-                            <div v-else-if="ollamaInstalled">已安装且运行中。</div>
-                            <div v-else>未检测到 Ollama。</div>
-                            <v-btn
-                              v-if="ollamaInstalled"
-                              color="primary"
-                              class="mt-3"
-                              @click="nextStep"
-                              >下一步</v-btn
+                      </v-col>
+                      <v-col cols="12">
+                        <v-text-field
+                          v-model.number="config.deep_research.max_code_snippet_limit"
+                          label="最大代码片段数量"
+                          outlined
+                        />
+                      </v-col>
+                      <v-col cols="12">
+                        <v-text-field
+                          v-model.number="config.deep_research.code_snippet_text_limit"
+                          label="最大代码片段文本长度"
+                          outlined
+                        />
+                      </v-col>
+                      <v-col cols="12">
+                        <v-text-field
+                          v-model.number="config.flow_chart.max_prompts"
+                          label="最大流程图上下文长度"
+                          outlined
+                        />
+                      </v-col>
+                      <v-col cols="12">
+                        <v-text-field
+                          v-model.number="config.flow_chart.max_code_snippet_limit"
+                          label="最大流程图代码片段数量"
+                          outlined
+                        />
+                      </v-col>
+                      <v-col cols="12">
+                        <v-text-field
+                          v-model.number="config.flow_chart.code_snippet_text_limit"
+                          label="最大流程图代码片段文本长度"
+                          outlined
+                        />
+                      </v-col>
+                    </v-row>
+                    <v-card class="pa-4 mt-4" outlined max-height="250">
+                      <v-card-title class="subtitle-1">部署向导</v-card-title>
+                      <v-card-text>
+                        <v-stepper v-model="deploymentStep">
+                          <v-stepper-header>
+                            <v-stepper-item value="1" :complete="deploymentStep > 1"
+                              >检查 Ollama</v-stepper-item
                             >
-                            <v-btn v-else color="error" class="mt-3" @click="openOllamaWebsite"
-                              >前往安装</v-btn
+                            <v-divider class="mx-2"></v-divider>
+                            <v-stepper-item value="2" :complete="deploymentStep > 2"
+                              >检查模型</v-stepper-item
                             >
-                          </div>
-                          <!-- 步骤2 -->
-                          <div v-if="deploymentStep === 2">
-                            <div v-if="modelsDeployed === null">检查模型部署...</div>
-                            <div v-else-if="modelsDeployed">模型已部署。</div>
-                            <div v-else>部分模型缺失：{{ modelsNotExits.join(', ') }}</div>
-                            <v-btn
-                              v-if="modelsDeployed"
-                              color="primary"
-                              class="mt-3"
-                              @click="nextStep"
-                              >下一步</v-btn
-                            >
-                            <v-btn v-else color="primary" class="mt-3" @click="startDeployment"
-                              >开始部署</v-btn
-                            >
-                          </div>
-                          <!-- 步骤3 -->
-                          <div v-if="deploymentStep === 3">
-                            <div v-if="deploymentInProgress">
-                              部署中：{{ currentDeployingModel }}
-                              <v-progress-linear
-                                v-model="deploymentProgress"
-                                color="success"
-                                :value="deploymentProgress"
-                                height="20"
-                                striped
-                                class="mt-2"
-                              />
+                            <v-divider class="mx-2"></v-divider>
+                            <v-stepper-item value="3">自动部署</v-stepper-item>
+                          </v-stepper-header>
+                          <v-container>
+                            <!-- 步骤1 -->
+                            <div v-if="deploymentStep === 1">
+                              <div v-if="ollamaInstalled === null">检测中...</div>
+                              <div v-else-if="ollamaInstalled">已安装且运行中。</div>
+                              <div v-else>未检测到 Ollama。</div>
+                              <v-btn
+                                v-if="ollamaInstalled"
+                                color="primary"
+                                class="mt-3"
+                                @click="nextStep"
+                                >下一步</v-btn
+                              >
+                              <v-btn v-else color="error" class="mt-3" @click="openOllamaWebsite"
+                                >前往安装</v-btn
+                              >
                             </div>
-                            <div v-else>部署完成！</div>
-                          </div>
-                        </v-container>
-                      </v-stepper>
-                    </v-card-text>
-                  </v-card>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-              <!-- 远程模型配置 -->
-              <v-expansion-panel>
-                <v-expansion-panel-title id="remote-panel-header">
-                  云端模型角色配置
-                  <v-card-actions>
-                    <v-spacer />
-                    <v-btn text @click="resetConfig">重置</v-btn>
-                    <v-btn color="primary" @click="saveModelConfig">保存</v-btn>
-                  </v-card-actions>
-                </v-expansion-panel-title>
-                <v-expansion-panel-text>
-                  <!-- 对每个角色（如 coder、chatter、officer）做一次卡片封装 -->
-                  <div v-for="(modelCfg, slot) in config.custom" :key="slot">
+                            <!-- 步骤2 -->
+                            <div v-if="deploymentStep === 2">
+                              <div v-if="modelsDeployed === null">检查模型部署...</div>
+                              <div v-else-if="modelsDeployed">模型已部署。</div>
+                              <div v-else>部分模型缺失：{{ modelsNotExits.join(', ') }}</div>
+                              <v-btn
+                                v-if="modelsDeployed"
+                                color="primary"
+                                class="mt-3"
+                                @click="nextStep"
+                                >下一步</v-btn
+                              >
+                              <v-btn v-else color="primary" class="mt-3" @click="startDeployment"
+                                >开始部署</v-btn
+                              >
+                            </div>
+                            <!-- 步骤3 -->
+                            <div v-if="deploymentStep === 3">
+                              <div v-if="deploymentInProgress">
+                                部署中：{{ currentDeployingModel }}
+                                <v-progress-linear
+                                  v-model="deploymentProgress"
+                                  color="success"
+                                  :value="deploymentProgress"
+                                  height="20"
+                                  striped
+                                  class="mt-2"
+                                />
+                              </div>
+                              <div v-else>部署完成！</div>
+                            </div>
+                          </v-container>
+                        </v-stepper>
+                      </v-card-text>
+                    </v-card>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+                <!-- 远程模型配置 -->
+                <v-expansion-panel>
+                  <v-expansion-panel-title id="remote-panel-header">
+                    云端模型角色配置
+                    <v-card-actions>
+                      <v-spacer />
+                      <v-btn text @click="resetConfig">重置</v-btn>
+                      <v-btn color="primary" @click="saveModelConfig">保存</v-btn>
+                    </v-card-actions>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <!-- 对每个角色（如 coder、chatter、officer）做一次卡片封装 -->
+                    <div v-for="(modelCfg, slot) in config.custom" :key="slot">
+                      <v-card flat class="mb-4 pa-2">
+                        <v-card-title class="subtitle-1">
+                          {{ slotLabels[slot] || getCustomLabel(slot) }}
+                        </v-card-title>
+                        <v-card-text>
+                          <v-row>
+                            <!-- 遍历该角色下的所有字段（api, url, model, type, enabled, max_prompts, max_file_num…） -->
+                            <v-col v-for="(val, key) in modelCfg" :key="key" cols="12" md="6">
+                              <!-- 布尔字段：启用云端模型 -->
+                              <template v-if="key === 'enabled'">
+                                <v-switch
+                                  v-model="config.custom[slot].enabled"
+                                  :label="getCustomLabel('enabled')"
+                                />
+                              </template>
+
+                              <!-- 数值字段：最大上下文长度 & 最大文件读取数量 -->
+                              <template v-else-if="['max_prompts', 'max_file_num'].includes(key)">
+                                <v-text-field
+                                  v-model.number="config.custom[slot][key]"
+                                  :label="getCustomLabel(key)"
+                                  type="number"
+                                  outlined
+                                />
+                              </template>
+
+                              <!-- 其他字段（字符串） -->
+                              <template v-else>
+                                <v-text-field
+                                  v-model="config.custom[slot][key]"
+                                  :label="getCustomLabel(key)"
+                                  outlined
+                                />
+                              </template>
+                            </v-col>
+                          </v-row>
+                        </v-card-text>
+                      </v-card>
+                    </div>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+
+                <!-- FM配置面板 -->
+                <v-expansion-panel>
+                  <v-expansion-panel-title id="fm-config-panel-header">
+                    索引配置
+                    <v-card-actions>
+                      <v-spacer />
+                      <v-btn text @click="resetFmConfig">重置</v-btn>
+                      <v-btn color="primary" @click="saveFmConfig">保存</v-btn>
+                    </v-card-actions>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <!-- 基础配置 -->
                     <v-card flat class="mb-4 pa-2">
-                      <v-card-title class="subtitle-1">
-                        {{ slotLabels[slot] || getCustomLabel(slot) }}
-                      </v-card-title>
+                      <v-card-title class="subtitle-1">基础配置</v-card-title>
                       <v-card-text>
                         <v-row>
-                          <!-- 遍历该角色下的所有字段（api, url, model, type, enabled, max_prompts, max_file_num…） -->
-                          <v-col v-for="(val, key) in modelCfg" :key="key" cols="12" md="6">
-                            <!-- 布尔字段：启用云端模型 -->
-                            <template v-if="key === 'enabled'">
-                              <v-switch
-                                v-model="config.custom[slot].enabled"
-                                :label="getCustomLabel('enabled')"
-                              />
-                            </template>
-
-                            <!-- 数值字段：最大上下文长度 & 最大文件读取数量 -->
-                            <template v-else-if="['max_prompts', 'max_file_num'].includes(key)">
-                              <v-text-field
-                                v-model.number="config.custom[slot][key]"
-                                :label="getCustomLabel(key)"
-                                type="number"
-                                outlined
-                              />
-                            </template>
-
-                            <!-- 其他字段（字符串） -->
-                            <template v-else>
-                              <v-text-field
-                                v-model="config.custom[slot][key]"
-                                :label="getCustomLabel(key)"
-                                outlined
-                              />
-                            </template>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.api_base_url"
+                              label="API基础URL"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.completion_api"
+                              label="补全API路径"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.embedding_api"
+                              label="嵌入API路径"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.default_model"
+                              label="默认模型"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.default_format"
+                              label="默认格式"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.default_temp"
+                              label="默认温度"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.normalize_model"
+                              label="标准化模型"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.embedding_model"
+                              label="嵌入模型"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.embedding_max_batch"
+                              label="嵌入最大批次"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.embedding_max_worker"
+                              label="嵌入最大工作线程"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.code_limit"
+                              label="代码限制"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.prompt_limit"
+                              label="提示词限制"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.parser_code_line_limit"
+                              label="批量增强解析代码行数限制"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.parser_code_chunk_limit"
+                              label="批量增强解析代码块数上限"
+                              type="number"
+                              outlined
+                            />
                           </v-col>
                         </v-row>
                       </v-card-text>
                     </v-card>
-                  </div>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
 
-              <!-- FM配置面板 -->
-              <v-expansion-panel>
-                <v-expansion-panel-title id="fm-config-panel-header">
-                  索引配置
-                  <v-card-actions>
-                    <v-spacer />
-                    <v-btn text @click="resetFmConfig">重置</v-btn>
-                    <v-btn color="primary" @click="saveFmConfig">保存</v-btn>
-                  </v-card-actions>
-                </v-expansion-panel-title>
-                <v-expansion-panel-text>
-                  <!-- 基础配置 -->
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1">基础配置</v-card-title>
-                    <v-card-text>
-                      <v-row>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.api_base_url"
-                            label="API基础URL"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.completion_api"
-                            label="补全API路径"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.embedding_api"
-                            label="嵌入API路径"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.default_model"
-                            label="默认模型"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.default_format"
-                            label="默认格式"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.default_temp"
-                            label="默认温度"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.normalize_model"
-                            label="标准化模型"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.embedding_model"
-                            label="嵌入模型"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.embedding_max_batch"
-                            label="嵌入最大批次"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.embedding_max_worker"
-                            label="嵌入最大工作线程"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.code_limit"
-                            label="代码限制"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.prompt_limit"
-                            label="提示词限制"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.parser_code_line_limit"
-                            label="批量增强解析代码行数限制"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.parser_code_chunk_limit"
-                            label="批量增强解析代码块数上限"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                  </v-card>
-
-                  <!-- 分析提示词配置 -->
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1">分析提示词配置</v-card-title>
-                    <v-card-text>
-                      <v-row>
-                        <v-col cols="12">
-                          <v-textarea
-                            v-model="fmConfig.ana_prompts.role"
-                            label="角色设定"
-                            outlined
-                            auto-grow
-                            rows="3"
-                          />
-                        </v-col>
-                        <v-col cols="12">
-                          <v-textarea
-                            v-model="fmConfig.ana_prompts.internal_deps"
-                            label="内部依赖"
-                            outlined
-                            auto-grow
-                            rows="3"
-                          />
-                        </v-col>
-                        <v-col cols="12">
-                          <v-textarea
-                            v-model="fmConfig.ana_prompts.external_deps"
-                            label="外部依赖"
-                            outlined
-                            auto-grow
-                            rows="3"
-                          />
-                        </v-col>
-                        <v-col cols="12">
-                          <v-textarea
-                            v-model="fmConfig.ana_prompts.main"
-                            label="主要提示词"
-                            outlined
-                            auto-grow
-                            rows="5"
-                          />
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                  </v-card>
-
-                  <!-- 关键词提示词配置 -->
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1">关键词提示词配置</v-card-title>
-                    <v-card-text>
-                      <v-row>
-                        <v-col cols="12">
-                          <v-textarea
-                            v-model="fmConfig.keyword_prompts.system"
-                            label="系统提示词"
-                            outlined
-                            auto-grow
-                            rows="5"
-                          />
-                        </v-col>
-                        <v-col cols="12">
-                          <v-textarea
-                            v-model="fmConfig.keyword_prompts.user"
-                            label="用户提示词"
-                            outlined
-                            auto-grow
-                            rows="3"
-                          />
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                  </v-card>
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1">批量增强解析提示词配置</v-card-title>
-                    <v-card-text>
-                      <v-textarea
-                        v-model="fmConfig.llm_parser_prompts"
-                        label="系统提示词"
-                        outlined
-                        auto-grow
-                        rows="5"
-                      />
-                    </v-card-text>
-                  </v-card>
-
-                  <!-- 嵌入云模型配置 -->
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1">嵌入云模型配置</v-card-title>
-                    <v-card-text>
-                      <v-row>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.embedding_cloud_model.api"
-                            label="API密钥"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.embedding_cloud_model.model"
-                            label="模型名称"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.embedding_cloud_model.url"
-                            label="API URL"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.embedding_cloud_model.type"
-                            label="类型"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-switch v-model="fmConfig.embedding_cloud_model.enabled" label="启用" />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.embedding_cloud_model.max_prompts"
-                            label="最大提示词数量"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                  </v-card>
-
-                  <!-- 默认云模型配置 -->
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1">默认云模型配置</v-card-title>
-                    <v-card-text>
-                      <v-row>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.default_cloud_model.api"
-                            label="API密钥"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.default_cloud_model.model"
-                            label="模型名称"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.default_cloud_model.url"
-                            label="API URL"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model="fmConfig.default_cloud_model.type"
-                            label="类型"
-                            outlined
-                          />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-switch v-model="fmConfig.default_cloud_model.enabled" label="启用" />
-                        </v-col>
-                        <v-col cols="12" md="6">
-                          <v-text-field
-                            v-model.number="fmConfig.default_cloud_model.max_prompts"
-                            label="最大提示词数量"
-                            type="number"
-                            outlined
-                          />
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                  </v-card>
-
-                  <!-- 模型配置列表 -->
-                  <v-card flat class="mb-4 pa-2">
-                    <v-card-title class="subtitle-1 d-flex align-center">
-                      <span>模型配置列表</span>
-                      <v-spacer />
-                      <v-btn color="primary" small @click="addModelConfig">添加模型</v-btn>
-                    </v-card-title>
-                    <v-card-text>
-                      <div
-                        v-for="(model, index) in fmConfig.model_configs"
-                        :key="index"
-                        class="mb-4 pa-3 border rounded"
-                      >
-                        <div class="d-flex justify-space-between align-center mb-2">
-                          <span class="font-weight-medium">模型 #{{ index + 1 }}</span>
-                          <span class="font-weight-bold text-deep-orange-accent-4"
-                            >模型尺码 {{ model.size }}</span
-                          >
-                          <v-btn icon small color="error" @click="removeModelConfig(index)">
-                            <v-icon small>mdi-delete</v-icon>
-                          </v-btn>
-                        </div>
+                    <!-- 分析提示词配置 -->
+                    <v-card flat class="mb-4 pa-2">
+                      <v-card-title class="subtitle-1">分析提示词配置</v-card-title>
+                      <v-card-text>
                         <v-row>
-                          <v-col cols="12" md="6">
-                            <v-text-field v-model="model.name" label="模型名称" outlined dense />
-                          </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field
-                              v-model="model.size"
-                              label="模型尺码别称"
+                          <v-col cols="12">
+                            <v-textarea
+                              v-model="fmConfig.ana_prompts.role"
+                              label="角色设定"
                               outlined
-                              dense
+                              auto-grow
+                              rows="3"
                             />
                           </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field
-                              v-model.number="model.max_tokens"
-                              label="最大Token数"
-                              type="number"
+                          <v-col cols="12">
+                            <v-textarea
+                              v-model="fmConfig.ana_prompts.internal_deps"
+                              label="内部依赖"
                               outlined
-                              dense
+                              auto-grow
+                              rows="3"
                             />
                           </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field
-                              v-model.number="model.num_ctx"
-                              label="上下文数量"
-                              type="number"
+                          <v-col cols="12">
+                            <v-textarea
+                              v-model="fmConfig.ana_prompts.external_deps"
+                              label="外部依赖"
                               outlined
-                              dense
+                              auto-grow
+                              rows="3"
                             />
                           </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field
-                              v-model.number="model.num_keep"
-                              label="保留数量"
-                              type="number"
+                          <v-col cols="12">
+                            <v-textarea
+                              v-model="fmConfig.ana_prompts.main"
+                              label="主要提示词"
                               outlined
-                              dense
+                              auto-grow
+                              rows="5"
                             />
-                          </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field
-                              v-model.number="model.num_predict"
-                              label="预测数量"
-                              type="number"
-                              outlined
-                              dense
-                            />
-                          </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field
-                              v-model.number="model.repeat_last_n"
-                              label="重复最后N个"
-                              type="number"
-                              outlined
-                              dense
-                            />
-                          </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field v-model="model.format" label="格式" outlined dense />
-                          </v-col>
-                          <v-col cols="12" md="6">
-                            <v-text-field v-model="model.temperature" label="温度" outlined dense />
                           </v-col>
                         </v-row>
+                      </v-card-text>
+                    </v-card>
 
-                        <!-- 云模型配置 -->
-                        <div class="mt-2 pt-2 border-top">
-                          <div class="subtitle-2 mb-2">云模型配置</div>
+                    <!-- 关键词提示词配置 -->
+                    <v-card flat class="mb-4 pa-2">
+                      <v-card-title class="subtitle-1">关键词提示词配置</v-card-title>
+                      <v-card-text>
+                        <v-row>
+                          <v-col cols="12">
+                            <v-textarea
+                              v-model="fmConfig.keyword_prompts.system"
+                              label="系统提示词"
+                              outlined
+                              auto-grow
+                              rows="5"
+                            />
+                          </v-col>
+                          <v-col cols="12">
+                            <v-textarea
+                              v-model="fmConfig.keyword_prompts.user"
+                              label="用户提示词"
+                              outlined
+                              auto-grow
+                              rows="3"
+                            />
+                          </v-col>
+                        </v-row>
+                      </v-card-text>
+                    </v-card>
+                    <v-card flat class="mb-4 pa-2">
+                      <v-card-title class="subtitle-1">批量增强解析提示词配置</v-card-title>
+                      <v-card-text>
+                        <v-textarea
+                          v-model="fmConfig.llm_parser_prompts"
+                          label="系统提示词"
+                          outlined
+                          auto-grow
+                          rows="5"
+                        />
+                      </v-card-text>
+                    </v-card>
+
+                    <!-- 嵌入云模型配置 -->
+                    <v-card flat class="mb-4 pa-2">
+                      <v-card-title class="subtitle-1">嵌入云模型配置</v-card-title>
+                      <v-card-text>
+                        <v-row>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.embedding_cloud_model.api"
+                              label="API密钥"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.embedding_cloud_model.model"
+                              label="模型名称"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.embedding_cloud_model.url"
+                              label="API URL"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.embedding_cloud_model.type"
+                              label="类型"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-switch
+                              v-model="fmConfig.embedding_cloud_model.enabled"
+                              label="启用"
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.embedding_cloud_model.max_prompts"
+                              label="最大提示词数量"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                        </v-row>
+                      </v-card-text>
+                    </v-card>
+
+                    <!-- 默认云模型配置 -->
+                    <v-card flat class="mb-4 pa-2">
+                      <v-card-title class="subtitle-1">默认云模型配置</v-card-title>
+                      <v-card-text>
+                        <v-row>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.default_cloud_model.api"
+                              label="API密钥"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.default_cloud_model.model"
+                              label="模型名称"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.default_cloud_model.url"
+                              label="API URL"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model="fmConfig.default_cloud_model.type"
+                              label="类型"
+                              outlined
+                            />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-switch v-model="fmConfig.default_cloud_model.enabled" label="启用" />
+                          </v-col>
+                          <v-col cols="12" md="6">
+                            <v-text-field
+                              v-model.number="fmConfig.default_cloud_model.max_prompts"
+                              label="最大提示词数量"
+                              type="number"
+                              outlined
+                            />
+                          </v-col>
+                        </v-row>
+                      </v-card-text>
+                    </v-card>
+
+                    <!-- 模型配置列表 -->
+                    <v-card flat class="mb-4 pa-2">
+                      <v-card-title class="subtitle-1 d-flex align-center">
+                        <span>模型配置列表</span>
+                        <v-spacer />
+                        <v-btn color="primary" small @click="addModelConfig">添加模型</v-btn>
+                      </v-card-title>
+                      <v-card-text>
+                        <div
+                          v-for="(model, index) in fmConfig.model_configs"
+                          :key="index"
+                          class="mb-4 pa-3 border rounded"
+                        >
+                          <div class="d-flex justify-space-between align-center mb-2">
+                            <span class="font-weight-medium">模型 #{{ index + 1 }}</span>
+                            <span class="font-weight-bold text-deep-orange-accent-4"
+                              >模型尺码 {{ model.size }}</span
+                            >
+                            <v-btn icon small color="error" @click="removeModelConfig(index)">
+                              <v-icon small>mdi-delete</v-icon>
+                            </v-btn>
+                          </div>
                           <v-row>
                             <v-col cols="12" md="6">
+                              <v-text-field v-model="model.name" label="模型名称" outlined dense />
+                            </v-col>
+                            <v-col cols="12" md="6">
                               <v-text-field
-                                v-model="model.cloud_model.api"
-                                label="API密钥"
+                                v-model="model.size"
+                                label="模型尺码别称"
                                 outlined
                                 dense
                               />
                             </v-col>
                             <v-col cols="12" md="6">
                               <v-text-field
-                                v-model="model.cloud_model.model"
-                                label="模型名称"
-                                outlined
-                                dense
-                              />
-                            </v-col>
-                            <v-col cols="12" md="6">
-                              <v-text-field
-                                v-model="model.cloud_model.url"
-                                label="API URL"
-                                outlined
-                                dense
-                              />
-                            </v-col>
-                            <v-col cols="12" md="6">
-                              <v-text-field
-                                v-model="model.cloud_model.type"
-                                label="类型"
-                                outlined
-                                dense
-                              />
-                            </v-col>
-                            <v-col cols="12" md="6">
-                              <v-switch v-model="model.cloud_model.enabled" label="启用" dense />
-                            </v-col>
-                            <v-col cols="12" md="6">
-                              <v-text-field
-                                v-model.number="model.cloud_model.max_prompts"
-                                label="最大提示词数量"
+                                v-model.number="model.max_tokens"
+                                label="最大Token数"
                                 type="number"
+                                outlined
+                                dense
+                              />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                              <v-text-field
+                                v-model.number="model.num_ctx"
+                                label="上下文数量"
+                                type="number"
+                                outlined
+                                dense
+                              />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                              <v-text-field
+                                v-model.number="model.num_keep"
+                                label="保留数量"
+                                type="number"
+                                outlined
+                                dense
+                              />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                              <v-text-field
+                                v-model.number="model.num_predict"
+                                label="预测数量"
+                                type="number"
+                                outlined
+                                dense
+                              />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                              <v-text-field
+                                v-model.number="model.repeat_last_n"
+                                label="重复最后N个"
+                                type="number"
+                                outlined
+                                dense
+                              />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                              <v-text-field v-model="model.format" label="格式" outlined dense />
+                            </v-col>
+                            <v-col cols="12" md="6">
+                              <v-text-field
+                                v-model="model.temperature"
+                                label="温度"
                                 outlined
                                 dense
                               />
                             </v-col>
                           </v-row>
+
+                          <!-- 云模型配置 -->
+                          <div class="mt-2 pt-2 border-top">
+                            <div class="subtitle-2 mb-2">云模型配置</div>
+                            <v-row>
+                              <v-col cols="12" md="6">
+                                <v-text-field
+                                  v-model="model.cloud_model.api"
+                                  label="API密钥"
+                                  outlined
+                                  dense
+                                />
+                              </v-col>
+                              <v-col cols="12" md="6">
+                                <v-text-field
+                                  v-model="model.cloud_model.model"
+                                  label="模型名称"
+                                  outlined
+                                  dense
+                                />
+                              </v-col>
+                              <v-col cols="12" md="6">
+                                <v-text-field
+                                  v-model="model.cloud_model.url"
+                                  label="API URL"
+                                  outlined
+                                  dense
+                                />
+                              </v-col>
+                              <v-col cols="12" md="6">
+                                <v-text-field
+                                  v-model="model.cloud_model.type"
+                                  label="类型"
+                                  outlined
+                                  dense
+                                />
+                              </v-col>
+                              <v-col cols="12" md="6">
+                                <v-switch v-model="model.cloud_model.enabled" label="启用" dense />
+                              </v-col>
+                              <v-col cols="12" md="6">
+                                <v-text-field
+                                  v-model.number="model.cloud_model.max_prompts"
+                                  label="最大提示词数量"
+                                  type="number"
+                                  outlined
+                                  dense
+                                />
+                              </v-col>
+                            </v-row>
+                          </div>
                         </div>
-                      </div>
-                    </v-card-text>
-                  </v-card>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-            </v-expansion-panels>
-          </v-form>
-        </v-card-text>
-      </v-card>
+                      </v-card-text>
+                    </v-card>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
+            </v-form>
+          </v-card-text>
+        </v-card>
+      </v-container>
     </div>
     <v-snackbar
       v-model="snackbar.show"
@@ -1623,7 +1654,7 @@
     >
       {{ snackbar.message }}
     </v-snackbar>
-    
+
     <!-- 模型切换确认对话框 -->
     <v-dialog v-model="showSwitchConfirmDialog" persistent max-width="600">
       <v-card>
@@ -1644,37 +1675,22 @@
               <li>其他依赖AI模型的功能</li>
             </ul>
           </v-alert>
-          
+
           <div class="mb-3">
             <span class="font-weight-bold">即将切换到：</span>
-            <v-chip 
-              :color="pendingSwitchValue ? 'info' : 'primary'" 
-              class="ml-2" 
-              label
-            >
+            <v-chip :color="pendingSwitchValue ? 'info' : 'primary'" class="ml-2" label>
               {{ pendingSwitchValue ? '云端模型' : '本地模型' }}
             </v-chip>
           </div>
-          
+
           <div class="text-body-2 text-grey-darken-1">
             请确保当前没有重要任务正在进行，然后点击确认继续。
           </div>
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn 
-            text 
-            @click="cancelSwitch"
-          >
-            取消
-          </v-btn>
-          <v-btn 
-            color="primary" 
-            variant="elevated"
-            @click="confirmSwitch"
-          >
-            确认切换
-          </v-btn>
+          <v-btn text @click="cancelSwitch"> 取消 </v-btn>
+          <v-btn color="primary" variant="elevated" @click="confirmSwitch"> 确认切换 </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1689,17 +1705,9 @@
         <v-card-text>
           <div class="mb-4">正在重启核心服务和索引服务，请稍候...</div>
           <v-list>
-            <v-list-item
-              v-for="step in restartProgress"
-              :key="step.step"
-              class="px-0"
-            >
+            <v-list-item v-for="step in restartProgress" :key="step.step" class="px-0">
               <template #prepend>
-                <v-icon
-                  v-if="step.status === 'pending'"
-                  color="grey"
-                  size="small"
-                >
+                <v-icon v-if="step.status === 'pending'" color="grey" size="small">
                   mdi-circle-outline
                 </v-icon>
                 <v-progress-circular
@@ -1709,18 +1717,10 @@
                   size="20"
                   width="2"
                 ></v-progress-circular>
-                <v-icon
-                  v-else-if="step.status === 'completed'"
-                  color="success"
-                  size="small"
-                >
+                <v-icon v-else-if="step.status === 'completed'" color="success" size="small">
                   mdi-check-circle
                 </v-icon>
-                <v-icon
-                  v-else-if="step.status === 'error'"
-                  color="error"
-                  size="small"
-                >
+                <v-icon v-else-if="step.status === 'error'" color="error" size="small">
                   mdi-close-circle
                 </v-icon>
               </template>
@@ -1739,13 +1739,7 @@
         </v-card-text>
         <v-card-actions v-if="!isRestarting">
           <v-spacer></v-spacer>
-          <v-btn
-            color="primary"
-            variant="text"
-            @click="showRestartDialog = false"
-          >
-            关闭
-          </v-btn>
+          <v-btn color="primary" variant="text" @click="showRestartDialog = false"> 关闭 </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -1830,6 +1824,16 @@ const pythonProgress = ref(0)
 const pandocProgress = ref(0)
 const gitProgress = ref(0)
 const isInstallingDeps = ref(false)
+
+// —— 网络速度监控 ——
+const networkSpeed = ref({
+  downloadSpeed: 0,
+  uploadSpeed: 0,
+  formattedDownloadSpeed: '0 B/s',
+  formattedUploadSpeed: '0 B/s',
+  interfaceName: '',
+  isMonitoring: false
+})
 
 // —— 计算属性：需要安装的依赖数量 ——
 const needsInstallCount = computed(() => {
@@ -2633,6 +2637,7 @@ const installRequiredPackages = async () => {
 
   try {
     isInstallingDeps.value = true
+    await startNetworkMonitoring()
     const result = await window.electron.installRequiredPackages()
     console.log('安装结果:', result)
 
@@ -2650,6 +2655,7 @@ const installRequiredPackages = async () => {
     alert(`安装失败: ${error.message || '未知错误'}`)
   } finally {
     isInstallingDeps.value = false
+    await stopNetworkMonitoring()
   }
 }
 
@@ -2673,6 +2679,8 @@ const installSinglePackage = async (packageName) => {
     else if (packageName === 'pandoc') pandocInstalling.value = true
     else if (packageName === 'git') gitInstalling.value = true
 
+    await startNetworkMonitoring()
+
     const result = await window.electron.installPackage(packageName)
     console.log(`${packageName} 安装结果:`, result)
 
@@ -2693,6 +2701,49 @@ const installSinglePackage = async (packageName) => {
     if (packageName === 'python') pythonInstalling.value = false
     else if (packageName === 'pandoc') pandocInstalling.value = false
     else if (packageName === 'git') gitInstalling.value = false
+    await stopNetworkMonitoring()
+  }
+}
+
+// —— 网络速度监控函数 ——
+const startNetworkMonitoring = async () => {
+  try {
+    // 启动网络监控
+    await window.electron.getNetworkSpeed()
+    networkSpeed.value.isMonitoring = true
+
+    // 监听网络速度更新
+    window.electron.onNetworkSpeedUpdate((data) => {
+      networkSpeed.value = {
+        downloadSpeed: data.downloadSpeed,
+        uploadSpeed: data.uploadSpeed,
+        formattedDownloadSpeed: data.downloadSpeedFormatted,
+        formattedUploadSpeed: data.uploadSpeedFormatted,
+        interfaceName: data.interface,
+        isMonitoring: true
+      }
+    })
+  } catch (error) {
+    console.error('启动网络监控失败:', error)
+  }
+}
+
+const stopNetworkMonitoring = async () => {
+  try {
+    // 移除网络速度监听器
+    window.electron.removeNetworkSpeedListener()
+
+    // 重置网络速度数据
+    networkSpeed.value = {
+      downloadSpeed: 0,
+      uploadSpeed: 0,
+      formattedDownloadSpeed: '0 B/s',
+      formattedUploadSpeed: '0 B/s',
+      interfaceName: '',
+      isMonitoring: false
+    }
+  } catch (error) {
+    console.error('停止网络监控失败:', error)
   }
 }
 
@@ -2798,7 +2849,7 @@ const restartProgress = ref([
 // 显示切换确认对话框
 const toggleAllCloudModels = async (newValue) => {
   console.log('toggleAllCloudModels', newValue)
-  
+
   // 保存待切换的值并显示确认对话框
   pendingSwitchValue.value = newValue
   showSwitchConfirmDialog.value = true
@@ -2821,14 +2872,14 @@ const executeModelSwitch = async (newValue) => {
   console.log('executeModelSwitch', newValue)
 
   // 重置进度状态
-  restartProgress.value.forEach(step => step.status = 'pending')
+  restartProgress.value.forEach((step) => (step.status = 'pending'))
   isRestarting.value = true
   showRestartDialog.value = true
-  
+
   try {
     // 步骤1: 修改配置
     restartProgress.value[0].status = 'running'
-    
+
     // 1. 更新config.custom中的模型
     Object.values(config.custom).forEach((cfg) => {
       if (cfg.api && cfg.api.trim()) {
@@ -2856,10 +2907,10 @@ const executeModelSwitch = async (newValue) => {
     // 5. 保存配置
     await updateFmConfig(fmConfig)
     await updateConfig(config)
-    
+
     restartProgress.value[0].status = 'completed'
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
     // 步骤2: 停止核心服务
     restartProgress.value[1].status = 'running'
     try {
@@ -2869,8 +2920,8 @@ const executeModelSwitch = async (newValue) => {
       console.warn('停止核心服务失败，可能已经停止:', error)
       restartProgress.value[1].status = 'completed'
     }
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
     // 步骤3: 停止索引服务
     restartProgress.value[2].status = 'running'
     try {
@@ -2880,8 +2931,8 @@ const executeModelSwitch = async (newValue) => {
       console.warn('停止索引服务失败，可能已经停止:', error)
       restartProgress.value[2].status = 'completed'
     }
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
     // 步骤4: 启动核心服务
     restartProgress.value[3].status = 'running'
     const sysConfigResp = await window.electron.sysConfig()
@@ -2891,8 +2942,8 @@ const executeModelSwitch = async (newValue) => {
     } else {
       throw new Error('启动核心服务失败')
     }
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
     // 步骤5: 启动索引服务
     restartProgress.value[4].status = 'running'
     const fmConfigResp = await window.electron.fmConfig()
@@ -2902,24 +2953,23 @@ const executeModelSwitch = async (newValue) => {
     } else {
       throw new Error('启动索引服务失败')
     }
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
     // 步骤6: 完成
     restartProgress.value[5].status = 'completed'
-    
+
     store.dispatch('snackbar/showSnackbar', {
       message: `${newValue ? '云端模型' : '本地模型'}模式切换完成，服务已重启`,
       color: 'success'
     })
-    
   } catch (error) {
     console.error('切换模型模式失败:', error)
     // 标记当前步骤为失败
-    const currentStepIndex = restartProgress.value.findIndex(step => step.status === 'running')
+    const currentStepIndex = restartProgress.value.findIndex((step) => step.status === 'running')
     if (currentStepIndex !== -1) {
       restartProgress.value[currentStepIndex].status = 'error'
     }
-    
+
     store.dispatch('snackbar/showSnackbar', {
       message: '切换模型模式失败，请检查服务状态',
       color: 'error'
@@ -3050,7 +3100,8 @@ onMounted(async () => {
 }
 /* —— 新增：为底部导航留出空间 —— */
 .bottom-nav-padding {
-  padding-bottom: 56px;
+  padding-bottom: 120px; /* 增加底部间距，确保内容不被底部导航遮挡 */
+  margin-bottom: 20px; /* 额外的底部边距 */
 }
 
 /* —— 原有样式保持不变 —— */
@@ -3086,5 +3137,16 @@ onMounted(async () => {
 .env-card-compact {
   margin: 8px 0;
   border-radius: 8px;
+}
+@media (min-width: 1280px) {
+  .v-container {
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 960px) {
+  .v-container {
+    max-width: 1900px;
+  }
 }
 </style>
