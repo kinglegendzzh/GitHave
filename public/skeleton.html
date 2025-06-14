@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Loading...</title>
+  <title>GitHave - 启动中...</title>
   <style>
     /* 浅色模式（默认） */
     body {
@@ -13,37 +13,158 @@
       justify-content: center;
       flex-direction: column;
       min-height: 100vh;
-      background-color: #fff;
-      color: #000;
-      transition: background-color 0.3s ease, color 0.3s ease;
-      font-family: sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      transition: all 0.3s ease;
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      position: relative;
     }
+
     /* 深色模式 */
     @media (prefers-color-scheme: dark) {
       body {
-        background-color: #111;
-        color: #fff;
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        color: #ecf0f1;
       }
+    }
+
+    /* 背景动画粒子 */
+    .particles {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      animation: float 6s infinite ease-in-out;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { transform: translateY(-100vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* 主容器 */
+    .main-container {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 100vh;
+      padding: 200px;
+      box-sizing: border-box;
+    }
+
+    /* 品牌Logo区域 */
+    .brand-section {
+      margin-bottom: 20px;
+      animation: brandFadeIn 1.5s ease-out;
+    }
+
+    .brand-logo {
+      width: 100px;
+      height: 100px;
+      margin-bottom: 15px;
+      filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
+      animation: logoFloat 3s ease-in-out infinite;
+    }
+
+    .brand-title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin: 0;
+      background: linear-gradient(45deg, #fff, #f0f8ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-subtitle {
+      font-size: 1rem;
+      opacity: 0.9;
+      margin: 8px 0 0 0;
+      font-weight: 300;
+    }
+
+    @keyframes brandFadeIn {
+      0% { opacity: 0; transform: translateY(30px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-10px) rotate(5deg); }
+    }
+
+    /* 加载动画区域 */
+    .loading-section {
+      margin: 20px 0;
     }
 
     /* SVG 样式 */
     #hole {
-      margin-top: 1px;
-      width: 5%;
+      margin: 0 auto 15px auto;
+      width: 70px;
       height: auto;
       overflow: visible;
       transform: perspective(900px) rotateX(45deg);
+      filter: drop-shadow(0 500px 15px rgba(0, 0, 0, 0.3));
+      display: block;
+    }
+
+    /* 进度条样式 */
+    .progress-container {
+      width: 200px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 2px;
+      margin: 15px 0;
+      overflow: hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #7BDCB5, #00d4ff);
+      border-radius: 2px;
+      animation: progressLoad 3s ease-in-out infinite;
+      box-shadow: 0 0 10px rgba(123, 220, 181, 0.5);
+    }
+
+    @keyframes progressLoad {
+      0% { width: 0%; }
+      50% { width: 70%; }
+      100% { width: 100%; }
     }
 
     .loading-text {
-      margin-top: 16px;
-      font-size: 0.7rem;
+      margin-top: 10px;
+      font-size: 0.9rem;
       text-align: center;
+      font-weight: 400;
       /* 初始样式 */
       opacity: 0;
       transform: scale(0.8);
       /* 循环播放动画 */
       animation: fadeInBounceLoop 3s infinite;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 
     /* 定义循环播放的文字动画 */
@@ -54,10 +175,10 @@
       }
       30% {
         opacity: 1;
-        transform: scale(1.1);
+        transform: scale(1.05);
       }
       50% {
-        transform: scale(0.95);
+        transform: scale(0.98);
       }
       70% {
         transform: scale(1);
@@ -68,158 +189,186 @@
         transform: scale(0.8);
       }
     }
+
+    /* 跳动圆点样式优化 */
+    .dots-container {
+      margin: 15px auto;
+      display: block;
+    }
+
+    .dots-container circle {
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    }
   </style>
 </head>
 <body>
-<svg id="hole" viewBox="0 0 40 300">
-  <!-- 定义渐变 -->
-  <defs>
-    <radialGradient id="holeGradient" cx="50%" cy="50%" r="60%">
-      <!-- 从中心深黑，到边缘较浅 -->
-      <stop offset="0%" stop-color="#000" />
-      <stop offset="100%" stop-color="#333" />
-    </radialGradient>
-  </defs>
+<!-- 背景粒子效果 -->
+<div class="particles"></div>
 
-  <!-- 整个场景容器，用于整体旋转 -->
-  <g id="scene" transform="translate(150,150)">
-    <!-- 三角形窟窿，使用渐变填充 -->
-    <polygon
-      id="hole"
-      points="0,-60 -50,50 50,50"
-      fill="url(#holeGradient)" />
+<!-- 主容器 -->
+<div class="main-container">
+  <!-- 品牌区域 -->
+  <div class="brand-section">
+    <img src="banner.svg" alt="GitHave Logo" class="brand-logo">
+    <h1 class="brand-title">GitHave</h1>
+    <p class="brand-subtitle">开源代码仓库AI助理</p>
+  </div>
+    <!-- 加载动画区域 -->
+  <div class="loading-section">
+    <div>
+      <svg id="hole" viewBox="-50 0 80 150">
+        <!-- 定义渐变 -->
+        <defs>
+          <radialGradient id="holeGradient" cx="50%" cy="50%" r="60%">
+            <!-- 从中心深黑，到边缘较浅 -->
+            <stop offset="0%" stop-color="#000" />
+            <stop offset="100%" stop-color="#333" />
+          </radialGradient>
+        </defs>
 
-    <!-- 扳手 -->
-    <path
-      fill="#666"
-      d="M1,-6 L3,-6 L4,-4 L3,-2 L4,-1 L2,1 L1,2 L-1,2 L-2,1 L-4,-1 L-3,-2 L-4,-4 L-3,-6 L-1,-6 Z"
-    >
-      <animateTransform
-        attributeName="transform"
-        type="translate"
-        from="0 -120"
-        to="0 50"
-        begin="0s"
-        dur="2.5s"
-        repeatCount="indefinite"
-      />
-      <animate
-        attributeName="opacity"
-        values="1;1;1;0"
-        keyTimes="0;0.7;0.8;1"
-        dur="2.5s"
-        repeatCount="indefinite"
-      />
-    </path>
+        <!-- 整个场景容器，用于整体旋转 -->
+        <g id="scene" transform="translate(150,150)">
+          <!-- 三角形窟窿，使用渐变填充 -->
+          <polygon
+            id="hole"
+            points="0,-60 -50,50 50,50"
+            fill="url(#holeGradient)" />
 
-    <!-- 工具箱 -->
-    <path
-      fill="#666"
-      d="M-5,-5 h10 v5 h-10 z M-3,-10 h6 v5 h-6 z"
-    >
-      <animateTransform
-        attributeName="transform"
-        type="translate"
-        from="-50 -120"
-        to="-20 50"
-        begin="1s"
-        dur="2.5s"
-        repeatCount="indefinite"
-      />
-      <animate
-        attributeName="opacity"
-        values="1;1;1;0"
-        keyTimes="0;0.7;0.8;1"
-        dur="2.5s"
-        begin="1s"
-        repeatCount="indefinite"
-      />
-    </path>
+          <!-- 扳手 -->
+          <path
+            fill="#666"
+            d="M1,-6 L3,-6 L4,-4 L3,-2 L4,-1 L2,1 L1,2 L-1,2 L-2,1 L-4,-1 L-3,-2 L-4,-4 L-3,-6 L-1,-6 Z"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              from="0 -120"
+              to="0 50"
+              begin="0s"
+              dur="2.5s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="1;1;1;0"
+              keyTimes="0;0.7;0.8;1"
+              dur="2.5s"
+              repeatCount="indefinite"
+            />
+          </path>
 
-    <!-- 背包 -->
-    <path
-      fill="#666"
-      d="M-6,-4 C-8,-10 8,-10 6,-4 v4 h-12 v-4 z"
-    >
-      <animateTransform
-        attributeName="transform"
-        type="translate"
-        from="40 -120"
-        to="15 50"
-        begin="2s"
-        dur="2.5s"
-        repeatCount="indefinite"
-      />
-      <animate
-        attributeName="opacity"
-        values="1;1;1;0"
-        keyTimes="0;0.7;0.8;1"
-        dur="2.5s"
-        begin="2s"
-        repeatCount="indefinite"
-      />
-    </path>
+          <!-- 工具箱 -->
+          <path
+            fill="#666"
+            d="M-5,-5 h10 v5 h-10 z M-3,-10 h6 v5 h-6 z"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              from="-50 -120"
+              to="-20 50"
+              begin="1s"
+              dur="2.5s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="1;1;1;0"
+              keyTimes="0;0.7;0.8;1"
+              dur="2.5s"
+              begin="1s"
+              repeatCount="indefinite"
+            />
+          </path>
 
-    <!-- 场景旋转动画：以黑色窟窿为轴心旋转 -->
-    <animateTransform
-      attributeName="transform"
-      attributeType="XML"
-      type="rotate"
-      from="0 0 0"
-      to="360 0 0"
-      dur="10s"
-      repeatCount="indefinite"
-    />
-  </g>
-</svg>
+          <!-- 背包 -->
+          <path
+            fill="#666"
+            d="M-6,-4 C-8,-10 8,-10 6,-4 v4 h-12 v-4 z"
+          >
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              from="40 -120"
+              to="15 50"
+              begin="2s"
+              dur="2.5s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="1;1;1;0"
+              keyTimes="0;0.7;0.8;1"
+              dur="2.5s"
+              begin="2s"
+              repeatCount="indefinite"
+            />
+          </path>
 
-<svg
-  width="80"
-  height="30"
-  viewBox="0 0 80 30"
-  fill="none"
-  xmlns="http://www.w3.org/2000/svg"
->
-  <!-- 第一个圆点 -->
-  <circle cx="10" cy="15" r="5" fill="#333">
-    <animateTransform
-      attributeName="transform"
-      type="translate"
-      values="0,0; 0,-8; 0,0"
-      begin="0s"
-      dur="0.6s"
-      repeatCount="indefinite"
-    />
-  </circle>
+          <!-- 场景旋转动画：以黑色窟窿为轴心旋转 -->
+          <animateTransform
+            attributeName="transform"
+            attributeType="XML"
+            type="rotate"
+            from="0 0 0"
+            to="360 0 0"
+            dur="10s"
+            repeatCount="indefinite"
+          />
+        </g>
+      </svg>
+      <!-- 跳动圆点 -->
+      <svg
+        class="dots-container"
+        width="80"
+        height="30"
+        viewBox="0 0 80 30"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <!-- 第一个圆点 -->
+        <circle cx="10" cy="15" r="5" fill="#fff">
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values="0,0; 0,-8; 0,0"
+            begin="0s"
+            dur="0.6s"
+            repeatCount="indefinite"
+          />
+        </circle>
 
-  <!-- 第二个圆点 -->
-  <circle cx="30" cy="15" r="5" fill="#333">
-    <animateTransform
-      attributeName="transform"
-      type="translate"
-      values="0,0; 0,-8; 0,0"
-      begin="0.2s"
-      dur="0.6s"
-      repeatCount="indefinite"
-    />
-  </circle>
+        <!-- 第二个圆点 -->
+        <circle cx="30" cy="15" r="5" fill="#fff">
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values="0,0; 0,-8; 0,0"
+            begin="0.2s"
+            dur="0.6s"
+            repeatCount="indefinite"
+          />
+        </circle>
 
-  <!-- 第三个圆点 -->
-  <circle cx="50" cy="15" r="5" fill="#333">
-    <animateTransform
-      attributeName="transform"
-      type="translate"
-      values="0,0; 0,-8; 0,0"
-      begin="0.4s"
-      dur="0.6s"
-      repeatCount="indefinite"
-    />
-  </circle>
-</svg>
+        <!-- 第三个圆点 -->
+        <circle cx="50" cy="15" r="5" fill="#fff">
+          <animateTransform
+            attributeName="transform"
+            type="translate"
+            values="0,0; 0,-8; 0,0"
+            begin="0.4s"
+            dur="0.6s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      </svg>
 
-<p class="loading-text" id="descText">
-  启动中...
-</p>
+    </div>
+    <p class="loading-text" id="descText">
+      启动中...
+    </p>
+  </div>
+</div>
 
 <script>
   // 获取 URL 中的 query 参数 "desc"，如果有则更新提示文字
@@ -228,6 +377,45 @@
   if (desc) {
     document.getElementById('descText').innerText = desc;
   }
+
+  // 创建背景粒子
+  function createParticles() {
+    const particlesContainer = document.querySelector('.particles');
+    const particleCount = 30;
+
+    for (let i = 0; i < particleCount; i++) {
+      const particle = document.createElement('div');
+      particle.classList.add('particle');
+
+      // 随机位置
+      const posX = Math.random() * 100;
+      const posY = Math.random() * 100;
+      particle.style.left = `${posX}%`;
+      particle.style.top = `${posY}%`;
+
+      // 随机大小
+      const size = Math.random() * 4 + 2;
+      particle.style.width = `${size}px`;
+      particle.style.height = `${size}px`;
+
+      // 随机透明度
+      const opacity = Math.random() * 0.5 + 0.3;
+      particle.style.opacity = opacity;
+
+      // 随机动画延迟
+      const delay = Math.random() * 5;
+      particle.style.animationDelay = `${delay}s`;
+
+      // 随机动画持续时间
+      const duration = Math.random() * 10 + 5;
+      particle.style.animationDuration = `${duration}s`;
+
+      particlesContainer.appendChild(particle);
+    }
+  }
+
+  // 页面加载完成后创建粒子
+  window.addEventListener('DOMContentLoaded', createParticles);
 </script>
 </body>
 </html>
