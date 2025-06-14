@@ -185,6 +185,14 @@ const api = {
   // 在 writeConfig 旁边添加
   saveFile: async (filePath, data) => await ipcRenderer.invoke('save-file', filePath, data),
 
+  // 文件操作接口
+  createDirectory: async (dirPath) => await ipcRenderer.invoke('create-directory', dirPath),
+  deleteFile: async (filePath) => await ipcRenderer.invoke('delete-file', filePath),
+  copyFile: async (sourcePath, targetPath) => await ipcRenderer.invoke('copy-file', sourcePath, targetPath),
+  moveFile: async (sourcePath, targetPath) => await ipcRenderer.invoke('move-file', sourcePath, targetPath),
+  showItemInFolder: async (filePath) => await ipcRenderer.invoke('show-item-in-folder', filePath),
+  showMessageBox: async (options) => await ipcRenderer.invoke('show-message-box', options),
+
   // 启动 fm_http 进程
   startFmHttp: async (configPath) => {
     try {
@@ -226,6 +234,76 @@ const api = {
   },
   checkGitIPC: async () => {
     return await ipcRenderer.invoke('checkGitIPC')
+  },
+
+  // Terminal IPC methods
+  terminalInit: (options) => ipcRenderer.invoke('terminal-init', options),
+  terminalWrite: (data) => ipcRenderer.invoke('terminal-write', data),
+  terminalResize: (size) => ipcRenderer.invoke('terminal-resize', size),
+  onTerminalOutput: (callback) => {
+    ipcRenderer.on('terminal-data', (event, data) => callback(data))
+  },
+  removeTerminalOutputListener: () => {
+    ipcRenderer.removeAllListeners('terminal-data')
+  },
+  terminalDestroy: (terminalId) => ipcRenderer.invoke('terminal-destroy', { terminalId }),
+  onTerminalExit: (callback) => {
+    ipcRenderer.on('terminal-exit', (event, data) => callback(data))
+  },
+
+  // Git command IPC method
+  gitCommand: (options) => ipcRenderer.invoke('git-command', options),
+
+  // Execute command IPC method
+  executeCommand: async (command) => {
+    try {
+      const result = await ipcRenderer.invoke('execute-command', command)
+      return result
+    } catch (error) {
+      console.error('[preload.js] execute-command error:', error)
+      throw error
+    }
+  },
+
+  // 网络速度监控相关API
+  getNetworkSpeed: async () => {
+    try {
+      const result = await ipcRenderer.invoke('get-network-speed')
+      return result
+    } catch (error) {
+      console.error('[preload.js] get-network-speed error:', error)
+      throw error
+    }
+  },
+
+  startNetworkMonitor: async () => {
+    try {
+      const result = await ipcRenderer.invoke('start-network-monitor')
+      return result
+    } catch (error) {
+      console.error('[preload.js] start-network-monitor error:', error)
+      throw error
+    }
+  },
+
+  stopNetworkMonitor: async () => {
+    try {
+      const result = await ipcRenderer.invoke('stop-network-monitor')
+      return result
+    } catch (error) {
+      console.error('[preload.js] stop-network-monitor error:', error)
+      throw error
+    }
+  },
+
+  // 监听网络速度更新事件
+  onNetworkSpeedUpdate: (callback) => {
+    ipcRenderer.on('network-speed-update', (event, data) => callback(data))
+  },
+
+  // 移除网络速度更新监听器
+  removeNetworkSpeedListener: () => {
+    ipcRenderer.removeAllListeners('network-speed-update')
   },
 
   getStaticFileList: (dirPath, subPath, isDir) =>
