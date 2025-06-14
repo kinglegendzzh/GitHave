@@ -15,6 +15,13 @@
           </span>
           仓库的代码
         </h2>
+        <div
+          v-tooltip="'有异常？点我重置索引'"
+          class="reset-index-icon-container"
+          @click="handleResetIndex"
+        >
+          <v-icon color="grey" icon="mdi-backspace-outline" class="reset-index-icon"></v-icon>
+        </div>
         <div v-if="dropdownOpen" class="repo-dropdown">
           <div
             v-for="(repo, index) in repositories"
@@ -34,25 +41,54 @@
       <!-- 搜索类型选择 -->
       <div class="search-type-selector" :class="{ animate: true }">
         <v-btn-toggle v-model="searchType" mandatory class="type-toggle" rounded elevation="0">
-          <v-btn value="semantic" class="type-btn"> 语义搜索 </v-btn>
-          <v-btn value="keyword" class="type-btn"> 关键词搜索 </v-btn>
-          <v-btn value="hybrid" class="type-btn"> 混合搜索 </v-btn>
+          <v-btn value="hybrid" class="type-btn"> 混合增强搜索 </v-btn>
+          <v-btn value="keyword" class="type-btn"> 意图精确搜索 </v-btn>
+          <v-btn value="semantic" class="type-btn"> 语义向量检索 </v-btn>
         </v-btn-toggle>
       </div>
 
       <div class="search-input-container">
+        <!-- 严格模式开关 - 紧凑版 -->
+        <div
+          v-tooltip="'【即将上线】严格模式：使用更精确的匹配算法，减少误匹配但可能降低召回率'"
+          class="strict-mode-compact"
+        >
+          <v-icon
+            :color="strictMode ? 'primary' : 'grey'"
+            size="small"
+            class="strict-mode-icon-compact"
+          >
+            mdi-shield-check
+          </v-icon>
+          <v-switch
+            v-model="strictMode"
+            color="primary"
+            density="compact"
+            hide-details
+            class="strict-mode-switch-compact"
+            :ripple="false"
+            :disabled="true"
+          ></v-switch>
+        </div>
+
         <div class="search-input-wrapper">
-          <input
+          <textarea
             ref="searchInput"
             v-model="searchQuery"
-            type="text"
             class="search-input"
             :placeholder="placeholderText"
+            rows="1"
             @focus="handleFocus"
             @blur="handleBlur"
-          />
-          <div class="reset-index-icon-container" v-tooltip="'有异常？点我重置索引'" @click="handleResetIndex">
-            <v-icon color="grey" icon="mdi-help-circle-outline" class="reset-index-icon"></v-icon>
+            @keydown="handleKeydown"
+          ></textarea>
+          <div
+            v-if="searchQuery"
+            v-tooltip="'清除搜索内容'"
+            class="clear-icon-container"
+            @click="clearSearch"
+          >
+            <v-icon color="grey" icon="mdi-close-circle" class="clear-icon"></v-icon>
           </div>
           <div class="search-icon-container">
             <v-icon
@@ -71,15 +107,25 @@
           </div>
         </div>
         <v-btn
-          class="search-button"
+          class="search-button mr-0 pr-0"
           elevation="0"
           :disabled="isSearching"
           :class="{ pulse: isSearching }"
           @click="handleSearch"
         >
-          <v-icon>mdi-keyboard-return</v-icon>
-          {{ isSearching ? '正在搜索...' : '' }}
+          <span v-if="isSearching" class="mr-2" style="color: grey">正在搜索...</span>
+          <span v-else>
+            <v-icon class="mr-2" color="grey">mdi-keyboard-return</v-icon>
+          </span>
         </v-btn>
+
+        <div
+          v-tooltip="'不知道怎么问？点我获取提示'"
+          class="search-button ml-0 pl-0"
+          @click="showHelpDialog"
+        >
+          <v-icon color="primary" icon="mdi-lightbulb-outline" class="help-icon"></v-icon>
+        </div>
       </div>
 
       <!-- 猜你所想 标签区 -->
@@ -116,11 +162,12 @@
 
       <v-dialog
         v-model="dialog"
-        max-width="800"
+        max-width="1200"
+        max-height="90vh"
         transition="fade-transition"
         overlay-color="rgba(0, 0, 0, 0.5)"
       >
-        <v-card class="pa-4" :style="{ 'min-height': '80vh' }">
+        <v-card class="pa-4 pt-2 pb-2 pl-2 pr-2" :style="{ 'min-height': '80vh' }">
           <v-card-title class="headline">
             <v-btn icon color="primary" variant="text" @click="viewFileDetails">
               <v-icon right>mdi-open-in-new</v-icon>
@@ -129,6 +176,12 @@
             <span style="white-space: nowrap; overflow: visible; text-overflow: clip">
               {{ selectedResult.file }}
             </span>
+            <!-- Header -->
+            <div style="position: absolute; top: 12px; right: 16px; z-index: 10">
+              <v-btn size="small" class="text-gray-500 hover:text-gray-800" @click="dialog = false">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </div>
           </v-card-title>
           <v-card-text>
             <div v-if="selectedResult.isJsonDesc" class="detail-section">
@@ -167,6 +220,78 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
+
+      <!-- 虚拟助手对话窗口 -->
+      <v-dialog
+        v-model="helpDialog"
+        max-width="500"
+        transition="slide-x-transition"
+        overlay-color="rgba(0, 0, 0, 0.3)"
+        :style="{ position: 'fixed', right: '20px', top: '50%', transform: 'translateY(-50%)' }"
+      >
+        <v-card class="help-dialog-card" elevation="8">
+          <v-card-title class="help-dialog-title">
+            <v-icon color="primary" class="mr-2">mdi-robot-happy</v-icon>
+            搜索助手
+            <v-spacer></v-spacer>
+            <!-- Header -->
+            <div style="position: absolute; top: 12px; right: 16px; z-index: 10">
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                class="text-gray-500 hover:text-gray-800"
+                @click="closeHelpDialog"
+              >
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+            </div>
+          </v-card-title>
+
+          <v-card-text class="help-dialog-content">
+            <div class="assistant-message">
+              <div class="message-avatar">
+                <v-icon color="primary">mdi-robot</v-icon>
+              </div>
+              <div class="message-content">
+                <p class="greeting-text">👋 不知道怎么问？试试这些搜索示例：</p>
+
+                <div class="example-list">
+                  <div
+                    v-for="(example, index) in searchExamples"
+                    :key="index"
+                    class="example-item"
+                    :style="{ animationDelay: index * 0.1 + 's' }"
+                    @click="useExample(example.query)"
+                  >
+                    <v-icon size="small" color="primary" class="example-icon">{{
+                      example.icon
+                    }}</v-icon>
+                    <div class="example-text">
+                      <div class="example-title">{{ example.title }}</div>
+                      <div class="example-query">"{{ example.query }}"</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="tips-section">
+                  <p class="tips-title">💡 搜索小贴士：</p>
+                  <ul class="tips-list">
+                    <li>描述你想要的功能，而不是具体的代码</li>
+                    <li>可以使用自然语言描述业务场景</li>
+                    <li>尝试不同的搜索类型获得更好的结果</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </v-card-text>
+
+          <v-card-actions class="help-dialog-actions">
+            <v-spacer></v-spacer>
+            <v-btn text color="grey" @click="closeHelpDialog">知道了</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </div>
   </v-container>
 </template>
@@ -196,8 +321,44 @@ export default {
       searchResults: [],
       dialog: false,
       selectedResult: {},
-      searchType: 'semantic',
-      tags: []
+      searchType: 'hybrid',
+      strictMode: false,
+      tags: [],
+      helpDialog: false,
+      inactivityTimer: null,
+      lastActivityTime: Date.now(),
+      searchExamples: [
+        {
+          title: '资源管理',
+          query: '我要查找关于资源操作的代码片段，可以支持对资源进行自动退订续订操作',
+          icon: 'mdi-cog'
+        },
+        {
+          title: 'AI模型调用',
+          query: '关于调用openai大模型的工具函数',
+          icon: 'mdi-brain'
+        },
+        {
+          title: '图形渲染',
+          query: '查找关于使用opengl核心方法实现投影矩阵的代码',
+          icon: 'mdi-cube-outline'
+        },
+        {
+          title: '数据库操作',
+          query: '数据库连接池管理和事务处理的相关代码',
+          icon: 'mdi-database'
+        },
+        {
+          title: '网络请求',
+          query: 'HTTP客户端封装和异步请求处理的实现',
+          icon: 'mdi-web'
+        },
+        {
+          title: '文件处理',
+          query: '文件上传下载和批量处理的功能模块',
+          icon: 'mdi-file-multiple'
+        }
+      ]
     }
   },
   computed: {
@@ -215,6 +376,12 @@ export default {
       }
     }
   },
+  watch: {
+    // 监听严格模式变化，自动保存到localStorage
+    strictMode(newValue) {
+      this.saveStrictModePreference()
+    }
+  },
   mounted() {
     // 全局监听键盘
     window.addEventListener('keydown', this.onKeydown)
@@ -223,7 +390,12 @@ export default {
       if (this.$refs.searchInput) {
         this.$refs.searchInput.focus()
       }
+      this.adjustTextareaHeight()
     })
+    // 初始化用户活动监听
+    this.initActivityTracking()
+    // 从localStorage读取严格模式设置
+    this.loadStrictModePreference()
   },
   activated() {
     // keep-alive组件被激活时重新添加监听器
@@ -241,11 +413,15 @@ export default {
     window.removeEventListener('keydown', this.onKeydown)
     // 移除document点击监听器
     document.removeEventListener('click', this.closeDropdownOnClickOutside)
+    // 清理非活动计时器 - 方法已被注释，暂时移除调用
+    // this.clearInactivityTimer()
+    // 移除用户活动监听
+    this.removeActivityTracking()
   },
   created() {
     console.log('DeepSearch created')
     this.listRepos()
-    
+
     // 使用路由守卫监听路由离开事件
     onBeforeRouteLeave((to, from, next) => {
       // 路由离开时清理所有监听器
@@ -255,14 +431,38 @@ export default {
     })
   },
   methods: {
+    // 从localStorage加载严格模式偏好
+    loadStrictModePreference() {
+      try {
+        const savedStrictMode = localStorage.getItem('deepSearchStrictMode')
+        if (savedStrictMode !== null) {
+          this.strictMode = JSON.parse(savedStrictMode)
+          console.log('已加载严格模式偏好:', this.strictMode)
+        }
+      } catch (error) {
+        console.warn('加载严格模式偏好失败:', error)
+        this.strictMode = false
+      }
+    },
+    // 保存严格模式偏好到localStorage
+    saveStrictModePreference() {
+      try {
+        localStorage.setItem('deepSearchStrictMode', JSON.stringify(this.strictMode))
+        console.log('已保存严格模式偏好:', this.strictMode)
+      } catch (error) {
+        console.warn('保存严格模式偏好失败:', error)
+      }
+    },
     listRepos() {
       listRepos().then(async (res) => {
         if (res.status === 200 && res.data.length > 0) {
           // 按id降序排序
           const sortedData = res.data.sort((a, b) => b.id - a.id)
-          
+
           for (const repo of sortedData) {
-            const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(repo.local_path)
+            const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(
+              repo.local_path
+            )
             if (hasDb && !indexing) {
               repo.tag = 'yes'
               repo.tag_label = ''
@@ -297,11 +497,11 @@ export default {
     },
     viewFileDetails() {
       console.log('viewFileDetails', this.selectedRepo.local_path, this.selectedResult.file)
-      const url = `${this.selectedRepo.local_path}/${this.selectedResult.file}`
+      const url = path.join(this.selectedRepo.local_path, this.selectedResult.file)
       console.log('跳转到文件浏览器页面，文件路径：', url)
       router.push({
         name: 'finder',
-        params: { localPath: url, forceDeep: true, forceReplace: 'true' }
+        params: { localPath: url, rootPath: this.selectedRepo.local_path }
       })
       this.dialog = false
     },
@@ -311,15 +511,6 @@ export default {
       return hljs.highlight(code, { language: validLang }).value
     },
     onKeydown(event) {
-      // 回车键触发搜索
-      if (event.key === 'Enter') {
-        this.$nextTick(() => {
-          if (this.$refs.searchInput) {
-            this.$refs.searchInput.focus()
-          }
-        })
-        this.handleSearch()
-      }
       // Cmd + 1/2/3 切换搜索类型
       if (event.metaKey) {
         if (
@@ -336,13 +527,13 @@ export default {
               this.$refs.searchInput.focus()
             }
           })
-        } else if (event.key === '1') {
+        } else if (event.key === '3') {
           console.log('切换搜索类型为语义搜索')
           this.searchType = 'semantic'
         } else if (event.key === '2') {
           console.log('切换搜索类型为关键词搜索')
           this.searchType = 'keyword'
-        } else if (event.key === '3') {
+        } else if (event.key === '1') {
           console.log('切换搜索类型为混合搜索')
           this.searchType = 'hybrid'
         }
@@ -365,7 +556,8 @@ export default {
             this.selectedRepo.local_path,
             this.searchQuery,
             this.searchType, // 使用动态搜索类型
-            30
+            50,
+            this.strictMode // 传递严格模式参数
           )
           this.isSearching = false
           if (res.status === 200 && res.data.code === 0) {
@@ -383,21 +575,14 @@ export default {
 
               try {
                 const obj = JSON.parse(item.description)
-                if (
-                  obj &&
-                  typeof obj === 'object' &&
-                  'description' in obj
-                ) {
+                if (obj && typeof obj === 'object' && 'description' in obj) {
                   // 不管process是数组还是对象都支持
                   isJson = true
                   descSummary = obj.description
                   parsedDescription = descSummary
                   // 如果是数组直接使用，如果是对象则包装成数组
-                  processList = Array.isArray(obj.process)
-                    ? obj.process
-                    : [obj.process]
+                  processList = Array.isArray(obj.process) ? obj.process : [obj.process]
                 }
-                // eslint-disable-next-line no-unused-vars
               } catch (e) {
                 console.log('解析 JSON 失败:', e)
                 /* empty */
@@ -452,6 +637,60 @@ export default {
     handleBlur() {
       this.isFocused = false
     },
+    clearSearch() {
+      this.searchQuery = ''
+      this.searchResults = []
+      this.tags = []
+      this.$nextTick(() => {
+        if (this.$refs.searchInput) {
+          this.$refs.searchInput.focus()
+          this.adjustTextareaHeight()
+        }
+      })
+    },
+    handleKeydown(event) {
+      // Enter键触发搜索
+      if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault()
+        this.handleSearch()
+        return
+      }
+
+      // Cmd+Enter (Mac) 或 Ctrl+Enter (Windows/Linux) 换行
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault()
+        // 在光标位置插入换行符
+        const textarea = event.target
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const value = textarea.value
+        this.searchQuery = value.substring(0, start) + '\n' + value.substring(end)
+
+        // 恢复光标位置
+        this.$nextTick(() => {
+          textarea.selectionStart = textarea.selectionEnd = start + 1
+          this.adjustTextareaHeight()
+        })
+        return
+      }
+
+      // 自动调整textarea高度
+      this.$nextTick(() => {
+        this.adjustTextareaHeight()
+      })
+    },
+    adjustTextareaHeight() {
+      const textarea = this.$refs.searchInput
+      if (textarea) {
+        // 重置高度以获取正确的scrollHeight
+        textarea.style.height = 'auto'
+        // 设置最小高度为60px，最大高度为200px
+        const minHeight = 60
+        const maxHeight = 200
+        const scrollHeight = Math.max(minHeight, Math.min(maxHeight, textarea.scrollHeight))
+        textarea.style.height = scrollHeight + 'px'
+      }
+    },
     toggleRepoDropdown() {
       this.dropdownOpen = !this.dropdownOpen
       if (this.dropdownOpen) {
@@ -485,13 +724,15 @@ export default {
         return
       }
 
-      if (window.confirm(`确定要重置 ${this.selectedRepo.show} 的索引吗？
-      (重置不会删除你的索引内容。)`)) {
+      if (
+        window.confirm(`确定要重置 ${this.selectedRepo.show} 的索引吗？
+      (重置不会删除你的索引内容。)`)
+      ) {
         try {
           this.isSearching = true
           const res = await resetIndexApi(this.selectedRepo.local_path)
           this.isSearching = false
-          
+
           if (res.status === 200) {
             window.alert('索引重置成功。')
             // 刷新仓库状态
@@ -505,7 +746,61 @@ export default {
           window.alert('重置索引出错，请稍后再试。')
         }
       }
+    },
+    // 虚拟助手对话窗口相关方法
+    showHelpDialog() {
+      this.helpDialog = true
+      // this.resetInactivityTimer()
+    },
+    closeHelpDialog() {
+      this.helpDialog = false
+      // this.resetInactivityTimer()
+    },
+    useExample(query) {
+      this.searchQuery = query
+      this.helpDialog = false
+      this.$nextTick(() => {
+        if (this.$refs.searchInput) {
+          this.$refs.searchInput.focus()
+        }
+      })
+      // this.resetInactivityTimer()
+    },
+    // 用户活动跟踪相关方法
+    initActivityTracking() {
+      // 监听各种用户活动
+      const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+      events.forEach((event) => {
+        document.addEventListener(event, this.onUserActivity, true)
+      })
+      // 启动非活动计时器
+      // this.resetInactivityTimer()
+    },
+    removeActivityTracking() {
+      const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+      events.forEach((event) => {
+        document.removeEventListener(event, this.onUserActivity, true)
+      })
     }
+    // onUserActivity() {
+    //   this.lastActivityTime = Date.now()
+    //   this.resetInactivityTimer()
+    // },
+    // resetInactivityTimer() {
+    //   this.clearInactivityTimer()
+    //   // 30秒无操作后显示帮助对话框
+    //   this.inactivityTimer = setTimeout(() => {
+    //     if (!this.helpDialog && !this.dialog && !this.dropdownOpen) {
+    //       this.showHelpDialog()
+    //     }
+    //   }, 30000) // 30秒
+    // },
+    // clearInactivityTimer() {
+    //   if (this.inactivityTimer) {
+    //     clearTimeout(this.inactivityTimer)
+    //     this.inactivityTimer = null
+    //   }
+    // }
   }
 }
 </script>
@@ -516,7 +811,7 @@ export default {
 }
 .search-container {
   width: 100%;
-  max-width: 800px;
+  max-width: 1800px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -524,7 +819,9 @@ export default {
 }
 
 .search-header {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 12px;
   animation: slideDown 0.5s ease-out;
   position: relative;
@@ -618,8 +915,9 @@ export default {
 
 .search-input {
   width: 100%;
-  height: 60px;
-  padding: 0 60px 0 24px;
+  min-height: 60px;
+  max-height: 200px;
+  padding: 18px 90px 18px 24px;
   background: transparent;
   border: none;
   outline: none;
@@ -627,6 +925,10 @@ export default {
   font-weight: 400;
   letter-spacing: 0.01em;
   color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  resize: none;
+  line-height: 1.4;
+  font-family: inherit;
+  overflow-y: auto;
 }
 
 .search-input::placeholder {
@@ -636,6 +938,56 @@ export default {
 
 .search-input:focus::placeholder {
   opacity: 0.7;
+}
+
+.clear-icon-container {
+  position: absolute;
+  right: 80px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  z-index: 2;
+  opacity: 0.7;
+}
+
+.clear-icon-container:hover {
+  background: rgba(var(--v-theme-error-rgb), 0.1);
+  transform: translateY(-50%) scale(1.1);
+  opacity: 1;
+}
+
+.clear-icon {
+  font-size: 18px !important;
+  transition: all 0.2s ease;
+}
+
+.help-icon-container {
+  position: absolute;
+  right: 50px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.help-icon-container:hover {
+  background: rgba(var(--v-theme-primary-rgb), 0.1);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.help-icon {
+  font-size: 20px !important;
+  transition: all 0.2s ease;
+}
+
+.help-icon-container:hover .help-icon {
+  transform: rotate(15deg);
 }
 
 @keyframes fadeIn {
@@ -685,6 +1037,194 @@ export default {
   animation: pulse 1.5s infinite ease-in-out;
 }
 
+/* 虚拟助手对话窗口样式 */
+.help-dialog-card {
+  border-radius: 16px !important;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--v-theme-surface-rgb), 0.95) 0%,
+    rgba(var(--v-theme-surface-rgb), 0.98) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--v-theme-primary-rgb), 0.2);
+  animation: slideInRight 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.help-dialog-title {
+  background: linear-gradient(
+    135deg,
+    rgba(var(--v-theme-primary-rgb), 0.1) 0%,
+    rgba(var(--v-theme-primary-rgb), 0.05) 100%
+  );
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  font-weight: 600;
+  font-size: 1.1rem;
+  padding: 16px 20px;
+}
+
+.help-dialog-content {
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.assistant-message {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--v-theme-primary-rgb), 0.1) 0%,
+    rgba(var(--v-theme-primary-rgb), 0.2) 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+
+.message-content {
+  flex: 1;
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.greeting-text {
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.example-list {
+  margin-bottom: 20px;
+}
+
+.example-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: rgba(var(--v-theme-surface-rgb), 0.6);
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: slideInLeft 0.5s ease-out;
+  animation-fill-mode: both;
+}
+
+.example-item:hover {
+  background: rgba(var(--v-theme-primary-rgb), 0.08);
+  border-color: rgba(var(--v-theme-primary-rgb), 0.3);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(var(--v-theme-primary-rgb), 0.15);
+}
+
+.example-icon {
+  background: rgba(var(--v-theme-primary-rgb), 0.1);
+  border-radius: 8px;
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.example-text {
+  flex: 1;
+}
+
+.example-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  margin-bottom: 4px;
+}
+
+.example-query {
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.tips-section {
+  background: rgba(var(--v-theme-warning-rgb), 0.05);
+  border: 1px solid rgba(var(--v-theme-warning-rgb), 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.tips-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+  margin-bottom: 8px;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.tips-list li {
+  font-size: 0.85rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.7);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.help-dialog-actions {
+  padding: 12px 20px;
+  border-top: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  background: rgba(var(--v-theme-surface-rgb), 0.5);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+:deep(.v-overlay__scrim) {
+  background: rgba(var(--v-theme-on-surface-rgb), 0.3);
+}
 /* 响应式设计 */
 @media (max-width: 600px) {
   .search-container {
@@ -697,15 +1237,98 @@ export default {
   }
 
   .search-input {
-    height: 54px;
+    min-height: 54px;
+    max-height: 150px;
     font-size: 1rem;
-    padding: 0 50px 0 20px;
+    padding: 15px 70px 15px 20px;
   }
 
   .search-button {
     width: 46px;
     height: 46px;
     min-width: 46px;
+  }
+
+  .search-input-wrapper {
+    margin-bottom: 12px;
+  }
+
+  .search-button {
+    width: 100%;
+    height: 48px;
+  }
+
+  .search-results-container {
+    margin-top: 16px;
+  }
+
+  .search-result-item {
+    padding: 12px;
+  }
+
+  .result-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .result-name {
+    font-size: 0.9rem;
+  }
+
+  .result-score {
+    font-size: 0.8rem;
+  }
+
+  .clear-icon-container {
+    right: 60px;
+  }
+
+  .help-icon-container {
+    right: 35px;
+    padding: 6px;
+  }
+
+  .help-dialog-card {
+    margin: 16px;
+    max-width: calc(100vw - 32px);
+  }
+
+  .help-dialog-content {
+    padding: 16px;
+    max-height: 60vh;
+  }
+
+  .example-item {
+    padding: 10px 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .example-text {
+    width: 100%;
+  }
+
+  .example-title {
+    font-size: 0.85rem;
+  }
+
+  .example-query {
+    font-size: 0.8rem;
+  }
+
+  .tips-section {
+    padding: 12px;
+  }
+
+  .assistant-message {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .message-avatar {
+    align-self: center;
   }
 }
 
@@ -724,26 +1347,23 @@ export default {
 
 .reset-index-icon-container {
   position: absolute;
-  right: 50px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(var(--v-theme-on-surface-rgb), 0.5);
-  width: 24px;
-  height: 24px;
   cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
   transition: all 0.2s ease;
 }
 
 .reset-index-icon-container:hover {
-  color: rgba(var(--v-theme-primary-rgb), 0.8);
+  background: rgba(var(--v-theme-primary-rgb), 0.1);
   transform: translateY(-50%) scale(1.1);
 }
 
 .reset-index-icon {
   font-size: 20px;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
 }
 
 .search-button {
@@ -978,6 +1598,50 @@ export default {
   to {
     opacity: 1;
   }
+}
+
+/* 严格模式开关 - 紧凑版样式 */
+.strict-mode-compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 0 4px;
+  background: rgba(var(--v-theme-surface-rgb), 0.4);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 20px;
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.strict-mode-compact:hover {
+  background: rgba(var(--v-theme-surface-rgb), 0.6);
+  border-color: rgba(var(--v-theme-primary-rgb), 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.strict-mode-icon-compact {
+  transition: color 0.3s ease;
+}
+
+.strict-mode-switch-compact {
+  margin: 0;
+  transform: scale(0.8);
+}
+
+/* 暗色模式适配 */
+.v-theme--dark .strict-mode-compact {
+  background: rgba(40, 40, 40, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.v-theme--dark .strict-mode-compact:hover {
+  background: rgba(40, 40, 40, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 /* 猜你所想 标签区 */
 .tags-container {
