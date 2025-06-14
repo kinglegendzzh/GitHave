@@ -3,38 +3,43 @@ import path from 'path-browserify'
 /**
  * Checks if a given path is a file path (not a directory)
  * @param {string} filePath - Path to check
- * @param {Array} allowedExtensions - List of allowed file extensions
+ * @param {Function} checkIfTextFile - Function to check if file is text file
  * @param {Array} allowedFileName - List of allowed filenames
  * @param {Function} findNodeByPath - Optional function to find node in tree structure
  * @param {Object} treeData - Optional tree data reference
- * @returns {boolean} - True if path is a file, false otherwise
+ * @returns {Promise<boolean>} - True if path is a file, false otherwise
  */
-export function isFilePath(filePath, allowedExtensions = [], allowedFileName = [], findNodeByPath = null, treeData = null) {
+export async function isFilePath(filePath, checkIfTextFile = null, allowedFileName = [], findNodeByPath = null, treeData = null) {
   // If tree data and find function are provided, try to find node in tree first
   if (findNodeByPath && treeData) {
     const node = findNodeByPath(treeData, filePath)
     if (node) {
       if (node.isDirectory) return false
-      const ext = path.extname(node.name).toLowerCase()
       const fileName = path.basename(node.name)
-      return (
-        (ext && allowedExtensions.includes(ext)) || (fileName && allowedFileName.includes(fileName))
-      )
+      if (checkIfTextFile) {
+        const isTextFile = await checkIfTextFile(node.path || filePath)
+        return isTextFile || (fileName && allowedFileName.includes(fileName))
+      }
+      return fileName && allowedFileName.includes(fileName)
     }
   }
   
   // Fallback to path-based check
-  const ext = path.extname(filePath).toLowerCase()
   const fileName = path.basename(filePath)
   
-  // If no extensions or filenames provided, just check if it has an extension
-  if (allowedExtensions.length === 0 && allowedFileName.length === 0) {
-    return ext !== ''
+  if (checkIfTextFile) {
+    try {
+      const isTextFile = await checkIfTextFile(filePath)
+      return isTextFile || (fileName && allowedFileName.includes(fileName))
+    } catch (error) {
+      console.error('检查文件类型失败:', error)
+      return fileName && allowedFileName.includes(fileName)
+    }
   }
   
-  return (
-    (ext && allowedExtensions.includes(ext)) || (fileName && allowedFileName.includes(fileName))
-  )
+  // If no check function provided, just check if it has an extension
+  const ext = path.extname(filePath).toLowerCase()
+  return ext !== ''
 }
 
 /**

@@ -6,6 +6,12 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/start' },
     {
+      path: '/onboarding',
+      name: 'onboarding',
+      meta: { title: '新手引导', standalone: true },
+      component: () => import('../views3/OnboardingGuide.vue')
+    },
+    {
       path: '/start',
       name: 'start',
       meta: { title: '快速开始' },
@@ -50,7 +56,7 @@ const router = createRouter({
     {
       path: '/scan',
       name: 'scan',
-      meta: { title: '仓库AI索引' },
+      meta: { title: '仓库智能索引' },
       component: () => import('../views/MemoryCard.vue')
     },
     {
@@ -106,6 +112,12 @@ const router = createRouter({
       name: 'commitsHistory',
       meta: { title: '提交审查' },
       component: () => import('../views3/CommitHistory.vue'),
+    },
+    {
+      path: '/term',
+      name: 'term',
+      meta: { title: '虚拟终端' },
+      component: () => import('../views/TerminalDemo.vue'),
     },
   ]
 });

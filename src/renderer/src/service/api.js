@@ -137,13 +137,14 @@ export function clearCommitsCache(repoID) {
  * @param search_mode
  * @param limit
  */
-export function searchCode(project_dir, query, search_mode, limit) {
+export function searchCode(project_dir, query, search_mode, limit, strict = false ) {
   return fm_long.post('/search', {
     project_dir: project_dir,
     query: query,
     search_mode: search_mode,
     limit: limit,
-    faiss: true
+    faiss: true,
+    strict: strict
   })
 }
 
@@ -238,29 +239,43 @@ export function updateFmConfig(data) {
 
 /* -------------------------- AI服务 -------------------------- */
 
-export function deepResearch(repo_id, path, without_code, stream) {
+export function deepResearch(repo_id, path, without_code, stream, config) {
+  const requestBody = {
+    repo_id: repo_id,
+    path: path,
+    without_code: without_code,
+    stream: stream
+  }
+  
+  // 如果提供了 config 参数，则添加到请求体中
+  if (config) {
+    requestBody.config = config
+  }
+  
   return fetch('http://127.0.0.1:19151/ai/research', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      repo_id: repo_id,
-      path: path,
-      without_code: without_code,
-      stream: stream
-    })
+    body: JSON.stringify(requestBody)
   })
 }
 
-export function flowChart(repo_id, path, without_code, stream) {
+export function flowChart(repo_id, path, without_code, stream, config) {
+  const requestBody = {
+    repo_id: repo_id,
+    path: path,
+    without_code: without_code,
+    stream: stream
+  }
+  
+  // 如果提供了 config 参数，则添加到请求体中
+  if (config) {
+    requestBody.config = config
+  }
+  
   return fetch('http://127.0.0.1:19151/ai/flowchart', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      repo_id: repo_id,
-      path: path,
-      without_code: without_code,
-      stream: stream
-    })
+    body: JSON.stringify(requestBody)
   })
 }
 
