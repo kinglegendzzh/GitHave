@@ -94,7 +94,7 @@
 
 <script setup lang="ts">
 import { computed, PropType, ref, watch } from "vue";
-import { CommitRecord, FileDiff, HunkDetail } from '../types/commit.js'
+import { CommitRecord, FileDiff, HunkDetail } from '../types/commit.ts'
 
 const props = defineProps({
   visible: {
@@ -116,11 +116,11 @@ watch(internalVisible, v => emit('update:visible', v))
 const fileDiffs = computed<FileDiff[]>(() => props.commitRecord?.FileDiffs || [])
 
 // 合并行数据
-const mergedDiffs = ref<Array<Array<{ lineNumber: number; text: string; type: string }>>>([])
+const mergedDiffs = ref<Array<Array<{ lineNumber: number; text: string; type: string }>>>([]);
 watch(
   fileDiffs,
   files => {
-    mergedDiffs.value = files.map(file => applyHunks(file.FullContent || '', file.Hunks))
+    mergedDiffs.value = files.map(file => applyHunks(file.FullContent || '', file.Hunks || []))
   },
   { immediate: true }
 )
@@ -130,10 +130,20 @@ watch(
  */
 function applyHunks(
   fullContent: string,
-  hunks: HunkDetail[]
+  hunks: HunkDetail[] | null | undefined
 ): Array<{ lineNumber: number; text: string; type: string }> {
   const originalLines = fullContent.split('\n')
   const result: Array<{ lineNumber: number; text: string; type: string }> = []
+  
+  // 检查hunks是否为空或无效
+  if (!hunks || !Array.isArray(hunks) || hunks.length === 0) {
+    // 如果没有hunks，返回所有原始行作为normal类型
+    return originalLines.map((line, index) => ({
+      lineNumber: index + 1,
+      text: line,
+      type: 'normal'
+    }))
+  }
   
   // 按照NewStart排序，确保按正确顺序处理
   const sortedHunks = [...hunks].sort((a, b) => a.NewStart - b.NewStart)
