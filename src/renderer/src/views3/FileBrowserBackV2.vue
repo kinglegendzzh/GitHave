@@ -46,7 +46,6 @@
             <v-menu>
               <template #activator="{ props }">
                 <v-btn
-                  v-if="1 === 2"
                   text
                   size="small"
                   class="pa-1 ma-0 mr-2"
@@ -235,6 +234,90 @@
                   <!-- 文件操作按钮 -->
                   <!-- 快速代码查找和函数操作按钮 -->
                   <div class="d-flex justify-space-between align-center mb-2">
+                    <!-- 快速代码查找 -->
+                    <div
+                      class="quick-finder d-flex align-center"
+                      style="min-width: 400px; max-width: 60%"
+                    >
+                      <div
+                        v-if="isCodeFile"
+                        class="custom-quick-find-input d-flex align-center mr-2"
+                        style="position: relative; min-width: 400px; width: 400px"
+                      >
+                        <v-icon
+                          size="small"
+                          class="mr-1"
+                          style="
+                            position: absolute;
+                            left: 10px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            z-index: 1;
+                          "
+                          >mdi-text-search</v-icon
+                        >
+                        <input
+                          v-model="quickFindText"
+                          type="text"
+                          class="quick-find-input"
+                          :placeholder="'查找代码...'"
+                          :style="{
+                            paddingLeft: '32px',
+                            width: '100%',
+                            height: '36px',
+                            border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
+                            borderRadius: '6px',
+                            outline: 'none',
+                            color: isDarkTheme ? '#e2e8f0' : 'inherit'
+                          }"
+                          @keyup.enter="findInCode"
+                        />
+                        <v-icon
+                          v-if="quickFindText"
+                          size="small"
+                          color="grey"
+                          class="quick-find-clear"
+                          style="
+                            position: absolute;
+                            right: 10px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            cursor: pointer;
+                            z-index: 2;
+                          "
+                          @click="
+                            ((quickFindText = ''), (findResults = []), (findCurrentIndex = 0))
+                          "
+                        >
+                          mdi-close-circle
+                        </v-icon>
+                      </div>
+                      <v-btn
+                        v-if="isCodeFile && quickFindText"
+                        size="small"
+                        icon
+                        variant="text"
+                        class="mr-1"
+                        @click="findInCode"
+                      >
+                        <v-icon>mdi-magnify</v-icon>
+                      </v-btn>
+                      <div v-if="findResults.length > 0" class="text-caption ml-2">
+                        {{ findCurrentIndex + 1 }}/{{ findResults.length }}
+                        <v-btn
+                          size="x-small"
+                          icon
+                          variant="text"
+                          class="ml-1"
+                          @click="findPrevious"
+                        >
+                          <v-icon size="small">mdi-chevron-up</v-icon>
+                        </v-btn>
+                        <v-btn size="x-small" icon variant="text" class="ml-1" @click="findNext">
+                          <v-icon size="small">mdi-chevron-down</v-icon>
+                        </v-btn>
+                      </div>
+                    </div>
                     <!-- 原有的函数操作按钮 -->
                     <div class="d-flex gap-2">
                       <v-btn
@@ -288,14 +371,23 @@
                     v-html="renderMarkdown(fileContent)"
                   ></div>
                   <!-- 代码文件预览 -->
-                  <div v-else-if="isCodeFile" class="monaco-container">
-                    <MonacoEditor
-                      v-model:value="fileContent"
-                      :language="getFileLanguage(selectedFileName)"
-                      :theme="currentTheme"
-                      :options="monacoOptions"
-                      @editor-mounted="onEditorMounted"
-                    />
+                  <div v-else-if="isCodeFile" class="code-container">
+                    <table class="code-table">
+                      <tbody>
+                        <tr
+                          v-for="(line, i) in fileContent ? fileContent.split('\n') : []"
+                          :key="i"
+                        >
+                          <td class="line-number">{{ i + 1 }}</td>
+                          <td class="code-line">
+                            <code
+                              :class="`hljs ${path.extname(selectedFileName).slice(1)}`"
+                              v-html="highlightCode(line, path.extname(selectedFileName))"
+                            ></code>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                   <!-- 其他文本文件预览 -->
                   <pre v-else>{{ fileContent }}</pre>
@@ -405,6 +497,7 @@
                     style="cursor: pointer; transition: all 0.2s"
                     @mouseenter="hoveredFunction = functionItem.name"
                     @mouseleave="hoveredFunction = null"
+                    @click="scrollToLine(functionItem.start_line)"
                   >
                     <div class="d-flex align-center mb-1">
                       <v-icon size="small" color="primary" class="mr-2"
@@ -494,40 +587,20 @@
 </template>
 
 <script setup>
-// 1) 导入 worker 构造器（路径视你的依赖版本和打包器语法而定）
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker'
-import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
-import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
-
-// 2) 注入到全局
-window.MonacoEnvironment = {
-  getWorker: (_moduleId, label) => {
-    if (label === 'json') {
-      return new JsonWorker()
-    }
-    if (label === 'typescript' || label === 'javascript') {
-      return new TsWorker()
-    }
-    // 默认就是编辑器本身的 worker
-    return new EditorWorker()
-  }
-}
-import 'highlight.js/styles/default.css'
-import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useStore } from 'vuex'
-import { isFilePath, getFileExtension, getFileName } from '../service/file'
+import { isFilePath, getFileExtension, getFileName } from '../service/file.js'
 import mammoth from 'mammoth'
 import path from 'path-browserify'
 import { ElTreeV2, ElInput, ElIcon } from 'element-plus'
 import { Folder, Document, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
-import MonacoEditor from 'monaco-editor-vue3'
 
 import * as XLSX from 'xlsx'
 import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo, checkIndexApi } from '../service/api.js'
-import { omit } from '../service/str'
+import { omit } from '../service/str.js'
 import dynamicLoadingSvg from '../assets/load.svg'
 // router import removed as we're using IPC instead of direct routing
 // Vuex store（假定已配置）
@@ -537,134 +610,7 @@ const snackbar = computed(() => store.state.snackbar)
 
 // 主题检测和高亮样式管理
 const isDarkTheme = ref(false)
-const highlightTheme = ref('github')
-
-// MonacoEditor 相关配置
-// 读取黑色主题偏好设置
-const highlightThemeDark = ref(localStorage.getItem('fileBrowser.highlightDark') !== 'false')
-const currentTheme = ref(highlightThemeDark.value ? 'vs-dark' : 'vs-light') // Monaco编辑器主题
-
-const monacoOptions = reactive({
-  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
-  readOnly: true,
-  automaticLayout: true,
-  wordWrap: 'on',
-  minimap: { enabled: true },
-  theme: currentTheme.value,
-  fontSize: 14
-})
-
-// Monaco编辑器实例和装饰引用
-let monacoGlobal = null
-let monacoInstance = null
-let highlightDecoration = null
-let searchDecorations = [] // 搜索高亮装饰ID数组
-let monacoReady = false // 标记Monaco编辑器是否完全初始化完成
-let pendingScrollActions = [] // 缓存等待执行的滚动操作
-
-/* NEW ─ onEditorMounted：注册快捷键、补全、装饰 */
-function onEditorMounted(editor) {
-  // 获取Monaco全局对象和编辑器实例
-  monacoGlobal = editor.$monaco
-  monacoInstance = editor
-  
-  // 标记编辑器已就绪
-  monacoReady = true
-  console.log('Monaco编辑器初始化完成')
-  
-  // 执行之前缓存的滚动操作
-  if (pendingScrollActions.length > 0) {
-    console.log(`执行 ${pendingScrollActions.length} 个缓存的滚动操作`)
-    pendingScrollActions.forEach(action => action())
-    pendingScrollActions = []
-  }
-
-  // 拿到 Monaco 的全局对象
-  // monacoGlobal = editor.$monaco
-
-  // 1. 强制开启触发字符补全和片段建议
-  editor.updateOptions({
-    suggestOnTriggerCharacters: true,
-    snippetSuggestions: 'inline'
-  })
-
-  // 2. 获取当前模型的语言 ID
-  const model = editor.getModel()
-  const langId = model.getLanguageId()
-
-  // 3. 针对当前语言注册补全 provider
-  monacoGlobal.languages.registerCompletionItemProvider(langId, {
-    triggerCharacters: ['.'],
-    provideCompletionItems: () => {
-      return {
-        suggestions: [
-          {
-            label: 'helloWorld',
-            kind: monacoGlobal.languages.CompletionItemKind.Snippet,
-            insertText: 'console.log("Hello, Monaco!");',
-            // 确保这是以 snippet 形式插入
-            insertTextRules: monacoGlobal.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            documentation: '打印 "Hello, Monaco!" 到控制台'
-          }
-        ]
-      }
-    }
-  })
-
-  // 2. 自定义保存快捷键 Ctrl/Cmd+S → 格式化当前文档
-  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS, () =>
-    editor.getAction('editor.action.formatDocument').run()
-  )
-
-  // 3. 行高亮装饰示例
-  const deco = editor.deltaDecorations(
-    [],
-    [
-      {
-        range: new monacoGlobal.Range(1, 1, 1, 1),
-        options: { isWholeLine: true, className: 'myLineHighlight' }
-      }
-    ]
-  )
-  editor.onDidDispose(() => editor.deltaDecorations(deco, []))
-}
-
-// 根据文件扩展名获取语言类型
-function getFileLanguage(filename) {
-  if (!filename) return 'plaintext'
-  
-  const ext = path.extname(filename).slice(1).toLowerCase()
-  const languageMap = {
-    js: 'javascript',
-    jsx: 'javascript',
-    ts: 'typescript',
-    tsx: 'typescript',
-    html: 'html',
-    css: 'css',
-    scss: 'scss',
-    less: 'less',
-    json: 'json',
-    py: 'python',
-    java: 'java',
-    c: 'c',
-    cpp: 'cpp',
-    cs: 'csharp',
-    go: 'go',
-    rs: 'rust',
-    php: 'php',
-    rb: 'ruby',
-    sh: 'shell',
-    bash: 'shell',
-    md: 'markdown',
-    vue: 'vue',
-    xml: 'xml',
-    yml: 'yaml',
-    yaml: 'yaml',
-    sql: 'sql'
-  }
-  
-  return languageMap[ext] || 'plaintext'
-}
+const highlightTheme = ref('mono-blue') // 默认亮色主题
 
 // 可选的亮色主题列表
 const lightThemes = [
@@ -2275,49 +2221,27 @@ function filterFunctions(functions) {
 
 // 在代码中查找文本
 function findInCode() {
-  if (!quickFindText.value || !fileContent.value || !monacoInstance) {
+  if (!quickFindText.value || !fileContent.value) {
     findResults.value = []
     findCurrentIndex.value = -1
     return
   }
 
-  const searchTerm = quickFindText.value
-  
-  // 清除之前的搜索装饰
-  if (searchDecorations.length) {
-    monacoInstance.deltaDecorations(searchDecorations, [])
-    searchDecorations = []
-  }
-  
-  // 使用Monaco的搜索API
-  const model = monacoInstance.getModel()
-  const matches = model.findMatches(
-    searchTerm,
-    false,   // 不想要搜索整个单词
-    false,   // 支持正则表达式
-    true,    // 区分大小写
-    null,    // 跳过单词分隔符
-    true     // 支持回滚(可以在前开始)
-  )
-  
-  findResults.value = matches
-  findCurrentIndex.value = findResults.value.length > 0 ? 0 : -1
+  const searchTerm = quickFindText.value.toLowerCase()
+  const lines = fileContent.value.split('\n')
 
-  // 创建搜索高亮装饰
-  if (matches.length > 0) {
-    const decorations = matches.map(match => ({
-      range: match.range,
-      options: {
-        inlineClassName: 'monaco-search-highlight',
-        stickiness: monacoGlobal.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-      }
-    }))
-    
-    // 添加装饰并保存装饰ID
-    searchDecorations = monacoInstance.deltaDecorations([], decorations)
-    
-    // 当前选中项特殊高亮
-    jumpToResult(findCurrentIndex.value)
+  // 查找所有匹配行
+  findResults.value = lines.reduce((matches, line, index) => {
+    if (line.toLowerCase().includes(searchTerm)) {
+      matches.push(index)
+    }
+    return matches
+  }, [])
+
+  // 重置当前索引并滚动到第一个结果
+  findCurrentIndex.value = findResults.value.length > 0 ? 0 : -1
+  if (findCurrentIndex.value >= 0) {
+    scrollToLine(findResults.value[findCurrentIndex.value] + 1) // +1 因为行号从1开始
   }
 
   // 显示搜索结果数量
@@ -2334,39 +2258,12 @@ function findInCode() {
   }
 }
 
-// 跳转到特定的搜索结果
-function jumpToResult(index) {
-  if (index < 0 || index >= findResults.value.length) return
-  
-  // 如果Monaco实例未初始化，将操作加入等待队列
-  if (!monacoReady) {
-    console.log(`Monaco编辑器尚未准备好，缓存跳转操作到索引 ${index}`)
-    pendingScrollActions.push(() => jumpToResult(index))
-    return
-  }
-  
-  // 再次检查实例
-  if (!monacoInstance) {
-    console.warn('Monaco编辑器实例仍未初始化，无法跳转到搜索结果')
-    return
-  }
-  
-  // 获取当前选中的结果
-  const match = findResults.value[index]
-  
-  // 滚动到匹配位置
-  monacoInstance.revealRangeInCenter(match.range)
-  
-  // 选中文本
-  monacoInstance.setSelection(match.range)
-}
-
 // 查找下一个结果
 function findNext() {
   if (findResults.value.length === 0) return
 
   findCurrentIndex.value = (findCurrentIndex.value + 1) % findResults.value.length
-  jumpToResult(findCurrentIndex.value)
+  scrollToLine(findResults.value[findCurrentIndex.value] + 1)
 }
 
 // 查找上一个结果
@@ -2375,30 +2272,23 @@ function findPrevious() {
 
   findCurrentIndex.value =
     (findCurrentIndex.value - 1 + findResults.value.length) % findResults.value.length
-  jumpToResult(findCurrentIndex.value)
+  scrollToLine(findResults.value[findCurrentIndex.value] + 1)
 }
 
-// 切换Monaco编辑器主题
-function changeHighlightTheme() {
-  highlightThemeDark.value = !highlightThemeDark.value
+// 切换高亮主题
+function changeHighlightTheme(themeName) {
+  loadHighlightTheme(themeName)
 
-  // 存储用户的主题偏好
-  localStorage.setItem(
-    'fileBrowser.highlightDark',
-    highlightThemeDark.value ? 'true' : 'false'
-  )
-  
-  // 为Monaco编辑器切换主题
-  currentTheme.value = highlightThemeDark.value ? 'vs-dark' : 'vs-light'
-  
-  // 更新Monaco编辑器选项并应用新主题
-  if (monacoInstance) {
-    monacoInstance.updateOptions({ theme: currentTheme.value })
+  // 保存用户主题选择
+  if (isDarkTheme.value) {
+    localStorage.setItem('userDarkTheme', themeName)
+  } else {
+    localStorage.setItem('userLightTheme', themeName)
   }
-  
+
   // 显示主题切换成功提示
   store.dispatch('snackbar/showSnackbar', {
-    message: `已切换到${highlightThemeDark.value ? '深色' : '浅色'}主题`,
+    message: `已切换到 ${themeName} 主题`,
     color: 'success'
   })
 }
@@ -2421,13 +2311,43 @@ function getParsedDescription(description) {
     return { description: description, process: [] }
   }
 }
+
+// 滚动到指定行号
+function scrollToLine(lineNumber) {
+  if (!lineNumber) return
+
+  nextTick(() => {
+    const codeContainer = document.querySelector('.code-container')
+    if (!codeContainer) return
+
+    // 获取表格行
+    const tableRows = codeContainer.querySelectorAll('.code-table tr')
+    if (!tableRows || lineNumber > tableRows.length) return
+
+    // 获取目标行
+    const targetRow = tableRows[lineNumber - 1]
+    if (!targetRow) return
+
+    // 计算滚动位置
+    const targetTop = targetRow.offsetTop
+
+    // 滚动到目标行 - 直接使用代码容器自身而不是其父元素
+    codeContainer.scrollTop = Math.max(0, targetTop - 100) // 留出一些缓冲空间
+
+    // 高亮目标行
+    targetRow.classList.add('highlighted-line')
+
+    // 3秒后移除高亮
+    setTimeout(() => {
+      targetRow.classList.remove('highlighted-line')
+    }, 3000)
+
+    console.log(`Scrolled to line ${lineNumber}`)
+  })
+}
 </script>
 
 <style scoped>
-.monaco-container {
-  width: 100%;
-  height: 100%;
-}
 .code-container {
   position: relative;
   width: 100%;
@@ -2699,9 +2619,6 @@ body {
     color: #dcdcdc; /* 暗色文本 */
   }
 }
-.preview-content {
-  height: 80vh;
-}
 .preview-content pre {
   /* 保持原有空格格式，不自动换行 */
   white-space: pre; /* 强制按照原始空白和换行显示 */
@@ -2816,10 +2733,6 @@ body {
 :deep([v-html]) a:hover {
   color: #79c0ff !important;
 }
-:deep(.markdown-content) img,
-:deep([v-html]) img {
-  max-width: 100% !important;
-}
 :deep(.v-field__input) {
   font-size: 0.8em !important;
   padding-top: 0 !important;
@@ -2829,11 +2742,5 @@ body {
 :deep(.v-autocomplete__selection) {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
-}
-.tab-item {
-  max-width: 300px !important;
-}
-.tabs-wrapper {
-  overflow-x: auto !important;
 }
 </style>
