@@ -23,6 +23,8 @@ files:
 
 asarUnpack:
   - resources/**
+  - 'bin/watermark.png'
+  - 'bin/watermark.svg'
   - 'bin/static/**/*'
   - 'bin/FAISSService/**/*'
   - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
@@ -63,11 +65,11 @@ mac:
   # ⚠ 如需三份产物请写三种架构
   target:
     - target: dmg
-      arch: universal
+      # arch: universal
       # arch: x64
       # arch: arm64
       # arch: [ x64, arm64, universal ]
-      # arch: [ x64, arm64 ]
+      arch: [ x64, arm64 ]
   compression: maximum
   files:
     - 'bin/app'
