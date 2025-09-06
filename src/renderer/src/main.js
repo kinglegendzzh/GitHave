@@ -3,6 +3,10 @@ import App from './App.vue'
 import router from './router'
 import store from './store'
 import { createVuetify } from 'vuetify'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import Antd from 'ant-design-vue'
+import 'ant-design-vue/dist/reset.css'
 import {
   VApp,
   VCard,
@@ -77,6 +81,8 @@ import {
   VExpandTransition,
   VTabsWindowItem,
   VTabsWindow,
+  VCombobox,
+  VListSubheader,
 } from 'vuetify/components'
 import { Ripple, Tooltip } from 'vuetify/directives'
 import 'vuetify/styles'                // 仅引入必要的 Vuetify 样式
@@ -172,6 +178,8 @@ const vuetify = createVuetify({
     VExpandTransition,
     VTabsWindowItem,
     VTabsWindow,
+    VCombobox,
+    VListSubheader,
   },
   directives: {
     Ripple,
@@ -183,6 +191,8 @@ const vuetify = createVuetify({
 app.use(router)
 app.use(store)
 app.use(vuetify)
+app.use(ElementPlus)
+app.use(Antd)
 
 // 关闭生产模式 tip
 app.config.productionTip = false
