@@ -5,7 +5,6 @@ const path = require('path')
 const installProgressCallbacks = new Set()
 
 async function getFileStats(filePath) {
-  // eslint-disable-next-line no-useless-catch
   try {
     const stats = await fs.promises.stat(filePath)
     // 返回一个 plain object，用于在渲染进程中直接使用
@@ -16,6 +15,7 @@ async function getFileStats(filePath) {
       // 可根据需要添加其他属性
     }
   } catch (error) {
+    console.error('getFileStats 错误:', error, '路径:', filePath)
     throw error
   }
 }
@@ -61,13 +61,15 @@ const api = {
   // 文件/目录操作
   openDirectory: async (options) => await ipcRenderer.invoke('dialog:openDirectory', options),
   readDirectory: async (dirPath) => await ipcRenderer.invoke('read-directory', dirPath),
-  readFile: async (filePath) => await ipcRenderer.invoke('read-file', filePath),
+  readFile: async (filePath, options = {}) =>
+    await ipcRenderer.invoke('read-file', filePath, options),
   readImageBlob: async (filePath) => await ipcRenderer.invoke('read-image-blob', filePath),
   createReadStream: async (filePath, options) => {
     // Check if file exists and get its stats
     try {
       const stats = await fs.promises.stat(filePath)
-      if (stats.size > 10 * 1024 * 1024) { // Files larger than 10MB
+      if (stats.size > 10 * 1024 * 1024) {
+        // Files larger than 10MB
         // For large files, read in chunks using IPC
         return ipcRenderer.invoke('read-file-chunks', filePath, options)
       } else {
@@ -158,7 +160,16 @@ const api = {
     promises: fs.promises
   },
   getFileStats: getFileStats,
-  path: path,
+  path: {
+    extname: (filePath) => path.extname(filePath),
+    basename: (filePath) => path.basename(filePath),
+    dirname: (filePath) => path.dirname(filePath),
+    join: (...paths) => path.join(...paths),
+    resolve: (...paths) => path.resolve(...paths),
+    relative: (from, to) => path.relative(from, to),
+    isAbsolute: (p) => path.isAbsolute(p),
+    sep: path.sep
+  },
 
   onInstallProgress,
   removeInstallProgressListener,
@@ -188,8 +199,10 @@ const api = {
   // 文件操作接口
   createDirectory: async (dirPath) => await ipcRenderer.invoke('create-directory', dirPath),
   deleteFile: async (filePath) => await ipcRenderer.invoke('delete-file', filePath),
-  copyFile: async (sourcePath, targetPath) => await ipcRenderer.invoke('copy-file', sourcePath, targetPath),
-  moveFile: async (sourcePath, targetPath) => await ipcRenderer.invoke('move-file', sourcePath, targetPath),
+  copyFile: async (sourcePath, targetPath) =>
+    await ipcRenderer.invoke('copy-file', sourcePath, targetPath),
+  moveFile: async (sourcePath, targetPath) =>
+    await ipcRenderer.invoke('move-file', sourcePath, targetPath),
   showItemInFolder: async (filePath) => await ipcRenderer.invoke('show-item-in-folder', filePath),
   showMessageBox: async (options) => await ipcRenderer.invoke('show-message-box', options),
 
@@ -221,10 +234,13 @@ const api = {
   checkFmHttpHealth: () => ipcRenderer.invoke('check-fm_http-health'),
 
   checkMemoryFlashStatus: async (localPath) => {
-    const { exists, indexing, hasDb } = await ipcRenderer.invoke('check-memory-flash', {
-      local_path: localPath
-    })
-    return { exists, indexing, hasDb }
+    const { exists, indexing, hasDb, hasFullIndex, moduleAnalyzing } = await ipcRenderer.invoke(
+      'check-memory-flash',
+      {
+        local_path: localPath
+      }
+    )
+    return { exists, indexing, hasDb, hasFullIndex, moduleAnalyzing }
   },
 
   removeModels: (modelName) => ipcRenderer.invoke('remove-models', modelName),
@@ -318,8 +334,60 @@ const api = {
   checkBrewInstalled: () => ipcRenderer.invoke('check-brew-installed'),
   checkBrewInstalledIPC: () => ipcRenderer.invoke('check-brew-installed'),
 
+  // 监听安装日志事件
+  onInstallLog: (callback) => {
+    const listener = (event, logData) => callback(logData)
+    ipcRenderer.on('install-log', listener)
+    // 返回移除监听器的函数
+    return () => ipcRenderer.removeListener('install-log', listener)
+  },
+
+  // 启动服务日志监听
+  startServiceLog: () => ipcRenderer.invoke('start-service-log'),
+
+  // 监听服务启动日志事件
+  onServiceLog: (callback) => {
+    const listener = (event, logData) => callback(logData)
+    ipcRenderer.on('service-log', listener)
+    // 返回移除监听器的函数
+    return () => ipcRenderer.removeListener('service-log', listener)
+  },
+
+  // 停止服务日志监听
+  stopServiceLog: () => ipcRenderer.invoke('stop-service-log'),
+
+  // 启动Winston日志监听
+  startWinstonLog: () => ipcRenderer.invoke('start-winston-log'),
+
+  // 监听Winston日志事件
+  onWinstonLog: (callback) => {
+    const listener = (event, logData) => callback(logData)
+    ipcRenderer.on('winston-log', listener)
+    // 返回移除监听器的函数
+    return () => ipcRenderer.removeListener('winston-log', listener)
+  },
+
+  // 停止Winston日志监听
+  stopWinstonLog: () => ipcRenderer.invoke('stop-winston-log'),
+
+  // 启动子进程日志监听
+  startChildProcessLog: () => ipcRenderer.invoke('start-child-process-log'),
+
+  // 监听子进程日志事件
+  onChildProcessLog: (callback) => {
+    const listener = (event, logData) => callback(logData)
+    ipcRenderer.on('child-process-log', listener)
+    // 返回移除监听器的函数
+    return () => ipcRenderer.removeListener('child-process-log', listener)
+  },
+
+  // 停止子进程日志监听
+  stopChildProcessLog: () => ipcRenderer.invoke('stop-child-process-log'),
+
   zipFiles: (dirPath, output) => ipcRenderer.invoke('zip-files', dirPath, output),
   unzipFile: (zipFile, outputDir) => ipcRenderer.invoke('unzip-file', zipFile, outputDir),
+  tarGzFiles: (dirPath, output) => ipcRenderer.invoke('tar-gz-files', dirPath, output),
+  untarGzFile: (tarFile, outputDir) => ipcRenderer.invoke('untar-gz-file', tarFile, outputDir),
   /**
    * Get file stats (size in bytes) for a given path.
    * Usage: window.electron.stat('/path/to/file')
@@ -333,6 +401,42 @@ const api = {
       console.error('stat error:', err)
       return { size: -1, error: err.message }
     }
+  },
+  /**
+   * 判断给定文件是否为文本文件
+   * @param filePath 绝对路径
+   * @returns Promise<boolean>
+   */
+  async isText(filePath) {
+    return ipcRenderer.invoke('is-text-file', filePath)
+  },
+
+  /**
+   * 监听协议调用（可多次）
+   * @param {(data:{route:string,repo:string,tab:string,token:string,user_id:string,username:string,email:string,timestamp:string,raw:string})=>void} callback
+   * @returns {() => void} unsubscribe
+   */
+  onProtocolUrl(callback) {
+    const channel = 'protocol-url'
+    const listener = (_event, data) => callback(data)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  },
+
+  /**
+   * 仅监听一次协议调用（自动取消）
+   * @param {(data:{route:string,repo:string,tab:string,token:string,user_id:string,username:string,email:string,timestamp:string,raw:string})=>void} callback
+   */
+  onceProtocolUrl(callback) {
+    const channel = 'protocol-url'
+    ipcRenderer.once(channel, (_event, data) => callback(data))
+  },
+
+  /**
+   * 移除协议监听（保持向后兼容）
+   */
+  removeProtocolListener() {
+    ipcRenderer.removeAllListeners('protocol-url')
   }
 }
 

@@ -1,30 +1,28 @@
 'use strict'
 
-const { app, BrowserWindow, ipcMain, protocol, shell, dialog, session } = require('electron')
-const installExtension = require('electron-devtools-installer').default
-const { VUEJS_DEVTOOLS } = require('electron-devtools-installer')
+const { app, BrowserWindow, ipcMain, protocol, shell, dialog } = require('electron')
 const { spawn, exec, spawnSync } = require('child_process')
-const { is } = require('@electron-toolkit/utils')
 const path = require('path')
 const fs = require('fs')
 const { existsSync } = fs
 const remoteMain = require('@electron/remote/main')
 const util = require('util')
 const execAsync = util.promisify(exec)
-const net = require('net')
 const killPort = require('kill-port')
 const winston = require('winston')
 const { format, transports } = winston
 const fsPromises = fs.promises
 const { readdir, stat } = require('fs/promises')
 const semver = require('semver')
-const { copyFile, mkdir, readFile, writeFile } = fs.promises
 const AdmZip = require('adm-zip')
+const tar = require('tar')
 const si = require('systeminformation')
+import { fileTypeFromFile } from 'file-type'
+import { lookup } from 'mime-types'
 let pty
 try {
   pty = require('node-pty')
-} catch (error) {
+} catch {
   pty = null
   console.warn('node-pty is not available on this platform')
   // 使用替代方案或禁用相关功能
@@ -41,16 +39,129 @@ const FM_PORT = 5532
 
 console.log('UserData 路径是：', app.getPath('userData'))
 
+// 协议注册 - 让浏览器能通过 githave:// 协议拉起应用
+const PROTOCOL = 'githave'
+let pendingDeepLinks = [] // 可能在 app ready 前到来的 URL
+
+// ---- 单实例：Windows/Linux 深链通过 argv 进入这里
+const gotLock = app.requestSingleInstanceLock()
+if (!gotLock) {
+  app.quit()
+} else {
+  app.on('second-instance', (_event, argv) => {
+    // Windows: argv 里包含 githave://...
+    const deepLink = argv.find((a) => typeof a === 'string' && a.startsWith(`${PROTOCOL}://`))
+    if (deepLink) queueDeepLink(deepLink)
+    focusMainWindow()
+  })
+}
+
+function focusMainWindow() {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (win) {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+  }
+}
+
+// ---- macOS: 从系统事件接收 URL
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  queueDeepLink(url)
+})
+
+// ---- 开发态/生产态：协议注册
+function registerProtocol() {
+  // 生产安装版：简单注册
+  if (!process.defaultApp) {
+    app.setAsDefaultProtocolClient(PROTOCOL)
+    return
+  }
+  // 开发态：传入可执行路径和入口脚本路径
+  // 对 electron-vite：argv[1] 通常是 your .js 入口
+  const exe = process.execPath
+  const entry = path.resolve(process.argv[1] || '')
+  app.setAsDefaultProtocolClient(PROTOCOL, exe, [entry])
+}
+
+// ---- 解析 & 排队
+function queueDeepLink(raw) {
+  if (!raw) return
+  pendingDeepLinks.push(raw)
+  dispatchDeepLinks() // 若窗口已就绪会立即派发
+}
+
+function parseDeepLink(raw) {
+  try {
+    // 兼容 githave://open?... 与 githave:///open?...
+    // new URL 在 hostname 为空时，可从 pathname 拿路由
+    const u = new URL(raw)
+    const host = (u.hostname || '').trim() // 可能为空
+    let route = host
+    if (!route) {
+      // pathname 可能是 "/open" 或 "/open/xxx"
+      route = (u.pathname || '').replace(/^\/+/, '').split('/')[0]
+    }
+    const repo = u.searchParams.get('repo') || ''
+    const tab = u.searchParams.get('tab') || ''
+    const token = u.searchParams.get('token') || ''
+    const user_id = u.searchParams.get('user_id') || ''
+    const username = u.searchParams.get('username') || ''
+    const email = u.searchParams.get('email') || ''
+    const timestamp = u.searchParams.get('timestamp') || ''
+    const verified = u.searchParams.get('verified') || ''
+    return { route, repo, tab, token, user_id, username, email, timestamp, verified, raw }
+  } catch (e) {
+    console.error('[deeplink] invalid url:', raw, e)
+    return {
+      route: '',
+      repo: '',
+      tab: '',
+      token: '',
+      user_id: '',
+      username: '',
+      email: '',
+      timestamp: '',
+      verified: '',
+      raw
+    }
+  }
+}
+
+function dispatchDeepLinks() {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return // 等窗口创建好再派发
+
+  if (pendingDeepLinks.length === 0) return
+  const batch = pendingDeepLinks.splice(0, pendingDeepLinks.length)
+  for (const raw of batch) {
+    const payload = parseDeepLink(raw)
+    win.webContents.send('protocol-url', payload)
+  }
+  focusMainWindow()
+}
+
 // 全局变量，用于缓存正在进行的停止操作，防止重复请求
-let isStoppingBot = false
-let isStoppingApp = false
-let isRestartingBot = false
-let isRestartingApp = false
+// 这些变量保留用于未来功能扩展
+// let isRestartingApp = false // 保留用于未来功能扩展
 
 //【新增】全局标记，表示正在异步清理端口占用的进程（供 check-health 使用）
 let isClearingBot = false
 let isClearingApp = false
 let isClearingFm = false
+
+// 服务日志监听状态
+let serviceLogEnabled = true
+let serviceLogListeners = new Set()
+let serviceLogTimer = null // 存储日志监听的计时器ID
+
+let winstonLogEnabled = true
+let winstonLogListeners = new Set()
+// let winstonLogTimer = null // 保留用于未来功能扩展
+
+// 子进程日志监听相关变量
+let childProcessLogEnabled = false
+let childProcessLogListeners = new Set()
 
 let timeout = 0
 
@@ -59,7 +170,48 @@ let timeout = 0
  * TODO 看看为什么不tail打印了
  */
 // 日志文件路径
-const logFilePath = path.join(app.getPath('userData'), 'logs.log')
+const logFilePath = path.join(app.getPath('userData'), 'logs', 'logs.log')
+
+// 清理所有winston日志文件的函数
+async function cleanupAllLogFiles() {
+  try {
+    // 先刷新剩余的日志队列
+    flushLogQueue()
+    // 关闭winston logger的所有transports
+    winstonLogger.close()
+    // 等待一小段时间确保文件句柄释放
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    // 获取日志文件所在目录
+    const logDir = path.dirname(logFilePath)
+    const logBaseName = path.basename(logFilePath, '.log')
+
+    // 读取目录中的所有文件
+    if (fs.existsSync(logDir)) {
+      const files = fs.readdirSync(logDir)
+
+      // 过滤出所有相关的日志文件（logs.log, logs1.log, logs2.log等）
+      const logFiles = files.filter((file) => {
+        return file === `${logBaseName}.log` || file.match(new RegExp(`^${logBaseName}\\d+\\.log$`))
+      })
+
+      // 删除所有找到的日志文件
+      for (const logFile of logFiles) {
+        const fullPath = path.join(logDir, logFile)
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath)
+          console.log(`日志文件已清理: ${logFile}`)
+        }
+      }
+
+      if (logFiles.length === 0) {
+        console.log('未找到需要清理的日志文件')
+      }
+    }
+  } catch (err) {
+    console.error('清理日志文件时出错:', err)
+  }
+}
 // 创建 winston 日志记录器 - 不添加任何前缀，直接输出原始消息
 const winstonLogger = winston.createLogger({
   level: 'info',
@@ -90,6 +242,35 @@ function flushLogQueue() {
     const { level, message } = logQueue.shift()
     // 调用 winstonLogger 记录日志，这里 winston 会异步写入文件
     winstonLogger.log(level, message)
+
+    // 如果启用了winston日志监听，发送日志到前端
+    if (winstonLogEnabled && winstonLogListeners.size > 0) {
+      const logData = {
+        serviceName: 'system', // winston日志标记为系统日志
+        type: level === 'error' ? 'error' : level === 'success' ? 'success' : 'info',
+        message: message.trim(),
+        timestamp: new Date().toISOString()
+      }
+
+      // 向所有监听的窗口发送日志
+      // 使用Array.from创建一个副本进行迭代，避免在迭代过程中修改集合
+      Array.from(winstonLogListeners).forEach((sender) => {
+        try {
+          // 检查sender是否已被销毁
+          if (sender.isDestroyed()) {
+            // 如果已被销毁，从集合中移除
+            winstonLogListeners.delete(sender)
+            console.log('已移除已销毁的winston日志监听器')
+          } else {
+            sender.send('winston-log', logData)
+          }
+        } catch (err) {
+          console.error('发送winston日志失败:', err)
+          // 出错时也从集合中移除该sender
+          winstonLogListeners.delete(sender)
+        }
+      })
+    }
   }
   isFlushing = false
 }
@@ -102,6 +283,34 @@ function logMessage(level, ...args) {
   // 将传入参数拼接成一行日志字符串
   const message = args.join(' ')
   logQueue.push({ level, message })
+
+  // 即时发送winston日志到前端，不等待队列刷新
+  if (winstonLogEnabled && winstonLogListeners.size > 0) {
+    const logData = {
+      serviceName: 'system',
+      type: level === 'error' ? 'error' : level === 'success' ? 'success' : 'info',
+      message: message.trim(),
+      timestamp: new Date().toISOString()
+    }
+
+    // 使用Array.from创建一个副本进行迭代，避免在迭代过程中修改集合
+    Array.from(winstonLogListeners).forEach((sender) => {
+      try {
+        // 检查sender是否已被销毁
+        if (sender.isDestroyed()) {
+          // 如果已被销毁，从集合中移除
+          winstonLogListeners.delete(sender)
+          console.log('已移除已销毁的winston日志监听器')
+        } else {
+          sender.send('winston-log', logData)
+        }
+      } catch (err) {
+        console.error('发送winston日志失败:', err)
+        // 出错时也从集合中移除该sender
+        winstonLogListeners.delete(sender)
+      }
+    })
+  }
 }
 // 根据环境对 console.log / console.error 进行改造，开发时同时写入控制台和队列
 const isProduction = process.env.NODE_ENV === 'production'
@@ -147,30 +356,30 @@ console.error('模拟错误信息，用于测试日志输出')
 
 // 定义全局变量保存启动后的进程
 // 注意：根据新要求，不进行自启动
-let botProcess = null
-let appProcess = null
+// let botProcess = null // 保留用于未来功能扩展
+// let appProcess = null // 保留用于未来功能扩展
 let childProcesses = []
-const STATIC_SERVER_PORT = 19166
+// const STATIC_SERVER_PORT = 19166 // 保留用于未来功能扩展
 
 // 保留启动静态服务器函数（仅开发环境可能使用）
-async function startStaticServer() {
-  const staticRoot = path.resolve(__dirname, '../renderer')
-  if (!existsSync(staticRoot)) {
-    throw new Error(`静态目录不存在: ${staticRoot}`)
-  }
-  const httpServer = require('http-server')
-  const server = httpServer.createServer({ root: staticRoot })
-  return new Promise((resolveServer, reject) => {
-    server.listen(STATIC_SERVER_PORT, '127.0.0.1', (err) => {
-      if (err) {
-        reject(err)
-      } else {
-        console.log(`[static-server] started at http://127.0.0.1:${STATIC_SERVER_PORT}`)
-        resolveServer()
-      }
-    })
-  })
-}
+// async function startStaticServer() {
+//   const staticRoot = path.resolve(__dirname, '../renderer')
+//   if (!existsSync(staticRoot)) {
+//     throw new Error(`静态目录不存在: ${staticRoot}`)
+//   }
+//   const httpServer = require('http-server')
+//   const server = httpServer.createServer({ root: staticRoot })
+//   return new Promise((resolveServer, reject) => {
+//     server.listen(STATIC_SERVER_PORT, '127.0.0.1', (err) => {
+//       if (err) {
+//         reject(err)
+//       } else {
+//         console.log(`[static-server] started at http://127.0.0.1:${STATIC_SERVER_PORT}`)
+//         resolveServer()
+//       }
+//     })
+//   })
+// }
 
 // 注册 scheme，保证安全性
 protocol.registerSchemesAsPrivileged([
@@ -178,14 +387,14 @@ protocol.registerSchemesAsPrivileged([
 ])
 
 // 根据是否打包，修改资源路径
-function getResourcePath(fileName) {
-  if (app.isPackaged) {
-    console.log('app.getAppPath()', app.getAppPath())
-    return path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', fileName)
-  }
-  console.log('app.getAppPath()', app.getAppPath())
-  return path.join(app.getAppPath(), 'bin', fileName)
-}
+// function getResourcePath(fileName) {
+//   if (app.isPackaged) {
+//     console.log('app.getAppPath()', app.getAppPath())
+//     return path.join(process.resourcesPath, 'app.asar.unpacked', 'bin', fileName)
+//   }
+//   console.log('app.getAppPath()', app.getAppPath())
+//   return path.join(app.getAppPath(), 'bin', fileName)
+// }
 
 function getUserResourcePath(fileName) {
   if (app.isPackaged) {
@@ -212,18 +421,48 @@ function spawnAndTrack(command, args, options = {}) {
   const spawnOptions = { ...options, stdio: 'pipe' }
   const proc = spawn(command, args, spawnOptions)
 
+  // 发送服务日志到前端的辅助函数
+  const sendServiceLogToFrontend = (type, message, serviceName) => {
+    if (serviceLogEnabled && serviceLogListeners.size > 0) {
+      const logData = {
+        serviceName: serviceName,
+        type: type, // 'info', 'error', 'success'
+        message: message.trim(),
+        timestamp: new Date().toISOString()
+      }
+      // 向所有监听的窗口发送日志
+      serviceLogListeners.forEach((sender) => {
+        try {
+          sender.send('service-log', logData)
+        } catch (err) {
+          console.error('发送服务日志失败:', err)
+        }
+      })
+    }
+  }
+
   // 定义独立的事件处理函数，方便后面移除监听器
   const onStdoutData = (chunk) => {
     const dataStr = chunk.toString()
     // console.log(dataStr);
     // 同时调用 winstonLogger.log 记录日志
     winstonLogger.log('info', dataStr)
+
+    // 发送实时日志到前端（根据进程标记确定服务名称）
+    if (proc.tag) {
+      sendServiceLogToFrontend('info', dataStr, proc.tag)
+    }
   }
 
   const onStderrData = (chunk) => {
     const dataStr = chunk.toString()
     // console.error(dataStr);
     winstonLogger.log('error', dataStr)
+
+    // 发送实时日志到前端（根据进程标记确定服务名称）
+    if (proc.tag) {
+      sendServiceLogToFrontend('error', dataStr, proc.tag)
+    }
   }
 
   if (proc.stdout) {
@@ -236,15 +475,98 @@ function spawnAndTrack(command, args, options = {}) {
   // 将子进程保存到全局 childProcesses 数组中
   childProcesses.push(proc)
 
+  // 如果子进程日志监听已启用，为新进程添加日志监听器
+  if (childProcessLogEnabled && childProcessLogListeners.size > 0) {
+    // 添加stdout监听器
+    if (proc.stdout) {
+      const onChildStdoutData = (chunk) => {
+        const dataStr = chunk.toString()
+        const logData = {
+          serviceName: proc.tag || 'unknown',
+          type: 'info',
+          message: dataStr.trim(),
+          timestamp: new Date().toISOString()
+        }
+
+        // 使用Array.from创建一个副本进行迭代，避免在迭代过程中修改集合
+        Array.from(childProcessLogListeners).forEach((sender) => {
+          try {
+            // 检查sender是否已被销毁
+            if (sender.isDestroyed()) {
+              // 如果已被销毁，从集合中移除
+              childProcessLogListeners.delete(sender)
+              console.log('已移除已销毁的子进程日志监听器')
+            } else {
+              sender.send('child-process-log', logData)
+            }
+          } catch (err) {
+            console.error('发送子进程日志失败:', err)
+            // 出错时也从集合中移除该sender，避免持续刷屏
+            childProcessLogListeners.delete(sender)
+            console.log('已移除失效的子进程日志监听器')
+          }
+        })
+      }
+
+      proc.stdout.on('data', onChildStdoutData)
+      proc._stdoutHandler = onChildStdoutData
+    }
+
+    // 添加stderr监听器
+    if (proc.stderr) {
+      const onChildStderrData = (chunk) => {
+        const dataStr = chunk.toString()
+        const logData = {
+          serviceName: proc.tag || 'unknown',
+          type: 'error',
+          message: dataStr.trim(),
+          timestamp: new Date().toISOString()
+        }
+
+        // 使用Array.from创建一个副本进行迭代，避免在迭代过程中修改集合
+        Array.from(childProcessLogListeners).forEach((sender) => {
+          try {
+            // 检查sender是否已被销毁
+            if (sender.isDestroyed()) {
+              // 如果已被销毁，从集合中移除
+              childProcessLogListeners.delete(sender)
+              console.log('已移除已销毁的子进程日志监听器')
+            } else {
+              sender.send('child-process-log', logData)
+            }
+          } catch (err) {
+            console.error('发送子进程日志失败:', err)
+            // 出错时也从集合中移除该sender，避免持续刷屏
+            childProcessLogListeners.delete(sender)
+            console.log('已移除失效的子进程日志监听器')
+          }
+        })
+      }
+
+      proc.stderr.on('data', onChildStderrData)
+      proc._stderrHandler = onChildStderrData
+    }
+
+    proc._logListenersAttached = true
+  }
+
   // 监听子进程的退出事件
   proc.on('close', (code, signal) => {
     // 清理 stdout 和 stderr 上的事件监听器
     if (proc.stdout) {
       proc.stdout.removeListener('data', onStdoutData)
+      if (proc._stdoutHandler) {
+        proc.stdout.removeListener('data', proc._stdoutHandler)
+        delete proc._stdoutHandler
+      }
       proc.stdout.removeAllListeners('data')
     }
     if (proc.stderr) {
       proc.stderr.removeListener('data', onStderrData)
+      if (proc._stderrHandler) {
+        proc.stderr.removeListener('data', proc._stderrHandler)
+        delete proc._stderrHandler
+      }
       proc.stderr.removeAllListeners('data')
     }
     // 从全局数组中移除该进程引用
@@ -329,16 +651,29 @@ const installationStatus = {
 async function checkCommand(command) {
   return new Promise((resolve) => {
     if (process.platform === 'win32') {
+      // 绝对路径（含盘符或 .exe 或者反斜杠），直接校验是否存在
+      const looksLikePath =
+        /:\\/.test(command) || command.toLowerCase().endsWith('.exe') || command.includes('\\')
+      if (looksLikePath) {
+        try {
+          // 如果文件存在就直接返回该路径；否则尝试 --version 验证
+          if (existsSync(command)) {
+            return resolve(command)
+          }
+          exec(`"${command}" --version`, (error) => {
+            return resolve(!error || !error.code ? command : null)
+          })
+        } catch {
+          return resolve(null)
+        }
+        return
+      }
+
       switch (command) {
         case 'python':
+        case 'python3':
           exec(`python --version`, (error, stdout) => {
             console.log(`python --version: ${stdout}`)
-            resolve(!error || !error.code ? stdout.trim() : null)
-          })
-          return // 防止继续执行Unix命令
-        case 'python3':
-          exec(`python3 --version`, (error, stdout) => {
-            console.log(`python3 --version: ${stdout}`)
             resolve(!error || !error.code ? stdout.trim() : null)
           })
           return // 防止继续执行Unix命令
@@ -352,6 +687,19 @@ async function checkCommand(command) {
           exec(`pandoc --version`, (error, stdout) => {
             console.log(`pandoc --version: ${stdout}`)
             resolve(!error || !error.code ? stdout.trim() : null)
+          })
+          return // 防止继续执行Unix命令
+        case 'ollama':
+          // 优先用 where 定位绝对路径；失败则回退到 --version 判断 PATH 可执行
+          exec(`where ollama`, (err, stdout) => {
+            if (!err && stdout && stdout.trim()) {
+              const first = stdout.split(/\r?\n/).find(Boolean)
+              resolve(first ? first.trim() : 'ollama')
+            } else {
+              exec(`ollama --version`, (error2) => {
+                resolve(!error2 || !error2.code ? 'ollama' : null)
+              })
+            }
           })
           return // 防止继续执行Unix命令
       }
@@ -385,7 +733,7 @@ async function getSystemArchitecture() {
 
       // 即使当前在 Rosetta 下运行，也返回 arm64，以使用适当的 Homebrew 路径
       return 'arm64'
-    } catch (error) {
+    } catch {
       // 如果不能运行 arm64 命令，说明这是一台 Intel Mac
       console.log('系统不支持 arm64 执行，可能是 Intel Mac')
       return 'x86_64'
@@ -399,6 +747,45 @@ async function getSystemArchitecture() {
 
 let globalBrewPath = null
 
+// 配置 Homebrew 国内镜像源
+async function configureBrewMirror() {
+  if (!globalBrewPath) {
+    console.log('未找到 Homebrew 路径，跳过镜像配置')
+    return
+  }
+
+  try {
+    // const mirrorCommands = [
+    //   'export HOMEBREW_BOTTLE_DOMAIN=https://mirrors.aliyun.com/homebrew/homebrew-bottles',
+    //   'export HOMEBREW_API_DOMAIN=https://mirrors.aliyun.com/homebrew/homebrew-bottles/api',
+    //   'export HOMEBREW_BREW_GIT_REMOTE=https://mirrors.aliyun.com/homebrew/brew.git',
+    //   'export HOMEBREW_CORE_GIT_REMOTE=https://mirrors.aliyun.com/homebrew/homebrew-core.git'
+    // ]
+
+    // 设置环境变量到当前进程
+    process.env.HOMEBREW_BOTTLE_DOMAIN = 'https://mirrors.aliyun.com/homebrew/homebrew-bottles'
+    process.env.HOMEBREW_API_DOMAIN = 'https://mirrors.aliyun.com/homebrew/homebrew-bottles/api'
+    process.env.HOMEBREW_BREW_GIT_REMOTE = 'https://mirrors.aliyun.com/homebrew/brew.git'
+    process.env.HOMEBREW_CORE_GIT_REMOTE = 'https://mirrors.aliyun.com/homebrew/homebrew-core.git'
+
+    console.log('已配置 Homebrew 国内镜像源 (阿里云)')
+    console.log('HOMEBREW_BOTTLE_DOMAIN:', process.env.HOMEBREW_BOTTLE_DOMAIN)
+    console.log('HOMEBREW_API_DOMAIN:', process.env.HOMEBREW_API_DOMAIN)
+
+    // 可选：更新 tap 源
+    // try {
+    //   await execAsync(
+    //     `${globalBrewPath} tap --custom-remote homebrew/core https://mirrors.aliyun.com/homebrew/homebrew-core.git`
+    //   )
+    //   console.log('已更新 homebrew/core tap 源为国内镜像')
+    // } catch (tapError) {
+    //   console.log('更新 tap 源失败，但不影响正常使用:', tapError.message)
+    // }
+  } catch (error) {
+    console.error('配置 Homebrew 镜像源失败:', error.message)
+  }
+}
+
 async function initBrewPath() {
   const arch = await getSystemArchitecture()
   // 检查默认路径
@@ -406,14 +793,18 @@ async function initBrewPath() {
   if (fs.existsSync(defaultBrewPath)) {
     console.log(`找到 Homebrew 的默认路径: ${defaultBrewPath}, 架构: ${arch}`)
     globalBrewPath = defaultBrewPath
+    await configureBrewMirror()
+    updateBrew()
     return
   }
 
   // 如果默认路径不存在，尝试使用 command -v 来找
   const brewPath = await checkCommand('brew')
   if (brewPath) {
-    console.log(`找到 Homebrew 的路径: ${brewPath}`)
+    console.log(`找到 Homebrew 的路径: ${brewPath}, 架构: ${arch}`)
     globalBrewPath = brewPath
+    await configureBrewMirror()
+    updateBrew()
     return
   }
 
@@ -422,11 +813,30 @@ async function initBrewPath() {
   if (fs.existsSync(alternativePath)) {
     console.log(`找到 Homebrew 的替代路径: ${alternativePath}, 架构: ${arch}`)
     globalBrewPath = alternativePath
+    await configureBrewMirror()
+    updateBrew()
     return
   }
   // 找不到 Homebrew
   console.log(`未找到 Homebrew, 架构: ${arch}`)
   return null
+}
+
+async function updateBrew() {
+  if (process.platform === 'darwin') {
+    console.log('当前平台为 macOS')
+    const brewPath = await getBrewPath()
+    // 如果找到了 Homebrew 路径，获取版本信息
+    if (brewPath) {
+      execAsync(`${globalBrewPath} update`)
+        .then(({ stdout }) => {
+          console.log('Homebrew 版本更新信息:', stdout)
+        })
+        .catch((err) => {
+          console.error('Homebrew 更新失败:', err)
+        })
+    }
+  }
 }
 
 // 根据架构获取 Homebrew 路径
@@ -481,16 +891,38 @@ async function checkDependenciesStatus() {
 }
 
 // 安装单个包
-async function installPackage(pkgName) {
+async function installPackage(pkgName, event = null) {
+  // 发送日志到前端的辅助函数
+  const sendLogToFrontend = (type, message) => {
+    if (event) {
+      event.sender.send('install-log', {
+        packageName: pkgName,
+        type: type, // 'info', 'error', 'success'
+        message: message,
+        timestamp: new Date().toISOString()
+      })
+    }
+    // 同时输出到控制台
+    if (type === 'error') {
+      console.error(message)
+    } else {
+      console.log(message)
+    }
+  }
+
   if (process.platform !== 'win32') {
     const brewPath = await getBrewPath()
 
     if (!brewPath) {
-      return { success: false, message: 'Homebrew 未安装，无法继续安装包' }
+      const errorMsg = 'Homebrew 未安装，无法继续安装包'
+      sendLogToFrontend('error', errorMsg)
+      return { success: false, message: errorMsg }
     }
 
     if (installationStatus[pkgName]?.installing) {
-      return { success: false, message: `${pkgName} is already being installed` }
+      const errorMsg = `${pkgName} is already being installed`
+      sendLogToFrontend('error', errorMsg)
+      return { success: false, message: errorMsg }
     }
 
     installationStatus[pkgName].installing = true
@@ -502,33 +934,29 @@ async function installPackage(pkgName) {
     const isAppleSilicon = brewPath.includes('/opt/homebrew')
     const runningUnderRosetta = isAppleSilicon && processArch === 'x86_64'
 
-    console.log(
-      `安装 ${pkgName}: 进程架构=${processArch}, 是否在 Rosetta 下运行=${runningUnderRosetta}`
-    )
+    const archInfo = `安装 ${pkgName}: 进程架构=${processArch}, 是否在 Rosetta 下运行=${runningUnderRosetta}`
+    sendLogToFrontend('info', archInfo)
 
     return new Promise((resolve) => {
       let brewInstall
+      const packageToInstall = pkgName === 'python' ? 'python@3.11' : pkgName
 
       // 如果在 Apple Silicon 上使用 Rosetta 2 运行，需要使用 arch -arm64 来强制以 ARM 模式运行 brew
       if (runningUnderRosetta) {
-        console.log(
-          `使用 arch -arm64 强制以 ARM 模式运行: ${brewPath} install ${pkgName === 'python' ? 'python@3.11' : pkgName}`
-        )
-        brewInstall = spawn('/usr/bin/arch', [
-          '-arm64',
-          brewPath,
-          'install',
-          pkgName === 'python' ? 'python@3.11' : pkgName
-        ])
+        const cmdInfo = `使用 arch -arm64 强制以 ARM 模式运行: ${brewPath} install ${packageToInstall}`
+        sendLogToFrontend('info', cmdInfo)
+        brewInstall = spawn('/usr/bin/arch', ['-arm64', brewPath, 'install', packageToInstall])
       } else {
-        console.log(
-          `正常运行: ${brewPath} install ${pkgName === 'python' ? 'python@3.11' : pkgName}`
-        )
-        brewInstall = spawn(brewPath, ['install', pkgName === 'python' ? 'python@3.11' : pkgName])
+        const cmdInfo = `正常运行: ${brewPath} install ${packageToInstall}`
+        sendLogToFrontend('info', cmdInfo)
+        brewInstall = spawn(brewPath, ['install', packageToInstall])
       }
 
       brewInstall.stdout.on('data', (data) => {
-        console.log(`[${pkgName} install] ${data}`)
+        const output = data.toString().trim()
+        if (output) {
+          sendLogToFrontend('info', `[${pkgName}] ${output}`)
+        }
         installationStatus[pkgName].progress = Math.min(
           installationStatus[pkgName].progress + 30,
           90
@@ -536,7 +964,10 @@ async function installPackage(pkgName) {
       })
 
       brewInstall.stderr.on('data', (data) => {
-        console.error(`[${pkgName} install error] ${data}`)
+        const output = data.toString().trim()
+        if (output) {
+          sendLogToFrontend('error', `[${pkgName} 错误] ${output}`)
+        }
       })
 
       brewInstall.on('close', (code) => {
@@ -546,40 +977,71 @@ async function installPackage(pkgName) {
         installationStatus[pkgName].progress = success ? 100 : 0
 
         if (success) {
-          console.log(`${pkgName} installation completed successfully`)
+          const successMsg = `${pkgName} 安装成功完成`
+          sendLogToFrontend('success', successMsg)
         } else {
-          console.error(`${pkgName} installation failed with code ${code}`)
+          const errorMsg = `${pkgName} 安装失败，退出码: ${code}`
+          sendLogToFrontend('error', errorMsg)
         }
 
-        resolve({ success, code })
+        resolve({ success, code, logs: [] })
       })
     })
   } else {
     // Windows 安装部分
     if (installationStatus[pkgName]?.installing) {
-      return { success: false, message: `${pkgName} is already being installed` }
+      const errorMsg = `${pkgName} is already being installed`
+      sendLogToFrontend('error', errorMsg)
+      return { success: false, message: errorMsg }
     }
 
     installationStatus[pkgName].installing = true
     installationStatus[pkgName].progress = 10
     installationStatus[pkgName].installed = false
 
-    console.log(`开始在 Windows 上安装 ${pkgName}`)
+    const startMsg = `开始在 Windows 上安装 ${pkgName}`
+    sendLogToFrontend('info', startMsg)
 
     return new Promise((resolve) => {
       let installCommand, installArgs
 
       switch (pkgName) {
         case 'python':
-        case 'python3':
-          installCommand = 'winget'
-          installArgs = ['install', '--id', 'Python.Python.3', '-e']
-          break
-        case 'git':
+        case 'python3': {
+          // Windows系统下直接打开微软商店Python页面
+          const pythonStoreUrl = 'ms-windows-store://pdp/?productid=9NRWMJP3717K' // Python 3.11官方版本
+          sendLogToFrontend('info', '正在打开微软商店Python页面，请手动安装Python...')
+
+          shell
+            .openExternal(pythonStoreUrl)
+            .then(() => {
+              sendLogToFrontend('success', '已打开微软商店Python页面，请按照页面提示完成安装')
+
+              // 由于是手动安装，我们不能确定安装状态，建议用户安装完成后重新检测
+              installationStatus[pkgName].installing = false
+              installationStatus[pkgName].progress = 50 // 设置为50%表示已引导用户
+
+              resolve({
+                success: true,
+                code: 0,
+                message: '已打开微软商店，请手动完成Python安装后重新检测环境',
+                logs: []
+              })
+            })
+            .catch((error) => {
+              const errorMsg = `打开微软商店失败: ${error.message}`
+              sendLogToFrontend('error', errorMsg)
+              installationStatus[pkgName].installing = false
+              resolve({ success: false, message: errorMsg })
+            })
+          return // 提前返回，避免继续执行后面的代码
+        }
+        case 'git': {
           installCommand = 'winget'
           installArgs = ['install', '--id', 'Git.Git', '-e']
           break
-        case 'pandoc':
+        }
+        case 'pandoc': {
           installCommand = 'winget'
           installArgs = [
             'install',
@@ -590,15 +1052,25 @@ async function installPackage(pkgName) {
             'JohnMacFarlane.Pandoc'
           ]
           break
-        default:
+        }
+        default: {
           installationStatus[pkgName].installing = false
-          return resolve({ success: false, message: `Unknown package: ${pkgName}` })
+          const errorMsg = `Unknown package: ${pkgName}`
+          sendLogToFrontend('error', errorMsg)
+          return resolve({ success: false, message: errorMsg })
+        }
       }
+
+      const cmdInfo = `执行命令: ${installCommand} ${installArgs.join(' ')}`
+      sendLogToFrontend('info', cmdInfo)
 
       const installProcess = spawn(installCommand, installArgs, { shell: true })
 
       installProcess.stdout.on('data', (data) => {
-        console.log(`[${pkgName} install] ${data}`)
+        const output = data.toString().trim()
+        if (output) {
+          sendLogToFrontend('info', `[${pkgName}] ${output}`)
+        }
         installationStatus[pkgName].progress = Math.min(
           installationStatus[pkgName].progress + 30,
           90
@@ -606,7 +1078,10 @@ async function installPackage(pkgName) {
       })
 
       installProcess.stderr.on('data', (data) => {
-        console.error(`[${pkgName} install error] ${data}`)
+        const output = data.toString().trim()
+        if (output) {
+          sendLogToFrontend('error', `[${pkgName} 错误] ${output}`)
+        }
       })
 
       installProcess.on('close', (code) => {
@@ -616,19 +1091,36 @@ async function installPackage(pkgName) {
         installationStatus[pkgName].progress = success ? 100 : 0
 
         if (success) {
-          console.log(`${pkgName} installation completed successfully`)
+          const successMsg = `${pkgName} 安装成功完成`
+          sendLogToFrontend('success', successMsg)
         } else {
-          console.error(`${pkgName} installation failed with code ${code}`)
+          const errorMsg = `${pkgName} 安装失败，退出码: ${code}`
+          sendLogToFrontend('error', errorMsg)
         }
 
-        resolve({ success, code })
+        resolve({ success, code, logs: [] })
       })
     })
   }
 }
 
 // 批量安装所有需要的包
-async function installRequiredPackages() {
+async function installRequiredPackages(event = null) {
+  // 发送开始安装日志
+  const sendLogToFrontend = (type, message) => {
+    if (event) {
+      event.sender.send('install-log', { type, message })
+    }
+    // 同时输出到控制台
+    if (type === 'error') {
+      console.error(message)
+    } else {
+      console.log(message)
+    }
+  }
+
+  sendLogToFrontend('info', '开始批量安装依赖包...')
+
   // 重置安装状态
   for (const pkg of Object.keys(installationStatus)) {
     installationStatus[pkg].installed =
@@ -638,19 +1130,30 @@ async function installRequiredPackages() {
 
   // 安装缺失的包
   const packagesToInstall = Object.entries(installationStatus)
-    .filter(([_, status]) => !status.installed)
+    .filter(([, status]) => !status.installed)
     .map(([pkg]) => pkg)
 
   if (packagesToInstall.length === 0) {
+    sendLogToFrontend('success', '所有依赖包已安装，无需重复安装')
     return { success: true, message: 'All required packages are already installed' }
   }
 
+  sendLogToFrontend(
+    'info',
+    `发现 ${packagesToInstall.length} 个未安装的依赖包: ${packagesToInstall.join(', ')}`
+  )
+
   try {
     for (const pkg of packagesToInstall) {
-      await installPackage(pkg)
+      sendLogToFrontend('info', `开始安装 ${pkg}...`)
+      await installPackage(pkg, event)
+      sendLogToFrontend('success', `${pkg} 安装完成`)
     }
+    sendLogToFrontend('success', '所有依赖包安装完成！')
     return { success: true, message: 'All packages installed successfully' }
   } catch (error) {
+    const errorMsg = `批量安装失败: ${error.message}`
+    sendLogToFrontend('error', errorMsg)
     return { success: false, message: `Installation failed: ${error.message}` }
   }
 }
@@ -658,8 +1161,8 @@ async function installRequiredPackages() {
 // 打开新窗口
 ipcMain.on('open-new-window', (event, url) => {
   const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 1440,
+    height: 1000,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -674,7 +1177,7 @@ ipcMain.handle('dialog:openDirectory', async (event, options) => {
   return await dialog.showOpenDialog(focusedWindow, options)
 })
 
-ipcMain.handle('sys-config', async (event, options) => {
+ipcMain.handle('sys-config', async () => {
   let configPath = ''
   try {
     configPath = getUserResourcePath('config.yaml')
@@ -686,7 +1189,7 @@ ipcMain.handle('sys-config', async (event, options) => {
   }
 })
 
-ipcMain.handle('fm-config', async (event, options) => {
+ipcMain.handle('fm-config', async () => {
   let configPath = ''
   try {
     configPath = getUserResourcePath('fm.yaml')
@@ -699,7 +1202,7 @@ ipcMain.handle('fm-config', async (event, options) => {
 })
 
 // 修改后的 start-bot IPC 处理函数
-ipcMain.handle('start-bot', async (event, configPath) => {
+ipcMain.handle('start-bot', async (_, configPath) => {
   winstonLogger.log(
     'info',
     `[IPC start-bot] 启动外部程序的路径: ${getExecutablePaths()
@@ -730,7 +1233,7 @@ ipcMain.handle('start-bot', async (event, configPath) => {
 })
 
 // 修改后的 stop-bot IPC 处理函数
-ipcMain.handle('stop-bot', async (event) => {
+ipcMain.handle('stop-bot', async () => {
   // 从 childProcesses 中筛选出 tag 为 'bot' 的所有进程
   const botProcesses = childProcesses.filter((proc) => proc.tag === 'bot')
   if (botProcesses.length === 0) {
@@ -767,6 +1270,33 @@ ipcMain.handle('stop-bot', async (event) => {
 
 // 修改后的 start-app IPC 处理函数
 ipcMain.handle('start-app', async (event, configPath) => {
+  // 启用服务日志监听，但不重复添加监听器（由start-service-log统一管理）
+  serviceLogEnabled = true
+
+  // 清除之前的计时器（如果存在）
+  if (serviceLogTimer) {
+    clearTimeout(serviceLogTimer)
+  }
+
+  // 设置10分钟自动停止日志监听的计时器，防止内存泄漏
+  serviceLogTimer = setTimeout(
+    () => {
+      console.log('[start-app] 10分钟计时器到期，自动停止服务日志监听')
+      serviceLogEnabled = false
+      serviceLogListeners.clear()
+      serviceLogTimer = null
+    },
+    10 * 60 * 1000
+  ) // 10分钟
+
+  // 发送启动开始日志
+  event.sender.send('service-log', {
+    serviceName: 'app',
+    type: 'info',
+    message: '正在启动核心服务...',
+    timestamp: new Date().toISOString()
+  })
+
   winstonLogger.log(
     'info',
     `[IPC start-app] 启动外部程序的路径: ${getExecutablePaths()
@@ -778,6 +1308,12 @@ ipcMain.handle('start-app', async (event, configPath) => {
   const existingApp = childProcesses.find((proc) => proc.tag === 'app')
   if (existingApp) {
     console.log('[IPC start-app] App 已经在运行，无需重复启动')
+    event.sender.send('service-log', {
+      serviceName: 'app',
+      type: 'info',
+      message: '核心服务已在运行中',
+      timestamp: new Date().toISOString()
+    })
     return { started: true, message: 'App already running', pid: existingApp.pid }
   }
 
@@ -787,17 +1323,25 @@ ipcMain.handle('start-app', async (event, configPath) => {
     ['-config', configPath, '-db', getUserResourcePath('githave.db')],
     {
       detached: true,
-      stdio: 'ignore'
+      stdio: 'pipe'
     }
   )
   newApp.unref()
   newApp.tag = 'app' // 设置标记以便后续识别
+
+  event.sender.send('service-log', {
+    serviceName: 'app',
+    type: 'success',
+    message: `核心服务启动成功，进程ID: ${newApp.pid}`,
+    timestamp: new Date().toISOString()
+  })
+
   winstonLogger.log('info', `[IPC start-app] App 启动成功，新的 pid: ${newApp.pid}`)
   return { started: true, pid: newApp.pid }
 })
 
 // 修改后的 stop-app IPC 处理函数
-ipcMain.handle('stop-app', async (event) => {
+ipcMain.handle('stop-app', async () => {
   // 从 childProcesses 中筛选出 tag 为 'app' 的所有进程
   const appProcesses = childProcesses.filter((proc) => proc.tag === 'app')
   if (appProcesses.length === 0) {
@@ -862,6 +1406,33 @@ ipcMain.handle('check-app-health', async () => {
 
 // 修改后的 start-fm_http IPC 处理函数
 ipcMain.handle('start-fm_http', async (event, configPath) => {
+  // 启用服务日志监听，但不重复添加监听器（由start-service-log统一管理）
+  serviceLogEnabled = true
+
+  // 清除之前的计时器（如果存在）
+  if (serviceLogTimer) {
+    clearTimeout(serviceLogTimer)
+  }
+
+  // 设置10分钟自动停止日志监听的计时器，防止内存泄漏
+  serviceLogTimer = setTimeout(
+    () => {
+      console.log('[start-fm_http] 10分钟计时器到期，自动停止服务日志监听')
+      serviceLogEnabled = false
+      serviceLogListeners.clear()
+      serviceLogTimer = null
+    },
+    10 * 60 * 1000
+  ) // 10分钟
+
+  // 发送启动开始日志
+  event.sender.send('service-log', {
+    serviceName: 'fm_http',
+    type: 'info',
+    message: '正在启动索引服务...',
+    timestamp: new Date().toISOString()
+  })
+
   winstonLogger.log(
     'info',
     `[IPC start-fm_http] 启动外部程序的路径: ${getExecutablePaths()
@@ -873,22 +1444,36 @@ ipcMain.handle('start-fm_http', async (event, configPath) => {
   const existingFmHttp = childProcesses.find((proc) => proc.tag === 'fm_http')
   if (existingFmHttp) {
     console.log('[IPC start-fm_http] fm_http 已经在运行，无需重复启动')
+    event.sender.send('service-log', {
+      serviceName: 'fm_http',
+      type: 'info',
+      message: '索引服务已在运行中',
+      timestamp: new Date().toISOString()
+    })
     return { started: true, message: 'fm_http already running', pid: existingFmHttp.pid }
   }
 
   const fmHttpPath = getExecutablePath('fm_http')
   const newFmHttp = spawnAndTrack(fmHttpPath, ['-config', configPath], {
     detached: true,
-    stdio: 'ignore'
+    stdio: 'pipe'
   })
   newFmHttp.unref()
   newFmHttp.tag = 'fm_http' // 设置标记以便后续识别
+
+  event.sender.send('service-log', {
+    serviceName: 'fm_http',
+    type: 'success',
+    message: `索引服务启动成功，进程ID: ${newFmHttp.pid}`,
+    timestamp: new Date().toISOString()
+  })
+
   winstonLogger.log('info', `[IPC start-fm_http] fm_http 启动成功，新的 pid: ${newFmHttp.pid}`)
   return { started: true, pid: newFmHttp.pid }
 })
 
 // 修改后的 stop-fm_http IPC 处理函数
-ipcMain.handle('stop-fm_http', async (event) => {
+ipcMain.handle('stop-fm_http', async () => {
   // 从 childProcesses 中筛选出 tag 为 'fm_http' 的所有进程
   const fmHttpProcesses = childProcesses.filter((proc) => proc.tag === 'fm_http')
   if (fmHttpProcesses.length === 0) {
@@ -964,7 +1549,6 @@ ipcMain.handle('read-fm-config', async (event, configPath = null) => {
 })
 
 ipcMain.handle('read-directory', async (event, dirPath) => {
-  console.log('[IPC read-directory] Received dirPath:', dirPath)
   try {
     const files = await fs.promises.readdir(dirPath)
     const results = await Promise.all(
@@ -982,7 +1566,6 @@ ipcMain.handle('read-directory', async (event, dirPath) => {
         }
       })
     )
-    console.log('[IPC read-directory] Directory read successfully')
     return results.filter((item) => item !== null)
   } catch (err) {
     console.error('[IPC read-directory] Error reading directory:', err)
@@ -990,12 +1573,28 @@ ipcMain.handle('read-directory', async (event, dirPath) => {
   }
 })
 
-ipcMain.handle('read-file', async (event, filePath) => {
-  console.log('[IPC read-file] Received filePath:', filePath)
+ipcMain.handle('read-file', async (event, filePath, options = {}) => {
+  console.log('[IPC read-file] Received filePath:', filePath, options)
   try {
-    const data = await fs.promises.readFile(filePath, 'utf-8')
-    console.log('[IPC read-file] File read successfully')
-    return data
+    let encoding = options.encoding !== undefined ? options.encoding : 'utf-8'
+    let maxBytes = options.maxBytes
+    if (encoding === null) {
+      // 读取 Buffer
+      const fd = await fs.promises.open(filePath, 'r')
+      const stat = await fd.stat()
+      const length = maxBytes ? Math.min(stat.size, maxBytes) : stat.size
+      const buffer = Buffer.alloc(length)
+      await fd.read(buffer, 0, length, 0)
+      await fd.close()
+      return buffer
+    } else {
+      // 读取字符串
+      let data = await fs.promises.readFile(filePath, encoding)
+      if (maxBytes) {
+        data = data.slice(0, maxBytes)
+      }
+      return data
+    }
   } catch (err) {
     console.error('[IPC read-file] Error reading file:', err)
     throw err
@@ -1136,7 +1735,7 @@ ipcMain.handle('open-path-with-app', async (event, targetPath, appPath) => {
     console.log('[IPC open-path-with-app] Opened path successfully')
     return
   } catch (error) {
-    console.error(`[IPC open-path-with-app] Error opening ${resolvedPath} with ${appPath}:`, error)
+    console.error(`[IPC open-path-with-app] Error opening ${targetPath} with ${appPath}:`, error)
     throw error
   }
 })
@@ -1158,33 +1757,44 @@ ipcMain.handle('open-path-with-bot', async (event, targetPath, botPath) => {
  * which 找不到也返回命令名本身，让 shell 去 PATH 里找。
  */
 async function resolveCommand(cmd) {
-  return new Promise(async (resolve) => {
+  return new Promise((resolve) => {
     if (process.platform === 'win32') {
-      console.log(`[resolveCommand] Windows platform, returning command: ${cmd}`)
-      return resolve(cmd)
-    }
-    const arch = await getSystemArchitecture()
-    console.log(`[resolveCommand] System architecture: ${arch}`)
-    const command = `which ${cmd}`
-    console.log(`[resolveCommand] Executing: ${command}`)
-    exec(
-      `bash -l -c "export PATH=$PATH:/opt/homebrew/bin:/usr/local/bin &&  ${command}"`,
-      { env },
-      (error, stdout, stderr) => {
-        console.log(`stdout: ${stdout}`)
-        console.error(`stderr: ${stderr}`)
-        if (error || !stdout.trim()) {
-          console.log(
-            `[resolveCommand] Not found or error, returning original command: ${cmd} ${stdout} ${stderr}`,
-            error ? error.message : ''
-          )
-          resolve(cmd)
+      console.log(`[resolveCommand] Windows platform, resolving via 'where': ${cmd}`)
+      exec(`where ${cmd}`, (error, stdout) => {
+        if (!error && stdout && stdout.trim()) {
+          const first = stdout.split(/\r?\n/).find(Boolean)
+          console.log(`[resolveCommand] Resolved path (win): ${first ? first.trim() : cmd}`)
+          resolve(first ? first.trim() : cmd)
         } else {
-          console.log(`[resolveCommand] Resolved path: ${stdout.trim()}`)
-          resolve(stdout.trim())
+          console.log(`[resolveCommand] 'where' failed, fallback to cmd name: ${cmd}`)
+          resolve(cmd)
         }
-      }
-    )
+      })
+      return
+    }
+    getSystemArchitecture().then((arch) => {
+      console.log(`[resolveCommand] System architecture: ${arch}`)
+      const command = `which ${cmd}`
+      console.log(`[resolveCommand] Executing: ${command}`)
+      exec(
+        `bash -l -c "export PATH=$PATH:/opt/homebrew/bin:/usr/local/bin &&  ${command}"`,
+        { env },
+        (error, stdout, stderr) => {
+          console.log(`stdout: ${stdout}`)
+          console.error(`stderr: ${stderr}`)
+          if (error || !stdout.trim()) {
+            console.log(
+              `[resolveCommand] Not found or error, returning original command: ${cmd} ${stdout} ${stderr}`,
+              error ? error.message : ''
+            )
+            resolve(cmd)
+          } else {
+            console.log(`[resolveCommand] Resolved path: ${stdout.trim()}`)
+            resolve(stdout.trim())
+          }
+        }
+      )
+    })
   })
 }
 
@@ -1230,8 +1840,10 @@ ipcMain.handle('check-ollama', async () => {
   const ollamaCmd = await getOllamaPath()
   // 第一步：确认 ollama 可执行文件存在（即是否安装）
   try {
-    // 调用 --version，比 serve 安全，不会占端口
-    await execAsync(`${ollamaCmd} --version`)
+    // 调用 --version，比 serve 安全，不会占端口（加引号兼容空格路径）
+    const actualPath = await checkCommand(ollamaCmd)
+    const execPath = actualPath || ollamaCmd
+    await execAsync(`"${execPath}" --version`)
   } catch (err) {
     console.error('[IPC check-ollama] ollama 未安装或无法执行:', err)
     return { installed: false, running: false }
@@ -1267,9 +1879,10 @@ async function parseOllamaList() {
     // 或者直接抛错： throw new Error('ollama 未安装或不在 PATH 中')
   }
 
-  // 3. 真正执行 list
+  // 3. 真正执行 list（对路径加引号，兼容空格）
   try {
-    const { stdout, stderr } = await execAsync(`${actualPath} list`)
+    const cmd = `"${actualPath}"`
+    const { stdout, stderr } = await execAsync(`${cmd} list`)
     if (stderr) console.error('[parseOllamaList] stderr:', stderr)
     const lines = stdout.trim().split('\n')
     const dataLines = lines.slice(1).filter((line) => line.trim())
@@ -1286,12 +1899,14 @@ async function parseOllamaList() {
 ipcMain.handle('remove-models', async (event, modelName) => {
   try {
     const ollamaPath = await getOllamaPath()
+    const actualPath = await checkCommand(ollamaPath)
+    const execPath = actualPath || ollamaPath
     // 如果传入的是数组，则逐个卸载；否则视为单个模型名
     const models = Array.isArray(modelName) ? modelName : [modelName]
 
     for (const model of models) {
       winstonLogger.log('info', `[remove-models] 开始卸载模型: ${model}`)
-      const proc = spawnAndTrack(ollamaPath, ['rm', model])
+      const proc = spawnAndTrack(execPath, ['rm', model])
 
       await new Promise((resolve, reject) => {
         proc.on('close', (code, signal) => {
@@ -1349,15 +1964,18 @@ ipcMain.handle('check-model-deployment', async (event, requiredModelsList) => {
   console.log('[IPC check-model-deployment] Received models list:', requiredModelsList)
   try {
     const ollamaPath = await getOllamaPath()
-    const stdout = await runCommand(`${ollamaPath} list`)
+    // 新增：解析实际可执行路径，兼容 Windows 未加入 PATH 的情况
+    const actualPath = await checkCommand(ollamaPath)
+    const execPath = actualPath || ollamaPath
+    const stdout = await runCommand(`"${execPath}" list`)
     const deployed = requiredModelsList.every((modelName) =>
       stdout.toLowerCase().includes(modelName.toLowerCase())
     )
     console.log('[IPC check-model-deployment] Deployed:', deployed)
     return deployed
   } catch (err) {
-    console.error('[IPC check-model-deployment] Error:', err)
-    return false
+    console.error('[check-model-deployment] Error:', err)
+    throw err
   }
 })
 
@@ -1376,7 +1994,9 @@ ipcMain.handle('install-models', async (event, modelsToInstall) => {
       const model = modelsToInstall[index]
       console.log(`[IPC install-models] Installing model: ${model}`)
       const ollamaPath = await getOllamaPath()
-      const pullProcess = spawnAndTrack(ollamaPath, ['pull', model], { stdio: 'inherit' })
+      const actualPath = await checkCommand(ollamaPath)
+      const execPath = actualPath || ollamaPath
+      const pullProcess = spawnAndTrack(execPath, ['pull', model], { stdio: 'inherit' })
       let outputData = ''
       let lastModelProgress = 0
       pullProcess.stdout.on('data', (data) => {
@@ -1459,16 +2079,21 @@ ipcMain.handle('get-user-data-path', async () => {
 
 // 新增：检查 Python 是否安装
 
-ipcMain.handle('check-python', () => {
-  const py = process.platform === 'win32' ? 'python' : 'python3'
-  const result = spawnSync(py, ['--version'], { encoding: 'utf8' })
+ipcMain.handle('check-python', async () => {
+  // 先尝试 python 命令
+  let pythonResult = spawnSync('python', ['--version'], { encoding: 'utf8' })
+  // 如果 python 命令失败，则尝试 python3 命令
+  if (pythonResult.error) {
+    pythonResult = spawnSync('python3', ['--version'], { encoding: 'utf8' })
+  }
 
-  if (result.error) {
-    console.error(`[IPC check-python] Python 检查失败:`, result.error)
+  // 两个命令都失败的情况
+  if (pythonResult.error) {
+    console.error(`[IPC check-python] Python 检查失败:`, pythonResult.error)
     return { success: false, version: null }
   }
 
-  const version = result.stdout.trim() || result.stderr.trim()
+  const version = pythonResult.stdout.trim() || pythonResult.stderr.trim()
   return { success: true, version }
 })
 ipcMain.handle('save-file', async (event, filePath, data) => {
@@ -1570,18 +2195,18 @@ ipcMain.handle('get-zoom-factor', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender)
   return win && win.webContents ? win.webContents.getZoomFactor() : 1
 })
-
 /* 主窗口创建与页面加载 */
 
 async function createSkeletonWindow() {
   const preload = path.join(__dirname, '../preload/index.js')
+  const isWin = process.platform === 'win32'
   const win = new BrowserWindow({
     width: 1400,
-    height: 900,
-    icon: path.join(__dirname, '../renderer/assets', 'banner.png'),
-    frame: false,
-    titleBarStyle: 'hidden',
-    autoHideMenuBar: false,
+    height: 1000,
+    icon: path.join(__dirname, '../renderer/assets', 'banner_v3_low.png'),
+    frame: isWin, // Windows 下展示系统窗口控制按钮
+    titleBarStyle: isWin ? 'default' : 'hidden',
+    autoHideMenuBar: isWin, // Windows 下自动隐藏菜单栏，但保留窗口控制按钮
     show: false,
     webPreferences: {
       preload: preload,
@@ -1594,14 +2219,17 @@ async function createSkeletonWindow() {
   remoteMain.enable(win.webContents)
 
   // 载入骨架加载页面，替代空白界面
-  const skeletonPath = path.join(__dirname, '../../public/skeleton.html')
-  console.log('[main] loading skeleton screen:', skeletonPath)
-  await win.loadFile(skeletonPath, {
-    query: { desc: '正在检查并启动核心进程...' }
-  })
+  // const skeletonPath = path.join(__dirname, '../../public/skeleton.html')
+  // console.log('[main] loading skeleton screen:', skeletonPath)
+  // await win.loadFile(skeletonPath, {
+  //   query: { desc: '正在检查并启动核心进程...' }
+  // })
   initializeUserDataBin()
   // 当骨架页面准备就绪后展示窗口
-  win.once('ready-to-show', () => win.show())
+  win.once('ready-to-show', () => {
+    win.show()
+    dispatchDeepLinks()
+  })
   // 拦截新窗口打开请求（外链均由系统默认浏览器打开）
   win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -1636,10 +2264,19 @@ async function loadMainInterface(win) {
 
 app.on('ready', async () => {
   console.log('[main] app ready')
+  registerProtocol()
   const win = await createSkeletonWindow()
   await initPaths()
   await initBrewPath()
   clearOccupiedPorts().catch((err) => winstonLogger.log('error', '清理端口时出现错误: ' + err))
+
+  // Windows 冷启动：argv 里自带深链（第一个是 exe 路径，后面可能有 URL）
+  if (process.platform === 'win32' && Array.isArray(process.argv)) {
+    const deepLink = process.argv.find(
+      (a) => typeof a === 'string' && a.startsWith(`${PROTOCOL}://`)
+    )
+    if (deepLink) queueDeepLink(deepLink)
+  }
 
   await new Promise((resolve) => setTimeout(resolve, 1500))
   try {
@@ -1691,7 +2328,7 @@ app.on('before-quit', async (event) => {
     return
   }
 
-  // 用户选择“停止核心服务并退出”
+  // 用户选择"停止核心服务并退出"
   ipcMain.once('shutdown-yes', async () => {
     console.log('用户选择停止核心服务，开始进行关闭流程……')
     const skeletonHtmlPath = path.join(__dirname, '../../public/skeleton.html')
@@ -1724,7 +2361,7 @@ app.on('before-quit', async (event) => {
             console.error('清理终端实例时出错:', e)
           }
         })
-        
+
         // 遍历全局 childProcesses 数组，逐一杀死子进程
         childProcesses.forEach((proc) => {
           if (proc && !proc.killed) {
@@ -1736,6 +2373,9 @@ app.on('before-quit', async (event) => {
           }
         })
         console.log('核心服务已全部停止。')
+
+        // 清理winston日志文件
+        await cleanupAllLogFiles()
       } catch (err) {
         console.error('停止核心服务过程中出错:', err)
       } finally {
@@ -1748,15 +2388,16 @@ app.on('before-quit', async (event) => {
 
   // 用户选择“直接退出（保留后台服务）”
   ipcMain.once('shutdown-no', async () => {
-    console.log('用户选择直接退出，保留后台服务。')
     shutdownWindow.close()
-    app.removeAllListeners('before-quit')
-    app.quit()
   })
 
   shutdownWindow.on('closed', async () => {
-    app.removeAllListeners('before-quit')
-    app.quit()
+    console.log('用户关闭了退出确认窗口，取消退出操作。')
+    // 清理winston日志文件
+    await cleanupAllLogFiles()
+
+    // 不移除 before-quit 监听器，保持退出确认功能
+    // 不调用 app.quit()，让程序继续运行
   })
 })
 
@@ -1885,7 +2526,7 @@ async function checkPortAndStore(port, executableName) {
         if (stdout && stdout.trim() !== '') {
           portInUse = true
         }
-      } catch (err) {
+      } catch {
         portInUse = false
       }
     } else {
@@ -1926,7 +2567,7 @@ async function checkPortAndStore(port, executableName) {
 ipcMain.on('open-new-window-ide', (event, url) => {
   const win = new BrowserWindow({
     width: 1440,
-    height: 900,
+    height: 1000,
     frame: true,
     autoHideMenuBar: false,
     show: true,
@@ -1966,7 +2607,7 @@ ipcMain.handle('check-memory-flash', async (_event, args) => {
     if (!stat.isDirectory()) {
       return { exists: false, indexing: false }
     }
-  } catch (err) {
+  } catch {
     return { exists: false, indexing: false }
   }
 
@@ -1974,18 +2615,28 @@ ipcMain.handle('check-memory-flash', async (_event, args) => {
   const dbPath = path.join(gitgoDir, 'code_index.db')
   const faissPath = path.join(gitgoDir, 'code_index.faiss')
   const indexing = path.join(gitgoDir, 'indexing.temp')
+  const fullIndex = path.join(gitgoDir, 'full_index.temp')
+  const moduleAnalyzer = path.join(gitgoDir, 'module_analyzer.temp')
   const hasDb = fs.existsSync(dbPath)
   const hasFaiss = fs.existsSync(faissPath)
   const hasIndexing = fs.existsSync(indexing)
+  const hasFullIndex = fs.existsSync(fullIndex)
+  const moduleAnalyzing = fs.existsSync(moduleAnalyzer)
 
-  return { exists: hasDb && hasFaiss, indexing: hasIndexing, hasDb }
+  return {
+    exists: hasDb && hasFaiss,
+    indexing: hasIndexing,
+    hasDb,
+    hasFullIndex,
+    moduleAnalyzing
+  }
 })
 
 ipcMain.handle('checkPandocIPC', async () => {
   try {
     // 确保获取 pandoc 路径的时候正确等待 Promise 完成
     const pandocPath = await getPandocPath()
-    const { stdout } = await execAsync(`${pandocPath} --version`)
+    const { stdout } = await execAsync(`"${pandocPath}" --version`)
     if (!stdout || !stdout.trim()) {
       return { installed: false }
     }
@@ -2001,7 +2652,7 @@ ipcMain.handle('checkGitIPC', async () => {
   try {
     // 确保获取 Git 路径的时候正确等待 Promise 完成
     const gitPath = await getGitPath()
-    const { stdout } = await execAsync(`${gitPath} --version`)
+    const { stdout } = await execAsync(`"${gitPath}" --version`)
     if (!stdout || !stdout.trim()) {
       return { installed: false }
     }
@@ -2032,15 +2683,6 @@ async function initializeUserDataBin() {
 
   console.log('内测阶段删除版本标识文件，正式生产上线时删掉这段')
   await fsPromises.rm(versionFilePath, { recursive: true, force: true })
-
-  // 如果是生产环境，清理userData下的static
-  if (isProd) {
-    const staticPath = path.join(app.getPath('userData'), 'static', 'deep_research')
-    if (fs.existsSync(staticPath)) {
-      console.log('[initializeUserDataBin] 清理 static/deep_research 目录...')
-      await fsPromises.rm(staticPath, { recursive: true, force: true })
-    }
-  }
 
   // 3. 确保目标目录存在
   await fsPromises.mkdir(userDataPath, { recursive: true })
@@ -2103,7 +2745,11 @@ async function initializeUserDataBin() {
     // 'fm.exe',
     'fm_http',
     'fm_http.exe',
-    'static'
+    'static',
+    'fm.yaml',
+    'config.yaml',
+    'watermark.svg',
+    'watermark.png'
   ]
 
   // 10. 遍历复制或覆盖
@@ -2115,6 +2761,16 @@ async function initializeUserDataBin() {
 
     if (stat.isDirectory()) {
       if (shouldForce || !fs.existsSync(dest)) {
+        if (name === 'static') {
+          // 如果是生产环境，清理userData下的static
+          if (isProd) {
+            const staticPath = path.join(app.getPath('userData'), 'static', 'deep_research')
+            if (fs.existsSync(staticPath)) {
+              console.log('[initializeUserDataBin] 清理 static/deep_research 目录...')
+              await fsPromises.rm(staticPath, { recursive: true, force: true })
+            }
+          }
+        }
         await fsPromises.cp(src, dest, { recursive: true })
         console.log(`[initializeUserDataBin] ${shouldForce ? '强制覆盖目录' : '复制目录'}：${name}`)
         if (isProd) {
@@ -2165,8 +2821,8 @@ ipcMain.handle('check-dependencies-status', async () => {
 })
 
 // 安装所有缺失的依赖
-ipcMain.handle('install-required-packages', async () => {
-  return await installRequiredPackages()
+ipcMain.handle('install-required-packages', async (event) => {
+  return await installRequiredPackages(event)
 })
 
 // 安装单个包
@@ -2174,7 +2830,7 @@ ipcMain.handle('install-package', async (event, pkgName) => {
   if (!installationStatus[pkgName]) {
     return { success: false, message: `Unknown package: ${pkgName}` }
   }
-  return await installPackage(pkgName)
+  return await installPackage(pkgName, event)
 })
 
 // 检查 Homebrew 是否安装
@@ -2298,6 +2954,54 @@ ipcMain.handle('unzip-file', (event, zipFile, outputDir) => {
   }
 })
 
+// 打包文件为tar.gz
+ipcMain.handle('tar-gz-files', async (event, directory, output) => {
+  try {
+    // 确保目录存在
+    if (!fs.existsSync(directory)) {
+      throw new Error('目录不存在')
+    }
+
+    // 使用tar库创建tar.gz压缩包
+    await tar.create(
+      {
+        gzip: true,
+        file: output,
+        cwd: path.dirname(directory)
+      },
+      [path.basename(directory)]
+    )
+
+    return { success: true, message: '文件已成功压缩为tar.gz' }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
+// 解压tar.gz文件
+ipcMain.handle('untar-gz-file', async (event, tarFile, outputDir) => {
+  try {
+    if (!fs.existsSync(tarFile)) {
+      throw new Error('压缩文件不存在')
+    }
+
+    // 确保输出目录存在
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true })
+    }
+
+    // 使用tar库解压tar.gz文件
+    await tar.extract({
+      file: tarFile,
+      cwd: outputDir
+    })
+
+    return { success: true, message: '文件已成功解压' }
+  } catch (error) {
+    return { success: false, message: error.message }
+  }
+})
+
 // Terminal management
 const terminals = new Map() // 存储终端实例
 let terminalCounter = 0 // 终端ID计数器
@@ -2309,7 +3013,7 @@ ipcMain.handle('terminal-init', async (event, { cwd, cols, rows, shell }) => {
   }
   try {
     const terminalId = `terminal_${++terminalCounter}`
-    
+
     // 确定要使用的 shell
     let shellToUse
     if (shell) {
@@ -2319,7 +3023,7 @@ ipcMain.handle('terminal-init', async (event, { cwd, cols, rows, shell }) => {
     } else {
       shellToUse = 'bash'
     }
-    
+
     // 创建新的终端实例
     const terminal = pty.spawn(shellToUse, [], {
       name: 'xterm-color',
@@ -2328,10 +3032,10 @@ ipcMain.handle('terminal-init', async (event, { cwd, cols, rows, shell }) => {
       cwd: cwd || process.cwd(),
       env: process.env
     })
-    
+
     // 存储终端实例
     terminals.set(terminalId, terminal)
-    
+
     // 监听终端输出
     terminal.on('data', (data) => {
       // 检查渲染进程是否已销毁
@@ -2339,7 +3043,7 @@ ipcMain.handle('terminal-init', async (event, { cwd, cols, rows, shell }) => {
         event.sender.send('terminal-data', { terminalId, data })
       }
     })
-    
+
     // 监听终端退出
     terminal.on('exit', (code) => {
       terminals.delete(terminalId)
@@ -2348,7 +3052,7 @@ ipcMain.handle('terminal-init', async (event, { cwd, cols, rows, shell }) => {
         event.sender.send('terminal-exit', { terminalId, code })
       }
     })
-    
+
     return { success: true, terminalId }
   } catch (error) {
     console.error('Terminal init error:', error)
@@ -2365,7 +3069,7 @@ ipcMain.handle('terminal-write', async (event, { terminalId, data }) => {
     if (!terminal) {
       return { success: false, error: 'Terminal not found' }
     }
-    
+
     terminal.write(data)
     return { success: true }
   } catch (error) {
@@ -2380,7 +3084,7 @@ ipcMain.handle('terminal-resize', async (event, { terminalId, cols, rows }) => {
     if (!terminal) {
       return { success: false, error: 'Terminal not found' }
     }
-    
+
     terminal.resize(cols, rows)
     return { success: true }
   } catch (error) {
@@ -2412,14 +3116,14 @@ ipcMain.handle('git-command', async (event, { command, cwd }) => {
   try {
     const gitPath = await getGitPath()
     const fullCommand = `${gitPath} ${command}`
-    
+
     console.log('Executing git command:', fullCommand, 'in', cwd)
-    
+
     const { stdout, stderr } = await execAsync(fullCommand, {
       cwd: cwd || process.cwd(),
       encoding: 'utf8'
     })
-    
+
     return {
       success: true,
       output: stdout,
@@ -2439,11 +3143,11 @@ ipcMain.handle('git-command', async (event, { command, cwd }) => {
 ipcMain.handle('execute-command', async (event, command) => {
   try {
     console.log('Executing command:', command)
-    
+
     const { stdout, stderr } = await execAsync(command, {
       encoding: 'utf8'
     })
-    
+
     return {
       success: true,
       stdout: stdout,
@@ -2468,32 +3172,32 @@ ipcMain.handle('get-network-speed', async () => {
   try {
     const networkStats = await si.networkStats()
     const currentTime = Date.now()
-    
+
     if (!networkStats || networkStats.length === 0) {
       return {
         success: false,
         error: '无法获取网络统计信息'
       }
     }
-    
+
     // 获取主要网络接口的统计信息
     const mainInterface = networkStats[0]
-    
+
     if (previousNetworkStats && previousNetworkStats.timestamp) {
       const timeDiff = (currentTime - previousNetworkStats.timestamp) / 1000 // 转换为秒
       const rxBytesDiff = mainInterface.rx_bytes - previousNetworkStats.rx_bytes
       const txBytesDiff = mainInterface.tx_bytes - previousNetworkStats.tx_bytes
-      
+
       const downloadSpeed = rxBytesDiff / timeDiff // bytes/s
       const uploadSpeed = txBytesDiff / timeDiff // bytes/s
-      
+
       // 更新之前的统计信息
       previousNetworkStats = {
         rx_bytes: mainInterface.rx_bytes,
         tx_bytes: mainInterface.tx_bytes,
         timestamp: currentTime
       }
-      
+
       return {
         success: true,
         downloadSpeed: Math.max(0, downloadSpeed), // 确保不为负数
@@ -2509,7 +3213,7 @@ ipcMain.handle('get-network-speed', async () => {
         tx_bytes: mainInterface.tx_bytes,
         timestamp: currentTime
       }
-      
+
       return {
         success: true,
         downloadSpeed: 0,
@@ -2535,10 +3239,10 @@ ipcMain.handle('start-network-monitor', async (event) => {
     if (networkMonitorInterval) {
       clearInterval(networkMonitorInterval)
     }
-    
+
     // 重置之前的统计信息
     previousNetworkStats = null
-    
+
     // 每秒获取一次网络速度
     networkMonitorInterval = setInterval(async () => {
       try {
@@ -2546,15 +3250,15 @@ ipcMain.handle('start-network-monitor', async (event) => {
         if (speedData && speedData.length > 0) {
           const currentTime = Date.now()
           const mainInterface = speedData[0]
-          
+
           if (previousNetworkStats && previousNetworkStats.timestamp) {
             const timeDiff = (currentTime - previousNetworkStats.timestamp) / 1000
             const rxBytesDiff = mainInterface.rx_bytes - previousNetworkStats.rx_bytes
             const txBytesDiff = mainInterface.tx_bytes - previousNetworkStats.tx_bytes
-            
+
             const downloadSpeed = Math.max(0, rxBytesDiff / timeDiff)
             const uploadSpeed = Math.max(0, txBytesDiff / timeDiff)
-            
+
             // 发送速度数据到渲染进程
             event.sender.send('network-speed-update', {
               downloadSpeed,
@@ -2564,7 +3268,7 @@ ipcMain.handle('start-network-monitor', async (event) => {
               interface: mainInterface.iface
             })
           }
-          
+
           previousNetworkStats = {
             rx_bytes: mainInterface.rx_bytes,
             tx_bytes: mainInterface.tx_bytes,
@@ -2575,7 +3279,7 @@ ipcMain.handle('start-network-monitor', async (event) => {
         console.error('网络监控错误:', error)
       }
     }, 1000)
-    
+
     return { success: true }
   } catch (error) {
     console.error('启动网络监控失败:', error)
@@ -2604,15 +3308,481 @@ ipcMain.handle('stop-network-monitor', async () => {
   }
 })
 
+// 启动服务日志监听
+ipcMain.handle('start-service-log', async (event) => {
+  try {
+    serviceLogEnabled = true
+
+    // 检查是否已经添加过此监听器
+    if (serviceLogListeners.has(event.sender)) {
+      console.log('服务日志监听器已存在，跳过重复添加')
+    } else {
+      serviceLogListeners.add(event.sender)
+      console.log('服务日志监听已启动，监听器数量:', serviceLogListeners.size)
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('启动服务日志监听失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 停止服务日志监听
+ipcMain.handle('stop-service-log', async () => {
+  try {
+    serviceLogEnabled = false
+    serviceLogListeners.clear()
+
+    // 清除计时器（如果存在）
+    if (serviceLogTimer) {
+      clearTimeout(serviceLogTimer)
+      serviceLogTimer = null
+    }
+
+    console.log('服务日志监听已停止')
+    return { success: true }
+  } catch (error) {
+    console.error('停止服务日志监听失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 启动Winston日志监听 - 新增接口
+ipcMain.handle('start-winston-log', async (event) => {
+  try {
+    winstonLogEnabled = true
+
+    // 检查是否已经添加过此监听器
+    if (winstonLogListeners.has(event.sender)) {
+      console.log('Winston日志监听器已存在，跳过重复添加')
+    } else {
+      winstonLogListeners.add(event.sender)
+      console.log('Winston日志监听已启动，监听器数量:', winstonLogListeners.size)
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('启动Winston日志监听失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 停止Winston日志监听 - 新增接口
+ipcMain.handle('stop-winston-log', async () => {
+  try {
+    winstonLogEnabled = false
+    winstonLogListeners.clear()
+
+    console.log('Winston日志监听已停止')
+    return { success: true }
+  } catch (error) {
+    console.error('停止Winston日志监听失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 启动子进程日志监听 - 新增接口
+ipcMain.handle('start-child-process-log', async (event) => {
+  try {
+    // 设置启用标志
+    childProcessLogEnabled = true
+
+    // 将发送者添加到监听者集合
+    if (childProcessLogListeners.has(event.sender)) {
+      console.log('子进程日志监听器已存在，跳过重复添加')
+    } else {
+      childProcessLogListeners.add(event.sender)
+      console.log('子进程日志监听已启动，监听器数量:', childProcessLogListeners.size)
+    }
+
+    // 遍历所有现有的子进程，为它们添加日志处理
+    childProcesses.forEach((proc) => {
+      // 如果已经有监听器，跳过
+      if (proc._logListenersAttached) return
+
+      if (proc.stdout) {
+        const onStdoutData = (chunk) => {
+          const dataStr = chunk.toString()
+          if (childProcessLogEnabled && childProcessLogListeners.size > 0) {
+            const logData = {
+              serviceName: proc.tag || 'unknown',
+              type: 'info',
+              message: dataStr.trim(),
+              timestamp: new Date().toISOString()
+            }
+
+            // 使用Array.from创建一个副本进行迭代，避免在迭代过程中修改集合
+            Array.from(childProcessLogListeners).forEach((sender) => {
+              try {
+                // 检查sender是否已被销毁
+                if (sender.isDestroyed()) {
+                  // 如果已被销毁，从集合中移除
+                  childProcessLogListeners.delete(sender)
+                  console.log('已移除已销毁的子进程日志监听器')
+                } else {
+                  sender.send('child-process-log', logData)
+                }
+              } catch (err) {
+                console.error('发送子进程日志失败:', err)
+                // 出错时也从集合中移除该sender，避免持续刷屏
+                childProcessLogListeners.delete(sender)
+                console.log('已移除失效的子进程日志监听器')
+              }
+            })
+          }
+        }
+
+        proc.stdout.on('data', onStdoutData)
+        proc._stdoutHandler = onStdoutData
+      }
+
+      if (proc.stderr) {
+        const onStderrData = (chunk) => {
+          const dataStr = chunk.toString()
+          if (childProcessLogEnabled && childProcessLogListeners.size > 0) {
+            const logData = {
+              serviceName: proc.tag || 'unknown',
+              type: 'error',
+              message: dataStr.trim(),
+              timestamp: new Date().toISOString()
+            }
+
+            // 使用Array.from创建一个副本进行迭代，避免在迭代过程中修改集合
+            Array.from(childProcessLogListeners).forEach((sender) => {
+              try {
+                // 检查sender是否已被销毁
+                if (sender.isDestroyed()) {
+                  // 如果已被销毁，从集合中移除
+                  childProcessLogListeners.delete(sender)
+                  console.log('已移除已销毁的子进程日志监听器')
+                } else {
+                  sender.send('child-process-log', logData)
+                }
+              } catch (err) {
+                console.error('发送子进程日志失败:', err)
+                // 出错时也从集合中移除该sender，避免持续刷屏
+                childProcessLogListeners.delete(sender)
+                console.log('已移除失效的子进程日志监听器')
+              }
+            })
+          }
+        }
+
+        proc.stderr.on('data', onStderrData)
+        proc._stderrHandler = onStderrData
+      }
+
+      proc._logListenersAttached = true
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error('启动子进程日志监听失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
+// 停止子进程日志监听 - 新增接口
+ipcMain.handle('stop-child-process-log', async () => {
+  try {
+    // 设置禁用标志
+    childProcessLogEnabled = false
+
+    // 清除所有监听器
+    childProcessLogListeners.clear()
+
+    // 遍历所有子进程，移除日志处理器
+    childProcesses.forEach((proc) => {
+      if (!proc._logListenersAttached) return
+
+      if (proc.stdout && proc._stdoutHandler) {
+        proc.stdout.removeListener('data', proc._stdoutHandler)
+        delete proc._stdoutHandler
+      }
+
+      if (proc.stderr && proc._stderrHandler) {
+        proc.stderr.removeListener('data', proc._stderrHandler)
+        delete proc._stderrHandler
+      }
+
+      proc._logListenersAttached = false
+    })
+
+    console.log('子进程日志监听已停止')
+    return { success: true }
+  } catch (error) {
+    console.error('停止子进程日志监听失败:', error)
+    return {
+      success: false,
+      error: error.message
+    }
+  }
+})
+
 // 格式化字节数
 function formatBytes(bytes) {
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+// 黑名单：无法当纯文本读取的 MIME
+const blackMimeList = [
+  // ---- 通配前缀（以 * 结尾表示 startsWith）----
+  'image/*',
+  'audio/*',
+  'video/*',
+  'font/*',
+  'model/*',
+
+  // ---- 精确 MIME ----
+  // 压缩 & 打包
+  'application/zip',
+  'application/x-7z-compressed',
+  'application/x-rar-compressed',
+  'application/x-tar',
+  'application/x-bzip2',
+  'application/x-gzip',
+  'application/x-xz',
+  'application/zstd',
+  // 可执行 / 安装包
+  'application/x-msdownload',
+  'application/x-executable',
+  'application/vnd.android.package-archive',
+  'application/x-cab',
+  'application/x-debian-package',
+  'application/x-redhat-package-manager',
+  'application/x-iso9660-image',
+  // 办公文档（ZIP-based OPC）
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.ms-excel',
+  // PDF / 矢量二进制
+  'application/pdf',
+  // 数据库 & 二进制格式
+  'application/x-sqlite3',
+  'application/vnd.parquet',
+  // 字体
+  'font/ttf',
+  'font/otf',
+  'font/woff',
+  'font/woff2',
+  // 其它通用二进制
+  'application/octet-stream',
+  // ELF
+  'application/x-elf',
+  'application/x-mach-binary'
+]
+
+const textLikeMimeSet = new Set([
+  // 非 text/ 但本质文本
+  'application/json',
+  'application/ld+json',
+  'application/xml',
+  'application/x-yaml',
+  'application/x-sh',
+  'application/javascript',
+  'application/ecmascript',
+  'application/x-www-form-urlencoded',
+  'image/svg+xml',
+  'model/gltf+json'
+])
+
+const isBinaryByBlacklist = (mime) => {
+  // 前缀规则
+  for (const rule of blackMimeList) {
+    if (rule.endsWith('/*')) {
+      const prefix = rule.slice(0, -2)
+      if (mime.startsWith(prefix)) return true
+    } else if (mime === rule) {
+      return true
+    }
+  }
+  return false
+}
+ipcMain.handle('is-text-file', async (_e, filePath) => {
+  try {
+    const stats = await stat(filePath)
+    if (stats.isDirectory()) {
+      console.log(`[is-text-file] ${filePath} 是目录，判定为非文本`)
+      return false
+    }
+
+    // ① 魔数优先
+    const kind = await fileTypeFromFile(filePath)
+    if (kind?.mime) {
+      console.log(`[is-text-file] 魔数识别 mime: ${kind.mime}`)
+      if (kind.mime.startsWith('text/')) {
+        console.log(`[is-text-file] 魔数判定为文本`)
+        return true
+      }
+      if (textLikeMimeSet.has(kind.mime)) {
+        console.log(`[is-text-file] 魔数判定为类文本`)
+        return true
+      }
+      if (isBinaryByBlacklist(kind.mime)) {
+        console.log(`[is-text-file] 魔数黑名单判定为二进制`)
+        return false
+      }
+    } else {
+      console.log(`[is-text-file] 魔数识别失败，尝试 buffer 识别`)
+      try {
+        // 超时包装
+        const result = await Promise.race([
+          (async () => {
+            const fd = await fs.promises.open(filePath, 'r')
+            const buffer = Buffer.alloc(50)
+            const { bytesRead } = await fd.read(buffer, 0, 50, 0)
+            await fd.close()
+            console.log(`[is-text-file] buffer 读取 ${filePath} 前 50 字节:`, buffer)
+            // 如果文件为空（实际读取字节数为0），判定为文本
+            if (bytesRead === 0) {
+              console.log(`[is-text-file] 文件为空，判定为文本`)
+              return 'text'
+            }
+            // 只处理实际读取的字节
+            const actualBuffer = buffer.slice(0, bytesRead)
+            // 尝试utf8解码
+            let text = actualBuffer.toString('utf8')
+            // 判断是否有大量不可打印字符
+            const nonPrintable = text.split('').filter((c) => {
+              const code = c.charCodeAt(0)
+              // 允许常见换行、制表符、回车
+              if (code === 9 || code === 10 || code === 13) return false
+              // 可打印ASCII和常见Unicode
+              return code < 32 || (code >= 127 && code < 0xa0)
+            }).length
+            const ratio = nonPrintable / text.length
+            console.log(`[is-text-file] buffer 可打印率: ${(1 - ratio) * 100}%`)
+            // 若可打印率高于50%，判定为文本
+            if (ratio < 0.5) {
+              console.log(`[is-text-file] buffer 判定为文本`)
+              return 'text'
+            } else {
+              console.log(`[is-text-file] buffer 判定为二进制`)
+              return 'binary'
+            }
+          })(),
+          new Promise((resolve) => setTimeout(() => resolve('timeout'), 2000))
+        ])
+        if (result === 'text') return true
+        if (result === 'binary' || result === 'timeout') {
+          if (result === 'timeout') {
+            console.warn(`[is-text-file] buffer 读取超时，自动判为二进制`)
+          }
+          return false
+        }
+      } catch (e) {
+        console.warn(`[is-text-file] buffer 魔数识别异常:`, e)
+      }
+    }
+
+    // ② 后缀兜底
+    const mime = lookup(filePath) || ''
+    console.log(`[is-text-file] 后缀识别 mime: ${mime}`)
+    if (mime.startsWith('text/')) {
+      console.log(`[is-text-file] 后缀判定为文本`)
+      return true
+    }
+    if (textLikeMimeSet.has(mime)) {
+      console.log(`[is-text-file] 后缀判定为类文本`)
+      return true
+    }
+    if (isBinaryByBlacklist(mime)) {
+      console.log(`[is-text-file] 后缀黑名单判定为二进制`)
+      return false
+    }
+    if (!mime || mime == undefined || mime == null || mime == '') {
+      // 文本扩展名白名单
+      const textExts = new Set([
+        '.go',
+        '.c',
+        '.cpp',
+        '.h',
+        '.hpp',
+        '.rs',
+        '.swift',
+        '.py',
+        '.js',
+        '.ts',
+        '.jsx',
+        '.tsx',
+        '.java',
+        '.kt',
+        '.rb',
+        '.php',
+        '.sh',
+        '.bat',
+        '.pl',
+        '.cs',
+        '.json',
+        '.xml',
+        '.yml',
+        '.yaml',
+        '.md',
+        '.txt',
+        '.ini',
+        '.conf',
+        '.log',
+        '.csv',
+        '.toml',
+        '.makefile',
+        '.mk',
+        '.dockerfile',
+        '.gradle',
+        '.properties',
+        '.gitignore',
+        '.gitattributes',
+        '.editorconfig',
+        '.vscode',
+        '.eslintrc',
+        '.prettierrc',
+        '.babelrc',
+        '.env',
+        '.npmrc',
+        '.lock',
+        '.rst',
+        '.tex',
+        '.scss',
+        '.sass',
+        '.less',
+        '.styl'
+      ])
+      const ext = path.extname(filePath).toLowerCase()
+      if (textExts.has(ext)) {
+        console.log(`[is-text-file] 扩展名白名单判定为文本: ${ext}`)
+        return true
+      }
+      console.log(`[is-text-file] 后缀无法识别，默认为二进制`)
+      return false
+    }
+    console.log(`[is-text-file] 未知类型，默认判定为二进制`)
+    return false
+  } catch (err) {
+    console.error('[is-text-file] 检测失败:', err)
+    return false
+  }
+})
 console.log('main/index.js loaded!')
