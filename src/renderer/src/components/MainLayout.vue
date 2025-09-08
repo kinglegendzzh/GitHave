@@ -7,7 +7,7 @@
       :rail="isRailMode"
       :dark="isDark"
       :color="isDark ? 'black' : 'white'"
-      style="padding-top: 20px"
+:style="isWindows ? '' : 'padding-top: 20px'"
       width="250"
       class="drag-region"
     >
@@ -139,160 +139,213 @@
       </v-list>
     </v-navigation-drawer>
 
-    <!-- 顶部工具栏 -->
-    <v-app-bar app :dark="isDark" class="drag-region pt-0">
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <v-btn icon size="small" class="no-drag-region ml-10" v-bind="props" @click="goBack">
-            <v-icon size="small">mdi-arrow-left</v-icon>
-          </v-btn>
-        </template>
-        <span>返回上一步</span>
-      </v-tooltip>
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <v-btn icon size="small" class="no-drag-region" v-bind="props" @click="goNext">
-            <v-icon size="small">mdi-arrow-right</v-icon>
-          </v-btn>
-        </template>
-        <span>下一步</span>
-      </v-tooltip>
+    <!-- 顶部工具栏 - 自定义紧凑版 -->
+    <div class="custom-toolbar drag-region" :class="{ 'dark-toolbar': isDark }">
+      <!-- 中间区域：状态指示器 -->
+      <div class="toolbar-center">
+        <div class="toolbar-nav-buttons no-drag-region">
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-btn
+                variant="flat"
+                density="compact"
+                class="toolbar-btn"
+                v-bind="props"
+                @click="goBack"
+              >
+                <v-icon size="small">mdi-arrow-left</v-icon>
+              </v-btn>
+            </template>
+            <span>返回上一步</span>
+          </v-tooltip>
+          <div class="toolbar-title ml-2 mr-2">{{ currentTitle }}</div>
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-btn
+                variant="flat"
+                density="compact"
+                class="toolbar-btn"
+                v-bind="props"
+                @click="goNext"
+              >
+                <v-icon size="small">mdi-arrow-right</v-icon>
+              </v-btn>
+            </template>
+            <span>下一步</span>
+          </v-tooltip>
+        </div>
+      </div>
 
-      <v-toolbar-title style="user-select: none; pointer-events: none">
-        {{ currentTitle }}
-      </v-toolbar-title>
-
-      <!-- 健康状态显示 -->
-      <v-chip :color="healthChipColor" text-color="white" size="small" class="ml-1 text-caption">
-        <template v-if="healthState === 'ing'">
-          <v-progress-circular indeterminate size="12" width="1"></v-progress-circular>
-        </template>
-        <template v-else>
-          <v-icon left size="small">
-            {{ healthChipIcon }}
+      <!-- 右侧区域 -->
+      <div class="toolbar-right no-drag-region">
+        <!-- 显示当前主题状态（只读） -->
+        <v-chip
+          class="theme-chip"
+          :color="isDark ? 'grey-darken-2' : 'grey-lighten-2'"
+          size="small"
+          density="compact"
+        >
+          <v-icon :color="isDark ? 'white' : '#FFD700'" size="small">
+            {{ isDark ? 'mdi-moon-waning-crescent' : 'mdi-white-balance-sunny' }}
           </v-icon>
-        </template>
-        环境状态
-      </v-chip>
+          <span class="theme-chip-text text-caption">{{ isDark ? '晚上好' : '天亮了' }}</span>
+        </v-chip>
+        <!-- 状态指示器 -->
+        <div class="status-chips ml-2">
+          <!-- 健康状态显示 -->
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-chip
+                v-bind="props"
+                :color="healthChipColor"
+                text-color="white"
+                density="compact"
+                class="status-chip no-drag-region"
+                @click="goToConfig"
+              >
+                <v-icon size="x-small">{{ healthChipIcon }}</v-icon>
+                <span class="chip-text">环境</span>
+              </v-chip>
+            </template>
+            <span>点我配置环境</span>
+          </v-tooltip>
 
-      <v-chip :color="chipColor" text-color="white" size="small" class="ml-1 text-caption">
-        <v-icon left>
-          {{ chipIcon }}
-        </v-icon>
-        核心
-      </v-chip>
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-chip
+                v-bind="props"
+                :color="chipColor"
+                text-color="white"
+                density="compact"
+                class="status-chip no-drag-region"
+                :disabled="isTogglingApp"
+                @click="coreDialog = true"
+              >
+                <v-icon size="x-small">{{ chipIcon }}</v-icon>
+                <span class="chip-text">核心</span>
+              </v-chip>
+            </template>
+            <span>点我操作核心服务</span>
+          </v-tooltip>
 
-      <v-chip :color="fmHttpChipColor" text-color="white" size="small" class="ml-1 text-caption">
-        <v-icon left>
-          {{ fmHttpChipIcon }}
-        </v-icon>
-        索引
-      </v-chip>
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-chip
+                v-bind="props"
+                :color="fmHttpChipColor"
+                text-color="white"
+                density="compact"
+                class="status-chip no-drag-region"
+                :disabled="isTogglingFm"
+                @click="fmDialog = true"
+              >
+                <v-icon size="x-small">{{ fmHttpChipIcon }}</v-icon>
+                <span class="chip-text">索引</span>
+              </v-chip>
+            </template>
+            <span>点我操作索引服务</span>
+          </v-tooltip>
+        </div>
 
-      <v-spacer></v-spacer>
-      <v-switch
-        v-model="isDark"
-        class="ml-1 no-drag-region compact-switch"
-        hide-details
-        @change="toggleTheme"
-      >
-        <template #append>
-          <v-icon v-if="isDark" class="no-drag-region" :style="{ color: 'white' }">
-            mdi-moon-waning-crescent
-          </v-icon>
-          <v-icon v-else class="no-drag-region" :style="{ color: '#FFD700' }">
-            mdi-white-balance-sunny
-          </v-icon>
-        </template>
-      </v-switch>
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <!-- 重载当前页面按钮 -->
-          <v-btn icon class="ml-1 no-drag-region compact-btn" v-bind="props" @click="reloadPage">
-            <v-icon>mdi-refresh</v-icon>
-          </v-btn>
-        </template>
-        <span>刷新</span>
-      </v-tooltip>
-      <!-- 切换核心服务状态的按钮 -->
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <v-btn
-            icon
-            class="ml-1 no-drag-region compact-btn"
-            v-bind="props"
-            :disabled="isTogglingApp"
-            @click="coreDialog = true"
-          >
-            <v-icon>mdi-laptop</v-icon>
-          </v-btn>
-        </template>
-        <span>核心服务</span>
-      </v-tooltip>
+        <!-- 工具按钮组 -->
+        <div class="toolbar-actions">
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                variant="tonal"
+                density="compact"
+                class="toolbar-btn"
+                @click="reloadPage"
+              >
+                <v-icon size="small">mdi-refresh</v-icon>
+              </v-btn>
+            </template>
+            <span>重新加载</span>
+          </v-tooltip>
 
-      <!-- 切换 AI 索引服务状态的按钮 -->
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <v-btn
-            icon
-            class="ml-1 no-drag-region compact-btn"
-            v-bind="props"
-            :disabled="isTogglingFm"
-            @click="fmDialog = true"
-          >
-            <v-icon>mdi-flash</v-icon>
-          </v-btn>
-        </template>
-        <span>索引服务</span>
-      </v-tooltip>
+          <!-- 核心服务和索引服务按钮已移至中间状态指示区域 -->
 
-      <!-- 重启所有服务按钮 -->
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <v-btn
-            icon
-            class="ml-1 no-drag-region compact-btn"
-            v-bind="props"
-            :disabled="isRestarting"
-            color="warning"
-            @click="handleRestartService('both')"
-          >
-            <v-icon>mdi-restart</v-icon>
-          </v-btn>
-        </template>
-        <span>重启所有服务</span>
-      </v-tooltip>
-      <v-tooltip class="no-drag-region" bottom>
-        <template #activator="{ props }">
-          <v-btn
-            icon
-            class="ml-1 no-drag-region compact-btn"
-            v-bind="props"
-            @click="toggleCompactMode"
-          >
-            <v-icon v-if="isCompactMode">mdi-magnify-plus</v-icon>
-            <v-icon v-else>mdi-magnify-minus</v-icon>
-          </v-btn>
-        </template>
-        <span>{{ isCompactMode ? '切换到标准显示' : '切换到紧凑显示' }}</span>
-      </v-tooltip>
-    </v-app-bar>
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                density="compact"
+                class="toolbar-btn"
+                :disabled="isRestarting"
+                variant="tonal"
+                @click="handleRestartService('both')"
+              >
+                <v-icon size="small">mdi-laptop</v-icon>
+              </v-btn>
+            </template>
+            <span>重启所有服务</span>
+          </v-tooltip>
+
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                density="compact"
+                class="toolbar-btn"
+                variant="tonal"
+                @click="toggleCompactMode"
+              >
+                <v-icon v-if="isCompactMode" size="small">mdi-magnify-plus</v-icon>
+                <v-icon v-else size="small">mdi-magnify-minus</v-icon>
+              </v-btn>
+            </template>
+            <span>{{ isCompactMode ? '切换到标准显示' : '切换到紧凑显示' }}</span>
+          </v-tooltip>
+
+          <!-- 控制台按钮 -->
+          <v-tooltip bottom>
+            <template #activator="{ props }">
+              <v-btn
+                v-bind="props"
+                density="compact"
+                class="toolbar-btn"
+                variant="tonal"
+                @click="toggleLogConsole"
+              >
+                <v-icon size="small">mdi-console</v-icon>
+              </v-btn>
+            </template>
+            <span>打开控制台</span>
+          </v-tooltip>
+        </div>
+      </div>
+    </div>
     <!-- 主体区域：条件渲染 router-view 或加载状态 -->
-    <v-main>
+    <v-main class="custom-main">
       <!-- 服务未准备就绪时显示加载状态 -->
-      <div v-if="!servicesReady && !isStandalonePage" class="loading-container">
+      <div
+        v-if="!servicesReady && !isStandalonePage && !isBypassLoadingPage"
+        class="loading-container"
+      >
         <div class="loading-content">
           <v-progress-circular
             indeterminate
-            size="64"
+            size="x-small"
             color="primary"
             class="mb-4"
           ></v-progress-circular>
-          <h3 class="text-h6 mb-2">正在启动服务...</h3>
+          <h3 class="text-h6 mb-2">正在等待服务启动...</h3>
           <p class="text-body-2 text-medium-emphasis mb-4">请等待核心服务和索引服务启动完成</p>
 
           <!-- 服务状态显示 -->
           <div class="service-status">
+            <!-- 一键重启所有服务按钮（只要有一个服务异常就显示） -->
+            <v-btn
+              v-if="appHealthState !== '已启动' || fmHttpHealthState !== '已启动'"
+              variant="text"
+              color="error"
+              size="small"
+              class="ml-4"
+              @click="handleRestartService('both')"
+            >
+              <span>有异常？点我一键重启所有服务</span>
+            </v-btn>
             <div class="status-item">
               <v-icon :color="appHealthState === '已启动' ? 'success' : 'warning'" class="mr-2">
                 {{ appHealthState === '已启动' ? 'mdi-check-circle' : 'mdi-progress-clock' }}
@@ -313,12 +366,48 @@
             </div>
           </div>
 
+          <!-- 实时日志显示 -->
+          <div v-if="serviceLogs.length > 0" class="service-logs mt-4">
+            <h4 class="text-subtitle-2 mb-2">启动日志</h4>
+            <div class="log-container">
+              <div
+                v-for="(log, index) in serviceLogs.slice(-10).reverse()"
+                :key="index"
+                class="log-entry"
+                :class="{
+                  'log-info': log.type === 'info',
+                  'log-error': log.type === 'error',
+                  'log-success': log.type === 'success'
+                }"
+              >
+                <v-icon
+                  :color="
+                    log.type === 'error' ? 'error' : log.type === 'success' ? 'success' : 'info'
+                  "
+                  size="small"
+                  class="mr-2"
+                >
+                  {{
+                    log.type === 'error'
+                      ? 'mdi-alert-circle'
+                      : log.type === 'success'
+                        ? 'mdi-check-circle'
+                        : 'mdi-information'
+                  }}
+                </v-icon>
+                <span class="log-service">[{{ log.serviceName === 'app' ? '核心' : '索引' }}]</span>
+                <span class="log-message">{{ log.message }}</span>
+                <span class="log-time">{{ formatLogTime(log.timestamp) }}</span>
+              </div>
+            </div>
+          </div>
+
           <!-- 骨架屏 -->
-          <div class="skeleton-container mt-6">
+          <!-- <div class="skeleton-container mt-6">
             <v-skeleton-loader type="card" class="mb-4"></v-skeleton-loader>
             <v-skeleton-loader type="list-item-two-line" class="mb-2"></v-skeleton-loader>
             <v-skeleton-loader type="list-item-two-line" class="mb-2"></v-skeleton-loader>
-          </div>
+          </div> -->
         </div>
       </div>
 
@@ -354,9 +443,9 @@
     <!-- 核心服务操作对话框 -->
     <v-dialog v-model="coreDialog" max-width="500" persistent>
       <v-card class="elevation-8">
-        <v-card-title class="d-flex align-center pa-4 bg-primary">
-          <v-icon color="white" class="mr-2" size="small">mdi-laptop</v-icon>
-          <span class="text-subtitle-1 text-white font-weight-medium">核心服务管理</span>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" size="small">mdi-laptop</v-icon>
+          <span class="text-subtitle-1 font-weight-medium">核心服务管理</span>
         </v-card-title>
 
         <v-card-text class="pa-4">
@@ -439,9 +528,9 @@
     <!-- 索引服务操作对话框 -->
     <v-dialog v-model="fmDialog" max-width="500" persistent>
       <v-card class="elevation-8">
-        <v-card-title class="d-flex align-center pa-4 bg-purple">
-          <v-icon color="white" class="mr-2" size="small">mdi-flash</v-icon>
-          <span class="text-subtitle-1 text-white font-weight-medium">索引服务管理</span>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" size="small">mdi-flash</v-icon>
+          <span class="text-subtitle-1 font-weight-medium">索引服务管理</span>
         </v-card-title>
 
         <v-card-text class="pa-4">
@@ -521,92 +610,101 @@
       </v-card>
     </v-dialog>
 
-    <!-- 重启服务进度对话框 -->
-    <v-dialog v-model="showRestartDialog" persistent max-width="500">
-      <v-card class="elevation-12">
-        <v-card-title class="d-flex align-center pa-4 bg-warning">
-          <v-icon color="white" class="mr-2" size="small">mdi-restart</v-icon>
-          <span class="text-subtitle-1 text-white font-weight-medium">
-            {{ getRestartTitle() }}
-          </span>
-        </v-card-title>
+    <!-- 重启服务进度对话框（Ant Design） -->
+    <a-modal
+      v-model:open="showRestartDialog"
+      :closable="false"
+      :mask-closable="false"
+      :footer="null"
+      width="720px"
+    >
+      <template #title>
+        <div class="d-flex align-center">
+          <SyncOutlined style="color: #1677ff" class="mr-2" />
+          {{ getRestartTitle() }}
+        </div>
+      </template>
 
-        <v-card-text class="pa-4">
-          <div class="mb-3 text-caption">
-            {{ getRestartDescription() }}
-          </div>
+      <div class="mb-3 text-caption">
+        {{ getRestartDescription() }}
+      </div>
 
-          <v-list class="bg-transparent">
-            <v-list-item v-for="step in restartProgress" :key="step.step" class="px-0 py-2">
-              <template #prepend>
-                <v-icon v-if="step.status === 'pending'" color="grey" size="small" class="mr-2">
-                  mdi-circle-outline
-                </v-icon>
-                <v-progress-circular
-                  v-else-if="step.status === 'running'"
-                  indeterminate
-                  color="warning"
-                  size="16"
-                  width="2"
-                  class="mr-2"
-                ></v-progress-circular>
-                <v-icon
-                  v-else-if="step.status === 'completed'"
-                  color="success"
-                  size="small"
-                  class="mr-2"
-                >
-                  mdi-check-circle
-                </v-icon>
-                <v-icon v-else-if="step.status === 'error'" color="error" size="small" class="mr-2">
-                  mdi-close-circle
-                </v-icon>
-              </template>
+      <a-steps direction="vertical" size="small">
+        <a-step
+          v-for="step in restartProgress"
+          :key="step.step"
+          :title="`${step.step}. ${step.text}`"
+          :status="antStepStatusMap[step.status]"
+        >
+          <template #icon>
+            <LoadingOutlined v-if="step.status === 'running'" />
+            <CheckCircleTwoTone v-else-if="step.status === 'completed'" two-tone-color="#52c41a" />
+            <CloseCircleTwoTone v-else-if="step.status === 'error'" two-tone-color="#ff4d4f" />
+            <span v-else style="display:inline-block;width:14px;height:14px;border:1px solid #d9d9d9;border-radius:50%;"></span>
+          </template>
+        </a-step>
+      </a-steps>
 
-              <v-list-item-title
-                :class="{
-                  'text-grey': step.status === 'pending',
-                  'text-warning': step.status === 'running',
-                  'text-success': step.status === 'completed',
-                  'text-error': step.status === 'error'
-                }"
-                class="text-caption"
-              >
-                {{ step.step }}. {{ step.text }}
-              </v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-card-text>
-
-        <v-card-actions v-if="!isRestarting" class="pa-4 pt-0">
-          <v-spacer></v-spacer>
-          <v-btn
-            color="primary"
-            variant="flat"
-            size="small"
-            class="text-caption"
-            @click="showRestartDialog = false"
+      <!-- 服务日志显示区域 -->
+      <div v-if="showServiceLogs && serviceLogs.length > 0" class="service-logs-container mt-3">
+        <div class="service-logs-header">
+          <span class="service-logs-title">服务日志</span>
+          <a-tag :color="serviceLogListening ? 'success' : 'default'" class="ml-2" style="height: 18px; line-height: 18px;">
+            {{ serviceLogListening ? '监听中' : '已停止' }}
+          </a-tag>
+        </div>
+        <div class="service-logs-content">
+          <div
+            v-for="log in serviceLogs"
+            :key="log.id"
+            class="service-log-entry"
+            :class="`log-${log.type}`"
           >
-            关闭
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+            <span class="log-time">{{ formatLogTime(log.timestamp) }}</span>
+            <span class="log-icon" :style="{ color: log.type === 'error' ? '#ff4d4f' : log.type === 'success' ? '#52c41a' : '#1677ff' }">●</span>
+            <span class="log-message">{{ log.message }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <a-progress :percent="restartPercent" :status="restartHasError ? 'exception' : isRestarting ? 'active' : 'normal'" />
+      </div>
+
+      <div v-if="!isRestarting" style="text-align: right; margin-top: 8px">
+        <a-button type="link" @click="showRestartDialog = false">关闭</a-button>
+      </div>
+    </a-modal>
+    <!-- 日志控制台 -->
+    <LogConsole
+      v-model="showLogConsole"
+      :logs="serviceLogs"
+      :max-log-entries="maxServiceLogEntries"
+      @clear-logs="clearServiceLogs"
+      @add-log="addServiceLogEntry"
+    />
   </v-app>
 </template>
 
 <script>
 import _ from 'lodash'
-import bannerSrc from '../assets/banner.svg'
+import bannerSrc from '../assets/banner_v3_low.png'
 import titleSrc from '../assets/title.svg'
 import titleNSrc from '../assets/title-night.svg'
 import { RouterView } from 'vue-router'
 import { fmHealthCheck, appHealthCheck, faissHealthCheck } from '../service/api'
+import LogConsole from './LogConsole.vue'
+import { SyncOutlined, LoadingOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons-vue'
 
 export default {
   name: 'MainLayout',
   components: {
-    RouterView
+    RouterView,
+    LogConsole,
+    SyncOutlined,
+    LoadingOutlined,
+    CheckCircleTwoTone,
+    CloseCircleTwoTone
   },
   data() {
     return {
@@ -634,46 +732,40 @@ export default {
         { step: 4, text: '状态检测', status: 'pending' },
         { step: 5, text: '完成', status: 'pending' }
       ],
+      // 服务日志相关
+      maxServiceLogEntries: 6000,
+      showServiceLogs: false,
+      serviceLogListening: false,
       navItems: [
         { title: '快速开始', to: '/start', icon: 'mdi-home' },
+        { title: '脉络感知', to: '/module-graphs', icon: 'mdi-chart-bar-stacked' },
+        { title: '空间透镜', to: '/space', icon: 'mdi-telescope' },
         { title: '深度搜索', to: '/search', icon: 'mdi-book-search' },
         { title: '文件枢纽', to: '/report', icon: 'mdi-microsoft-word' },
-        // { title: '代码记忆', to: '/memory', icon: 'mdi-brain' },
-        { title: '空间透镜', to: '/space', icon: 'mdi-telescope' },
         { title: '提交审查', to: '/commits/history', icon: 'mdi-github' },
-        { title: '推送机器人', to: '/sender', icon: 'mdi-robot' },
+        // { title: '代码记忆', to: '/memory', icon: 'mdi-brain' },
         { title: '代码视窗', to: '/finder', icon: 'mdi-code-block-tags' },
+        { title: '推送机器人', to: '/sender', icon: 'mdi-robot' },
+        // { title: "Ant Design 演示", to: "/ant-design-demo", icon: "mdi-palette" },
         {
-          title: '仓库管理',
+          title: '代码管理',
           icon: 'mdi-source-repository',
           expanded: false,
           children: [
-            { title: '仓库身份证', to: '/repo', icon: 'mdi-github' },
-            { title: '仓库索引', to: '/scan', icon: 'mdi-credit-card-scan' }
+            { title: '仓库', to: '/repo', icon: 'mdi-github' },
+            { title: '上下文索引', to: '/scan', icon: 'mdi-credit-card-scan' }
           ]
         },
         {
-          title: '配置中心',
+          title: '配置管理',
           icon: 'mdi-cogs',
           expanded: false,
           children: [
-            { title: '模型配置', to: '/model', icon: 'mdi-cards-playing-club-multiple-outline' },
-            { title: '智能体配置', to: '/agent', icon: 'mdi-robot-happy-outline' }
+            { title: '模型', to: '/model', icon: 'mdi-cards-playing-club-multiple-outline' },
+            { title: '智能体', to: '/agent', icon: 'mdi-robot-happy-outline' }
           ]
         },
-        {
-          title: '社区',
-          icon: 'mdi-hammer-sickle',
-          expanded: false,
-          children: [
-            { title: '核心技术报告', to: '/', icon: 'mdi-atom', disabled: true },
-            { title: '代码维基', to: '/', icon: 'mdi-wikipedia', disabled: true },
-            { title: '仓库报刊', to: '/', icon: 'mdi-newspaper', disabled: true },
-            { title: '公共配置镜像', to: '/', icon: 'mdi-mirror-rectangle', disabled: true },
-            { title: '公共索引镜像', to: '/', icon: 'mdi-flash', disabled: true }
-          ]
-        },
-        { title: 'IDE (研究预览版)', to: '/ide', icon: 'mdi-code-greater-than', standalone: true }
+        // { title: 'IDE (研究预览版)', to: '/ide', icon: 'mdi-code-greater-than', standalone: true }
       ],
       isDark: false,
       healthInterval: null,
@@ -693,10 +785,32 @@ export default {
       navigationHistory: [], // 导航历史记录
       currentHistoryIndex: -1, // 当前历史索引
       // 服务准备状态
-      servicesReady: false // 核心和索引服务是否都已启动
+      servicesReady: false, // 核心和索引服务是否都已启动
+      // 服务日志相关
+      serviceLogs: [], // 服务启动日志
+      serviceLogListener: null, // 日志监听器清理函数
+      maxLogEntries: 50, // 最大日志条目数
+      showLogConsole: false // 控制日志控制台显示
     }
   },
   computed: {
+    antStepStatusMap() {
+      return { pending: 'wait', running: 'process', completed: 'finish', error: 'error' }
+    },
+    restartHasError() {
+      return this.restartProgress.some((s) => s.status === 'error')
+    },
+    restartPercent() {
+      const total = this.restartProgress.length || 1
+      const done = this.restartProgress.filter((s) => s.status === 'completed').length
+      const running = this.restartProgress.some((s) => s.status === 'running')
+      let pct = Math.round((done / total) * 100)
+      if (running && pct < 95) pct += 5
+      return Math.min(pct, 100)
+    },
+    isWindows() {
+      return navigator.platform.indexOf('Win') > -1
+    },
     fmHttpChipColor() {
       if (this.fmHttpHealthState === '正在重启') return 'orange'
       if (this.fmHttpHealthState === '正在启动') return 'blue'
@@ -754,12 +868,20 @@ export default {
     // 判断当前页面是否为独立页面（不需要等待服务启动）
     isStandalonePage() {
       return this.$route.meta && this.$route.meta.standalone
+    },
+    // 判断当前路由是否需要绕过加载页面
+    isBypassLoadingPage() {
+      const standaloneRoutes = ['/', '/start', '/ide', '/model']
+      return standaloneRoutes.includes(this.$route.path)
     }
   },
   async created() {
     this.detectSystemTheme()
     this.changeTip(this.appHealthState)
     console.log('初始 appHealthState:', this.appHealthState)
+
+    // 设置服务日志监听器
+    this.setupServiceLogListener()
 
     // 立即执行一次服务状态检测
     await this.checkAllServicesStatus()
@@ -772,6 +894,10 @@ export default {
   beforeUnmount() {
     if (this.healthInterval) {
       clearInterval(this.healthInterval)
+    }
+    // 清理服务日志监听器
+    if (this.serviceLogListener) {
+      this.serviceLogListener()
     }
   },
   methods: {
@@ -825,6 +951,9 @@ export default {
     },
     // 新增：跳转到配置页
     goToConfig() {
+      // 二次确认
+      const confirmed = confirm('确定要跳转到配置页吗？')
+      if (!confirmed) return
       this.showConfigSnackbar = false
       this.$router.push('/model')
     },
@@ -982,7 +1111,6 @@ export default {
           this.toggleAppTip = '正在重启'
           break
         case '正在清理端口并重启核心服务':
-        case '正在清理端口并重启AI索引':
         case '已关闭':
           this.toggleAppTip = '启动核心服务'
           break
@@ -1026,15 +1154,19 @@ export default {
         console.error('切换 app 服务状态失败：', error)
       }
     },
-    toggleTheme() {
-      this.$vuetify.theme.global.name = this.isDark ? 'dark' : 'light'
-      localStorage.setItem('isDark', this.isDark)
-    },
+    // 手动切换主题功能已禁用
+    // toggleTheme() {
+    //   this.$vuetify.theme.global.name = this.isDark ? 'dark' : 'light'
+    //   localStorage.setItem('isDark', this.isDark)
+    // },
+
     detectSystemTheme() {
+      // 始终跟随系统主题，不再使用localStorage保存的设置
       const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches
       this.isDark = isDarkMode
-      this.$vuetify.theme.global.name = isDarkMode ? 'dark' : 'light'
-      localStorage.setItem('isDark', this.isDark)
+      this.$vuetify.theme.global.name = this.isDark ? 'dark' : 'light'
+      // 移除localStorage中的主题设置，确保始终跟随系统
+      localStorage.removeItem('isDark')
     },
     updateGroupState(item, state) {
       console.log('更新组状态：', item, state)
@@ -1058,6 +1190,8 @@ export default {
       try {
         const sysConfigResp = await window.electron.sysConfig()
         if (action === 'start') {
+          this.serviceLogs = []
+          // this.setupServiceLogListener()
           await window.electron.startApp(sysConfigResp.configPath)
         } else if (action === 'stop') {
           await window.electron.stopApp()
@@ -1077,6 +1211,8 @@ export default {
       try {
         const fmConfigResp = await window.electron.fmConfig()
         if (action === 'start') {
+          this.serviceLogs = []
+          // this.setupServiceLogListener()
           await window.electron.startFmHttp(fmConfigResp.configPath)
         } else if (action === 'stop') {
           await window.electron.stopFmHttp()
@@ -1165,7 +1301,7 @@ export default {
 
         // 步骤2: 冷却等待
         this.restartProgress[1].status = 'running'
-        this.restartProgress[1].text = '冷却等待 (3秒)'
+        this.restartProgress[1].text = '冷却等待 (3 秒)'
         await new Promise((resolve) => setTimeout(resolve, 3000))
         this.restartProgress[1].status = 'completed'
         await new Promise((resolve) => setTimeout(resolve, 500))
@@ -1174,6 +1310,9 @@ export default {
         this.restartProgress[2].status = 'running'
         this.restartProgress[2].text =
           type === 'core' ? '启动核心服务' : type === 'fm' ? '启动索引服务' : '启动所有服务'
+
+        // 启动服务日志监听
+        // await this.startServiceLogListening()
 
         if (type === 'core' || type === 'both') {
           const sysConfigResp = await window.electron.sysConfig()
@@ -1234,6 +1373,11 @@ export default {
         this.coreDialog = false
         this.fmDialog = false
 
+        // 延迟停止服务日志监听，让用户看到完整的启动日志
+        setTimeout(async () => {
+          await this.stopServiceLogListening()
+        }, 5000)
+
         // 3秒后关闭进度对话框
         setTimeout(() => {
           this.showRestartDialog = false
@@ -1253,6 +1397,30 @@ export default {
         default:
           return '服务'
       }
+    },
+
+    // 切换日志控制台显示
+    toggleLogConsole() {
+      this.showLogConsole = !this.showLogConsole
+
+      // 如果打开控制台，确保日志监听已启动
+      if (this.showLogConsole && !this.serviceLogListening) {
+        this.startServiceLogListening()
+      }
+    },
+
+    // 切换服务日志监听状态
+    async toggleServiceLogListening() {
+      if (this.serviceLogListening) {
+        await this.stopServiceLogListening()
+      } else {
+        await this.startServiceLogListening()
+      }
+    },
+
+    // 清空服务日志
+    clearServiceLogs() {
+      this.serviceLogs = []
     },
 
     // 保存导航项到历史记录
@@ -1466,13 +1634,111 @@ export default {
 
       // 更新服务准备状态：核心服务和索引服务都已启动才算准备就绪
       this.servicesReady = this.appHealthState === '已启动' && this.fmHttpHealthState === '已启动'
+
+      // 如果服务都已启动，停止日志监听以避免内存泄漏
+      if (this.servicesReady && this.serviceLogListener) {
+        await this.stopServiceLogListener()
+      }
+    },
+
+    // 设置服务日志监听器
+    setupServiceLogListener() {
+      if (this.serviceLogListener) {
+        this.serviceLogListener() // 清理之前的监听器
+      }
+
+      this.serviceLogListener = window.electron.onServiceLog((logData) => {
+        this.addServiceLogEntry(logData)
+      })
+    },
+
+    // 停止服务日志监听
+    async stopServiceLogListener() {
+      try {
+        if (this.serviceLogListener) {
+          this.serviceLogListener()
+          this.serviceLogListener = null
+        }
+        await window.electron.stopServiceLog()
+        console.log('服务日志监听已停止')
+      } catch (error) {
+        console.error('停止服务日志监听失败:', error)
+      }
+    },
+
+    // 格式化日志时间
+    formatLogTime(timestamp) {
+      const date = new Date(timestamp)
+      return date.toLocaleTimeString('zh-CN', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    },
+
+    // 添加服务日志条目
+    addServiceLogEntry(logData) {
+      const logEntry = {
+        id: Date.now() + Math.random(),
+        timestamp: Date.now(),
+        type: logData.type || 'info',
+        message: logData.message || '',
+        service: logData.service || 'system',
+        ...logData
+      }
+
+      this.serviceLogs.push(logEntry)
+
+      // 限制日志条目数量
+      if (this.serviceLogs.length > this.maxServiceLogEntries) {
+        this.serviceLogs = this.serviceLogs.slice(-this.maxServiceLogEntries)
+      }
+    },
+
+    // 启动服务日志监听
+    async startServiceLogListening() {
+      try {
+        this.serviceLogListening = true
+        this.showServiceLogs = true
+
+        // 清空之前的日志
+        this.serviceLogs = []
+
+        // 启动日志监听
+        await window.electron.startServiceLog()
+
+        // 使用已有的监听器设置方法，避免重复注册
+        this.setupServiceLogListener()
+
+        console.log('服务日志监听已启动')
+      } catch (error) {
+        console.error('启动服务日志监听失败:', error)
+        this.serviceLogListening = false
+      }
+    },
+
+    // 停止服务日志监听
+    async stopServiceLogListening() {
+      try {
+        this.serviceLogListening = false
+
+        // 停止日志监听
+        if (window.electron.stopServiceLog) {
+          await window.electron.stopServiceLog()
+        }
+
+        console.log('服务日志监听已停止')
+      } catch (error) {
+        console.error('停止服务日志监听失败:', error)
+      }
     }
   },
   watch: {
     isCompactMode: {
       immediate: true,
       handler: async function (val) {
-        await window.electron.setZoomFactor(val ? 0.8 : 1)
+        await window.electron.setZoomFactor(val ? 0.8 : 0.92)
         // 可选：强制刷新布局
         window.dispatchEvent(new Event('resize'))
       }
@@ -1515,14 +1781,10 @@ export default {
     // 初始化导航历史
     this.initializeFromSavedNavigation()
 
-    const storedTheme = localStorage.getItem('isDark')
-    if (storedTheme !== null) {
-      this.isDark = storedTheme === 'true'
-      this.$vuetify.theme.global.name = this.isDark ? 'dark' : 'light'
-    } else {
-      this.detectSystemTheme()
-    }
+    // 初始化主题设置
+    this.detectSystemTheme()
 
+    // 实时监听系统主题变化，始终跟随系统主题
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       this.detectSystemTheme()
     })
@@ -1540,7 +1802,7 @@ export default {
     const storedCompact = localStorage.getItem('isCompactMode')
     if (storedCompact !== null) {
       this.isCompactMode = storedCompact === 'true'
-      await window.electron.setZoomFactor(this.isCompactMode ? 0.8 : 1)
+      await window.electron.setZoomFactor(this.isCompactMode ? 0.8 : 0.92)
     }
   }
 }
@@ -1555,6 +1817,40 @@ export default {
   v-btn {
     -webkit-app-region: no-drag;
   }
+}
+
+/* 隐藏所有滚动条 */
+:deep(*) {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE和Edge */
+}
+
+:deep(*::-webkit-scrollbar) {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 确保主要容器的滚动条也被隐藏 */
+:deep(.v-main),
+:deep(.v-container),
+:deep(.v-navigation-drawer),
+:deep(.loading-container),
+:deep(.service-logs-content),
+:deep(.log-container) {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+:deep(.v-main::-webkit-scrollbar),
+:deep(.v-container::-webkit-scrollbar),
+:deep(.v-navigation-drawer::-webkit-scrollbar),
+:deep(.loading-container::-webkit-scrollbar),
+:deep(.service-logs-content::-webkit-scrollbar),
+:deep(.log-container::-webkit-scrollbar) {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .v-list-group__items .v-list-item {
@@ -1628,7 +1924,7 @@ export default {
 
 .loading-content {
   text-align: center;
-  max-width: 400px;
+  max-width: 600px;
   width: 100%;
 }
 
@@ -1652,5 +1948,253 @@ export default {
 .skeleton-container {
   max-width: 300px;
   margin: 0 auto;
+}
+
+/* 服务日志样式 */
+.service-logs {
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  border-radius: 8px;
+  padding: 12px;
+  background-color: rgba(var(--v-theme-surface-variant), 0.05);
+}
+
+.log-container {
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  width: 100%;
+  min-width: 500px;
+}
+
+/* 重启对话框中的服务日志样式 */
+.service-logs-container {
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  border-radius: 8px;
+  background-color: rgba(var(--v-theme-surface-variant), 0.05);
+  margin-top: 16px;
+}
+
+.service-logs-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px 8px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
+}
+
+.service-logs-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.87);
+}
+
+.service-logs-content {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px 16px 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.service-log-entry {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  gap: 8px;
+}
+
+.service-log-entry .log-time {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-size: 11px;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.service-log-entry .log-icon {
+  flex-shrink: 0;
+}
+
+.service-log-entry .log-message {
+  flex: 1;
+  word-break: break-word;
+}
+
+.service-log-entry.log-info .log-message {
+  color: rgb(var(--v-theme-info));
+}
+
+.service-log-entry.log-error .log-message {
+  color: rgb(var(--v-theme-error));
+}
+
+.service-log-entry.log-success .log-message {
+  color: rgb(var(--v-theme-success));
+}
+
+/* 滚动条样式 */
+.service-logs-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.service-logs-content::-webkit-scrollbar-track {
+  background: rgba(var(--v-theme-outline), 0.1);
+  border-radius: 3px;
+}
+
+.service-logs-content::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-outline), 0.3);
+  border-radius: 3px;
+}
+
+.service-logs-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-outline), 0.5);
+}
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-service {
+  font-weight: bold;
+  margin-right: 8px;
+  min-width: 40px;
+}
+
+.log-message {
+  flex: 1;
+  margin-right: 8px;
+}
+
+.log-time {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-size: 11px;
+  min-width: 60px;
+  text-align: right;
+}
+
+.log-info {
+  color: rgb(var(--v-theme-info));
+}
+
+.log-error {
+  color: rgb(var(--v-theme-error));
+}
+
+.log-success {
+  color: rgb(var(--v-theme-success));
+}
+
+/* 自定义工具栏样式 */
+.custom-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 40px;
+  padding: 0 10px;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+  user-select: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+.dark-toolbar {
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #333;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  margin-left: 20%;
+}
+
+.toolbar-nav-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.toolbar-title {
+  font-size: 1rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.toolbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 30%;
+  flex: 4;
+}
+
+.status-chips {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.status-chip {
+  height: 20px !important;
+  padding: 0 4px !important;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.theme-chip {
+  height: 20px !important;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.toolbar-btn {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.chip-text {
+  font-size: 0.7rem;
+  margin-left: 2px;
+}
+
+/* Main content positioning to account for custom toolbar */
+.custom-main {
+  padding-top: 36px !important;
+}
+:deep(.v-chip) {
+  .theme-chip-text {
+    color: #ff6200 !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :deep(.v-chip) .theme-chip-text {
+    color: #fff !important;
+  }
 }
 </style>
