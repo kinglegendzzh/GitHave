@@ -187,7 +187,7 @@
 
       <div class="content-container">
         <!-- 左侧目录树 -->
-        <div v-show="showLeftPanel" class="file-tree-panel">
+        <div v-show="showLeftPanel" class="file-tree-panel" :style="{ width: leftPanelWidth + 'px' }">
           <div outlined class="pa-1 file-tree-card">
             <v-divider></v-divider>
             <div class="file-tree-search-container pa-2">
@@ -225,7 +225,7 @@
               }"
               :expand-on-click-node="false"
               :default-expanded-keys="openNodes"
-              :key-field="'path'"
+              node-key="path"
               :item-size="26"
               :empty-text="searchQuery ? '未找到匹配项' : '暂无文件'"
               virtual-scrolling
@@ -247,6 +247,12 @@
             </el-tree>
           </div>
         </div>
+        <!-- 左侧拖拽分隔条 -->
+        <div
+          v-show="showLeftPanel"
+          class="resizer resizer-left"
+          @mousedown="startResizing('left', $event)"
+        ></div>
 
         <!-- 右侧文件预览和标签 -->
         <div class="file-content-panel">
@@ -303,7 +309,7 @@
           <!-- 主要预览区域 -->
           <div class="d-flex flex-grow-1" style="height: 100%">
             <!-- 文件内容预览区域 -->
-            <v-card tonal class="flex-grow-1 pa-0" style="height: 100%; overflow-y: auto">
+            <v-card tonal class="flex-grow-1 pa-0 main-preview" style="height: 100%; overflow-y: auto; min-width: 0;">
               <v-card-text class="pt-1 h-100 pb-2 mb-2">
                 <div v-if="selectedFileName" class="preview-content">
                   <!-- 文件操作按钮 -->
@@ -379,6 +385,13 @@
               </v-card-text>
             </v-card>
 
+            <!-- 右侧拖拽分隔条（在主预览与索引侧之间） -->
+            <div
+              v-if="showRightPanel && isCodeFile && codeIndex && Object.keys(codeIndex.functions || {}).length > 0"
+              class="resizer resizer-right"
+              @mousedown="startResizing('right', $event)"
+            ></div>
+
             <!-- 代码索引侧边栏 -->
             <v-card
               v-if="
@@ -388,7 +401,7 @@
                 Object.keys(codeIndex.functions || {}).length > 0
               "
               class="mt-1 mb-1 code-index-sidebar"
-              style="max-width: 320px"
+              :style="{ width: rightPanelWidth + 'px', maxWidth: rightPanelWidth + 'px' }"
             >
               <div class="text-subtitle-2 mb-2 text-primary font-weight-bold">
                 <v-icon size="small" class="mr-1">mdi-function</v-icon>
@@ -1243,6 +1256,49 @@ const clipboard = ref({
 // 侧边栏显示状态
 const showLeftPanel = ref(true)
 const showRightPanel = ref(true)
+
+// 面板宽度与拖拽状态
+const leftPanelWidth = ref(parseInt(localStorage.getItem('fileBrowser.leftWidth') || '280', 10))
+const rightPanelWidth = ref(parseInt(localStorage.getItem('fileBrowser.rightWidth') || '320', 10))
+const resizing = ref(null) // 'left' | 'right' | null
+let startX = 0
+let startLeftWidth = 0
+let startRightWidth = 0
+
+function startResizing(side, e) {
+  resizing.value = side
+  startX = e.clientX
+  startLeftWidth = leftPanelWidth.value
+  startRightWidth = rightPanelWidth.value
+  document.body.classList.add('resizing')
+  window.addEventListener('mousemove', onResizing)
+  window.addEventListener('mouseup', stopResizing)
+  e.preventDefault()
+}
+
+function onResizing(e) {
+  if (!resizing.value) return
+  const dx = e.clientX - startX
+  if (resizing.value === 'left') {
+    let next = startLeftWidth + dx
+    next = Math.max(180, Math.min(next, Math.floor(window.innerWidth * 0.6)))
+    leftPanelWidth.value = next
+  } else if (resizing.value === 'right') {
+    let next = startRightWidth - dx
+    next = Math.max(220, Math.min(next, 600))
+    rightPanelWidth.value = next
+  }
+}
+
+function stopResizing() {
+  if (!resizing.value) return
+  window.removeEventListener('mousemove', onResizing)
+  window.removeEventListener('mouseup', stopResizing)
+  document.body.classList.remove('resizing')
+  localStorage.setItem('fileBrowser.leftWidth', String(leftPanelWidth.value))
+  localStorage.setItem('fileBrowser.rightWidth', String(rightPanelWidth.value))
+  resizing.value = null
+}
 
 // 右键菜单图标定义
 const menuIcons = {
@@ -2128,10 +2184,14 @@ async function getDirectoryTree(targetPath) {
   } catch (e) {
     return [] // 目录不可读
   }
+  console.log('[DEBUG] getDirectoryTree 原始子项数量:', root.length, '路径:', targetPath)
   const filteredRoot = root.filter((child) => !child.name.startsWith('.'))
+  console.log('[DEBUG] 过滤隐藏文件后数量:', filteredRoot.length)
   // 先分组，再递归
   const directories = filteredRoot.filter((child) => child.isDirectory)
   const files = filteredRoot.filter((child) => !child.isDirectory)
+  console.log('[DEBUG] 目录数量:', directories.length, '文件数量:', files.length)
+  console.log('[DEBUG] 目录名称:', directories.map(d => d.name))
 
   const dirNodes = await Promise.all(
     directories.map(async (child) => {
@@ -2157,6 +2217,7 @@ async function getDirectoryTree(targetPath) {
 
 // 重置目录树：仅在用户选定路径后调用
 async function resetTree(newPath) {
+  console.log('[DEBUG] resetTree 开始执行，路径:', newPath)
   const targetPath = (await isFilePath(
     newPath,
     null,
@@ -2166,8 +2227,10 @@ async function resetTree(newPath) {
   ))
     ? window.electron.path.dirname(newPath)
     : newPath
+  console.log('[DEBUG] 目标路径确定为:', targetPath)
   try {
     const children = await getDirectoryTree(targetPath)
+    console.log('[DEBUG] 获取到子目录数量:', children?.length || 0)
     treeData.value = [
       {
         name: window.electron.path.basename(targetPath),
@@ -2176,7 +2239,11 @@ async function resetTree(newPath) {
         children: children
       }
     ]
-    openNodes.value = [targetPath]
+    // 默认展开前两层目录：根目录 + 所有一级子目录
+    const level1DirPaths = (children || []).filter((c) => c.isDirectory).map((c) => c.path)
+    console.log('[DEBUG] 一级子目录路径:', level1DirPaths)
+    openNodes.value = Array.from(new Set([targetPath, ...level1DirPaths]))
+    console.log('[DEBUG] 设置展开节点:', openNodes.value)
   } catch (e) {
     console.error('路径加载失败:', e)
   }
@@ -2423,19 +2490,23 @@ const handleNodeClick = (data) => {
 
 // Handle node expand event
 const handleNodeExpand = (data) => {
+  console.log('[DEBUG] 节点展开事件:', data.path)
   // 只保留核心功能：将展开节点添加到openNodes数组中
   if (!openNodes.value.includes(data.path)) {
     openNodes.value.push(data.path)
+    console.log('[DEBUG] 添加到展开列表:', data.path)
   }
   // 已删除冗余的日志输出和注释，目录树现在一次性加载完成，不需要额外处理
 }
 
 // Handle node collapse event
 const handleNodeCollapse = (data) => {
+  console.log('[DEBUG] 节点折叠事件:', data.path)
   // 移除当前被折叠的节点
   const index = openNodes.value.indexOf(data.path)
   if (index !== -1) {
     openNodes.value.splice(index, 1)
+    console.log('[DEBUG] 从展开列表移除:', data.path)
   }
 
   // 同时移除所有子节点的路径
@@ -2476,7 +2547,26 @@ const handleNodeContextMenu = (event, data) => {
 watch(
   treeData,
   (newVal) => {
+    console.log('[DEBUG] treeData 变化，新数据长度:', newVal?.length || 0)
     filteredTreeData.value = newVal
+    console.log('[DEBUG] filteredTreeData 设置完成，当前 openNodes:', openNodes.value)
+    
+    // 强制刷新 el-tree 展开状态
+    nextTick(() => {
+      console.log('[DEBUG] nextTick 中检查 treeRef:', treeRef.value)
+      if (treeRef.value && openNodes.value.length > 0) {
+        console.log('[DEBUG] 尝试设置展开节点:', openNodes.value)
+        // 强制设置展开节点
+        openNodes.value.forEach(nodeKey => {
+          try {
+            treeRef.value.setExpanded(nodeKey, true)
+            console.log('[DEBUG] 成功展开节点:', nodeKey)
+          } catch (e) {
+            console.warn('[DEBUG] 展开节点失败:', nodeKey, e)
+          }
+        })
+      }
+    })
 
     // 当目录树加载完成后，自动查找并选择指定路径的节点
     if (newVal && newVal.length > 0 && props.localPath) {
@@ -2503,6 +2593,15 @@ watch(
   { immediate: true }
 )
 
+// 监听 openNodes 变化
+watch(
+  openNodes,
+  (newVal) => {
+    console.log('[DEBUG] openNodes 变化:', newVal)
+  },
+  { deep: true }
+)
+
 // 生命周期挂载时执行初始化
 onMounted(() => {
   initializePage()
@@ -2527,6 +2626,8 @@ onMounted(() => {
 onUnmounted(() => {
   // 移除事件监听
   document.removeEventListener('click', hideContextMenu)
+  window.removeEventListener('mousemove', onResizing)
+  window.removeEventListener('mouseup', stopResizing)
 })
 
 // 组件激活时重新检查主题（解决返回页面时样式不一致的问题）
@@ -4050,11 +4151,36 @@ body {
 
 /* 左侧文件树面板 */
 .file-tree-panel {
-  width: 20%;
+  flex: 0 0 auto;
   height: 100%;
   overflow: hidden;
   padding: 4px;
 }
+
+/* 拖拽分隔条 */
+.resizer {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+.resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 1px;
+  right: 1px;
+  border-left: 1px solid rgba(0,0,0,0.06);
+  border-right: 1px solid rgba(0,0,0,0.06);
+}
+.resizer:hover::after,
+body.resizing .resizer::after {
+  border-left-color: rgba(0,0,0,0.15);
+  border-right-color: rgba(0,0,0,0.15);
+}
+.resizer-left { flex: 0 0 auto; }
+.resizer-right { flex: 0 0 auto; }
 
 .file-tree-card {
   height: 100%;
@@ -4077,6 +4203,7 @@ body {
   max-height: calc(100vh - 150px);
   overflow-y: auto;
   padding: 8px;
+  flex: 0 0 auto;
 }
 
 /* 文件预览卡片 */
