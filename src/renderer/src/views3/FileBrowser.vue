@@ -12,36 +12,69 @@
       <div class="toolbar-container">
         <v-toolbar density="compact" height="48" class="pa-0 pl-1 pr-1">
           <!-- 标题banner -->
-          <div class="toolbar-title ml-4">
+          <!-- <div class="toolbar-title ml-4">
             <span class="text-h8 text-caption">代码视窗</span>
-          </div>
+          </div> -->
 
           <v-spacer></v-spacer>
 
           <!-- 中间路径选择 -->
           <div class="toolbar-center">
             <span class="text-caption mr-2">选择代码仓库: </span>
-            <v-autocomplete
-              v-model="newRootPath"
-              :items="pathSuggestions"
-              item-title="title"
-              item-value="value"
+            <a-select
+              v-model:value="newRootPath"
+              :options="pathSuggestions.map((item) => ({ label: item.title, value: item.value }))"
               placeholder="选择代码仓库"
-              no-data-text="暂无数据"
-              density="compact"
-              variant="outlined"
-              hide-details
-              class="pa-0 mt-1 mb-0 pt-1 pb-0"
+              allow-clear
+              show-search
               style="width: 500px"
+              :filter-option="
+                (input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              "
               @focus="loadPathSuggestions"
-              @update:model-value="onPathSelectionChanged"
-            ></v-autocomplete>
+              @change="onPathSelectionChanged"
+            />
           </div>
 
           <v-spacer></v-spacer>
 
           <!-- 右侧操作区 -->
           <div class="toolbar-right d-flex align-center">
+            <!-- 侧边栏控制按钮 -->
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn
+                  icon
+                  size="small"
+                  class="pa-1 ma-0 mr-1"
+                  v-bind="props"
+                  @click="toggleLeftPanel"
+                >
+                  <v-icon size="small" :class="{ 'icon-disabled': !showLeftPanel }"
+                    >mdi-dock-left</v-icon
+                  >
+                </v-btn>
+              </template>
+              <span>{{ showLeftPanel ? '隐藏目录树' : '显示目录树' }}</span>
+            </v-tooltip>
+
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn
+                  icon
+                  size="small"
+                  class="pa-1 ma-0 mr-2"
+                  v-bind="props"
+                  @click="toggleRightPanel"
+                >
+                  <v-icon size="small" :class="{ 'icon-disabled': !showRightPanel }"
+                    >mdi-dock-right</v-icon
+                  >
+                </v-btn>
+              </template>
+              <span>{{ showRightPanel ? '隐藏索引列表' : '显示索引列表' }}</span>
+            </v-tooltip>
+
             <!-- 主题选择器 -->
             <v-menu>
               <template #activator="{ props }">
@@ -95,39 +128,66 @@
                 </v-list-item>
               </v-list>
             </v-menu>
-            <v-btn text size="small" class="pa-1 ma-0" title="更新代码" @click="pull()">
-              <v-icon size="small">mdi-git</v-icon>
-              更新代码
-            </v-btn>
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn
+                  icon
+                  size="small"
+                  class="pa-1 ma-0"
+                  v-bind="props"
+                  @click="changeHighlightTheme()"
+                >
+                  <v-icon size="small">mdi-palette</v-icon>
+                </v-btn>
+              </template>
+              <span>切换代码高亮主题</span>
+            </v-tooltip>
 
-            <v-btn
-              text
-              size="small"
-              class="pa-1 ma-0"
-              title="从文件夹打开"
-              @click="openOutside(breadcrumbs, true)"
-            >
-              <v-icon size="small">mdi-folder-eye</v-icon>
-              从文件夹打开
-            </v-btn>
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn icon size="small" class="pa-1 ma-0" v-bind="props" @click="pull()">
+                  <v-icon size="small">mdi-git</v-icon>
+                </v-btn>
+              </template>
+              <span>更新代码</span>
+            </v-tooltip>
 
-            <v-btn
-              text
-              size="small"
-              class="pa-1 ma-0"
-              title="从应用程序打开"
-              @click="openOutside(breadcrumbs, false)"
-            >
-              <v-icon size="small">mdi-file-search-outline</v-icon>
-              从应用程序打开
-            </v-btn>
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn
+                  icon
+                  size="small"
+                  class="pa-1 ma-0"
+                  v-bind="props"
+                  @click="openOutside(breadcrumbs, true)"
+                >
+                  <v-icon size="small">mdi-folder-eye</v-icon>
+                </v-btn>
+              </template>
+              <span>从文件夹打开</span>
+            </v-tooltip>
+
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-btn
+                  icon
+                  size="small"
+                  class="pa-1 ma-0"
+                  v-bind="props"
+                  @click="openOutside(breadcrumbs, false)"
+                >
+                  <v-icon size="small">mdi-file-search-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>从应用程序打开</span>
+            </v-tooltip>
           </div>
         </v-toolbar>
       </div>
 
       <div class="content-container">
         <!-- 左侧目录树 -->
-        <div class="file-tree-panel">
+        <div v-show="showLeftPanel" class="file-tree-panel">
           <div outlined class="pa-1 file-tree-card">
             <v-divider></v-divider>
             <div class="file-tree-search-container pa-2">
@@ -139,10 +199,24 @@
                 class="mb-2"
                 @input="filterTree"
               />
+
+              <!-- 添加路径导航输入框 -->
+              <!-- <div class="path-navigation mt-2">
+                <v-text-field
+                  v-model="pathInput"
+                  placeholder="输入路径..."
+                  clearable
+                  class="mb-1"
+                  density="compact"
+                  hide-details
+                  append-inner-icon="mdi-crosshairs-gps"
+                  @click:append-inner="expandToInputPath(pathInput)"
+                ></v-text-field>
+              </div> -->
             </div>
             <el-tree
               ref="treeRef"
-              style="height: 100vh; overflow-y: scroll"
+              style="height: 78vh; overflow-y: scroll"
               :data="filteredTreeData"
               :props="{
                 label: 'name',
@@ -177,7 +251,7 @@
         <!-- 右侧文件预览和标签 -->
         <div class="file-content-panel">
           <div class="flex-shrink-0">
-            <div class="tabs-container" style="flex-shrink: 0; overflow: hidden">
+            <div class="tabs-container" style="flex-shrink: 0; overflow: hidden; max-width: 75%">
               <v-tabs
                 v-if="tabs.length"
                 v-model="activeTab"
@@ -248,7 +322,7 @@
                           >{{ codeIndex.total_function_count }} 个索引</span
                         >
                       </v-btn>
-                      <v-btn
+                      <!-- <v-btn
                         class="ml-2"
                         color="success"
                         size="small"
@@ -258,7 +332,7 @@
                         <span style="text-transform: none" class="text-caption ml-1 mr-1">
                           在IDE中编辑
                         </span>
-                      </v-btn>
+                      </v-btn> -->
                     </div>
                   </div>
 
@@ -288,7 +362,8 @@
                     v-html="renderMarkdown(fileContent)"
                   ></div>
                   <!-- 代码文件预览 -->
-                  <div v-else-if="isCodeFile" class="monaco-container">
+                  <!-- <div v-else-if="isCodeFile" class="monaco-container"> -->
+                  <div v-else class="monaco-container">
                     <MonacoEditor
                       v-model:value="fileContent"
                       :language="getFileLanguage(selectedFileName)"
@@ -298,39 +373,20 @@
                     />
                   </div>
                   <!-- 其他文本文件预览 -->
-                  <pre v-else>{{ fileContent }}</pre>
+                  <!-- <pre v-else>{{ fileContent }}</pre> -->
                 </div>
-                <div v-else style="text-align: center; padding-top: 20%">
-                  <img
-                    :src="placeholderImage"
-                    alt="Chart Placeholder"
-                    draggable="false"
-                    style="
-                      max-width: 150px;
-                      max-height: 150px;
-                      display: block;
-                      margin: auto;
-                      user-select: none;
-                      pointer-events: none;
-                    "
-                  />
-                  <h1
-                    style="
-                      font-size: 16px;
-                      margin-top: 16px;
-                      user-select: none;
-                      pointer-events: none;
-                    "
-                  >
-                    代码视窗
-                  </h1>
-                </div>
+                <div v-else style="text-align: center; padding-top: 20%"></div>
               </v-card-text>
             </v-card>
 
             <!-- 代码索引侧边栏 -->
             <v-card
-              v-if="isCodeFile && codeIndex && Object.keys(codeIndex.functions || {}).length > 0"
+              v-if="
+                showRightPanel &&
+                isCodeFile &&
+                codeIndex &&
+                Object.keys(codeIndex.functions || {}).length > 0
+              "
               class="mt-1 mb-1 code-index-sidebar"
               style="max-width: 320px"
             >
@@ -340,48 +396,51 @@
               </div>
               <!-- 代码结构搜索框 -->
               <div class="d-flex align-center mb-2" style="position: relative">
-                <v-icon
-                  size="small"
-                  style="
-                    position: absolute;
-                    left: 10px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    z-index: 1;
-                  "
-                  >mdi-magnify</v-icon
-                >
-                <input
-                  v-model="codeStructureSearch"
-                  type="text"
-                  class="custom-search-input"
-                  :placeholder="'搜索函数...'"
-                  :style="{
-                    paddingLeft: '32px',
-                    width: '100%',
-                    height: '36px',
-                    border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
-                    borderRadius: '6px',
-                    outline: 'none',
-                    color: isDarkTheme ? '#e2e8f0' : 'inherit'
-                  }"
-                />
-                <v-icon
-                  v-if="codeStructureSearch"
-                  size="small"
-                  color="grey"
-                  style="
-                    position: absolute;
-                    right: 10px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    cursor: pointer;
-                    z-index: 2;
-                  "
-                  @click="codeStructureSearch = ''"
-                >
-                  mdi-close-circle
-                </v-icon>
+                <div class="code-search-container" :class="{ 'dark-theme': isDarkTheme }">
+                  <v-icon
+                    size="small"
+                    style="
+                      position: absolute;
+                      left: 22px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      z-index: 1;
+                    "
+                    >mdi-magnify</v-icon
+                  >
+                  <input
+                    v-model="codeStructureSearch"
+                    type="text"
+                    class="custom-search-input"
+                    :placeholder="'搜索函数...'"
+                    :style="{
+                      paddingLeft: '32px',
+                      width: '100%',
+                      height: '36px',
+                      border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
+                      borderRadius: '6px',
+                      outline: 'none',
+                      color: isDarkTheme ? '#e2e8f0' : 'inherit',
+                      background: isDarkTheme ? '#1e1e1e' : 'white'
+                    }"
+                  />
+                  <v-icon
+                    v-if="codeStructureSearch"
+                    size="small"
+                    color="grey"
+                    style="
+                      position: absolute;
+                      right: 24px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      cursor: pointer;
+                      z-index: 2;
+                    "
+                    @click="codeStructureSearch = ''"
+                  >
+                    mdi-close-circle
+                  </v-icon>
+                </div>
               </div>
               <v-divider class="mb-3"></v-divider>
 
@@ -490,6 +549,111 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- 新建文件对话框 -->
+    <v-dialog v-model="newFileDialog" max-width="400">
+      <v-card>
+        <v-card-title>新建文件</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="newFileName"
+            label="文件名"
+            placeholder="例如: index.js"
+            variant="outlined"
+            autofocus
+            @keyup.enter="confirmCreateFile"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn @click="newFileDialog = false">取消</v-btn>
+          <v-btn color="primary" :disabled="!newFileName.trim()" @click="confirmCreateFile"
+            >创建</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 新建文件夹对话框 -->
+    <v-dialog v-model="newFolderDialog" max-width="400">
+      <v-card>
+        <v-card-title>新建文件夹</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="newFolderName"
+            label="文件夹名"
+            placeholder="例如: components"
+            variant="outlined"
+            autofocus
+            @keyup.enter="confirmCreateFolder"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn @click="newFolderDialog = false">取消</v-btn>
+          <v-btn color="primary" :disabled="!newFolderName.trim()" @click="confirmCreateFolder"
+            >创建</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 重命名对话框 -->
+    <v-dialog v-model="renameDialog" max-width="400">
+      <v-card>
+        <v-card-title>重命名</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="renameValue"
+            label="新名称"
+            variant="outlined"
+            autofocus
+            @keyup.enter="confirmRename"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn @click="renameDialog = false">取消</v-btn>
+          <v-btn color="primary" :disabled="!renameValue.trim()" @click="confirmRename"
+            >重命名</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 右键菜单 -->
+    <div
+      v-if="contextMenu.show"
+      class="context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+      @click.stop
+    >
+      <div v-for="item in contextMenu.items" :key="item.id" class="context-menu-item">
+        <div
+          v-if="!item.separator"
+          class="context-menu-option"
+          :class="{ disabled: item.disabled }"
+          @click="handleContextMenuAction(item.action)"
+        >
+          <div class="context-menu-icon">
+            <svg v-if="item.icon" :viewBox="item.icon.viewBox" class="menu-icon">
+              <path :d="item.icon.path" />
+            </svg>
+          </div>
+          <span class="context-menu-text">{{ item.label }}</span>
+          <span v-if="item.shortcut" class="context-menu-shortcut">{{ item.shortcut }}</span>
+        </div>
+        <div v-else class="context-menu-separator"></div>
+      </div>
+    </div>
+
+    <!-- 右键菜单背景遮罩 -->
+    <div
+      v-if="contextMenu.show"
+      class="context-menu-overlay"
+      @click="hideContextMenu"
+      @contextmenu.prevent="hideContextMenu"
+    ></div>
   </v-container>
 </template>
 
@@ -515,20 +679,18 @@ window.MonacoEnvironment = {
 import 'highlight.js/styles/default.css'
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick, reactive } from 'vue'
 import { useStore } from 'vuex'
-import { isFilePath, getFileExtension, getFileName } from '../service/file'
+import { isFilePath } from '../service/file'
 import mammoth from 'mammoth'
-import path from 'path-browserify'
-import { ElTreeV2, ElInput, ElIcon } from 'element-plus'
+// 使用 window.electron.path 替代 path-browserify
+import { ElInput, ElIcon } from 'element-plus'
 import { Folder, Document, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import MonacoEditor from 'monaco-editor-vue3'
 
 import * as XLSX from 'xlsx'
-import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo, checkIndexApi } from '../service/api.js'
 import { omit } from '../service/str'
-import dynamicLoadingSvg from '../assets/load.svg'
 // router import removed as we're using IPC instead of direct routing
 // Vuex store（假定已配置）
 const store = useStore()
@@ -541,7 +703,9 @@ const highlightTheme = ref('github')
 
 // MonacoEditor 相关配置
 // 读取黑色主题偏好设置
-const highlightThemeDark = ref(localStorage.getItem('fileBrowser.highlightDark') !== 'false')
+// 修复点1：合理的默认值逻辑（无偏好时默认日间）
+const savedHighlightPref = localStorage.getItem('fileBrowser.highlightDark')
+const highlightThemeDark = ref(savedHighlightPref === null ? false : savedHighlightPref === 'true')
 const currentTheme = ref(highlightThemeDark.value ? 'vs-dark' : 'vs-light') // Monaco编辑器主题
 
 const monacoOptions = reactive({
@@ -557,7 +721,6 @@ const monacoOptions = reactive({
 // Monaco编辑器实例和装饰引用
 let monacoGlobal = null
 let monacoInstance = null
-let highlightDecoration = null
 let searchDecorations = [] // 搜索高亮装饰ID数组
 let monacoReady = false // 标记Monaco编辑器是否完全初始化完成
 let pendingScrollActions = [] // 缓存等待执行的滚动操作
@@ -567,15 +730,18 @@ function onEditorMounted(editor) {
   // 获取Monaco全局对象和编辑器实例
   monacoGlobal = editor.$monaco
   monacoInstance = editor
-  
+
   // 标记编辑器已就绪
   monacoReady = true
   console.log('Monaco编辑器初始化完成')
-  
+
+  // 修复点2：每次编辑器挂载时显式应用当前主题，避免重建后回落默认
+  editor.updateOptions({ theme: currentTheme.value })
+
   // 执行之前缓存的滚动操作
   if (pendingScrollActions.length > 0) {
     console.log(`执行 ${pendingScrollActions.length} 个缓存的滚动操作`)
-    pendingScrollActions.forEach(action => action())
+    pendingScrollActions.forEach((action) => action())
     pendingScrollActions = []
   }
 
@@ -629,41 +795,42 @@ function onEditorMounted(editor) {
   editor.onDidDispose(() => editor.deltaDecorations(deco, []))
 }
 
+/**
+ * 通过文件扩展名推断 Monaco 语言
+ */
+const languageMap = {
+  js: 'javascript',
+  ts: 'typescript',
+  vue: 'javascript',
+  java: 'java',
+  go: 'go',
+  py: 'python',
+  rb: 'ruby',
+  c: 'c',
+  h: 'c',
+  glsl: 'c',
+  cpp: 'cpp',
+  html: 'html',
+  css: 'css',
+  json: 'json',
+  xml: 'xml',
+  sh: 'shell',
+  php: 'php',
+  sql: 'sql',
+  md: 'markdown',
+  yaml: 'yaml',
+  yml: 'yaml',
+  jsx: 'javascript',
+  tsx: 'typescript'
+}
+
 // 根据文件扩展名获取语言类型
 function getFileLanguage(filename) {
   if (!filename) return 'plaintext'
-  
-  const ext = path.extname(filename).slice(1).toLowerCase()
-  const languageMap = {
-    js: 'javascript',
-    jsx: 'javascript',
-    ts: 'typescript',
-    tsx: 'typescript',
-    html: 'html',
-    css: 'css',
-    scss: 'scss',
-    less: 'less',
-    json: 'json',
-    py: 'python',
-    java: 'java',
-    c: 'c',
-    cpp: 'cpp',
-    cs: 'csharp',
-    go: 'go',
-    rs: 'rust',
-    php: 'php',
-    rb: 'ruby',
-    sh: 'shell',
-    bash: 'shell',
-    md: 'markdown',
-    vue: 'vue',
-    xml: 'xml',
-    yml: 'yaml',
-    yaml: 'yaml',
-    sql: 'sql'
-  }
-  
-  return languageMap[ext] || 'plaintext'
+
+  const ext = window.electron.path.extname(filename).slice(1).toLowerCase()
+
+  return languageMap[ext] || 'shell'
 }
 
 // 可选的亮色主题列表
@@ -691,8 +858,6 @@ const darkHighlightTheme = 'gradient-dark' // 暗色主题默认值
 const lightHighlightTheme = 'mono-blue' // 亮色主题默认值
 
 // 用户自定义主题（从localStorage读取）
-const userDarkTheme = localStorage.getItem('userDarkTheme') || darkHighlightTheme
-const userLightTheme = localStorage.getItem('userLightTheme') || lightHighlightTheme
 
 // 监听主题变化并加载对应的高亮样式
 const loadHighlightTheme = (themeName) => {
@@ -736,9 +901,27 @@ const loadHighlightTheme = (themeName) => {
 
 // 检测当前主题
 const checkTheme = () => {
-  // 通过检查 body 上的 Vuetify 主题类来确定当前主题
-  const isDark = localStorage.getItem('isDark') === 'true'
+  // 优先检测系统主题偏好
+  const systemPrefersDark =
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+
+  // 检查 Vuetify 主题状态（如果存在）
+  const vuetifyDark =
+    document.body.classList.contains('v-theme--dark') ||
+    document.documentElement.classList.contains('v-theme--dark')
+
+  // 综合判断当前主题（优先系统设置，其次Vuetify状态）
+  const isDark = systemPrefersDark || vuetifyDark
   isDarkTheme.value = isDark
+  console.log(
+    '[FileBrowser] 当前主题:',
+    isDark ? '暗色' : '亮色',
+    '(系统偏好:',
+    systemPrefersDark,
+    ', Vuetify:',
+    vuetifyDark,
+    ')'
+  )
 
   // 根据主题加载对应的高亮样式
   const themeToUse = isDark
@@ -747,9 +930,9 @@ const checkTheme = () => {
 
   loadHighlightTheme(themeToUse)
 
-  // 更新搜索框样式
+  // 更新各种输入框和选择器样式
   nextTick(() => {
-    // 强制重新应用样式
+    // 更新搜索框样式
     const searchInputs = document.querySelectorAll('.custom-search-input, .quick-find-input')
     searchInputs.forEach((input) => {
       if (isDark) {
@@ -760,6 +943,44 @@ const checkTheme = () => {
         input.style.background = 'white'
         input.style.color = 'inherit'
         input.style.border = '1px solid #d1d5db'
+      }
+    })
+
+    // 更新Ant Design选择器样式
+    const antSelectors = document.querySelectorAll('.ant-select-selector')
+    antSelectors.forEach((selector) => {
+      if (isDark) {
+        selector.style.background = '#1e1e1e !important'
+        selector.style.borderColor = '#4a5568 !important'
+        selector.style.color = '#e2e8f0 !important'
+      } else {
+        selector.style.background = 'white !important'
+        selector.style.borderColor = '#d1d5db !important'
+        selector.style.color = 'inherit !important'
+      }
+    })
+
+    // 更新Ant Design下拉框样式
+    const antDropdowns = document.querySelectorAll('.ant-select-dropdown')
+    antDropdowns.forEach((dropdown) => {
+      if (isDark) {
+        dropdown.style.background = '#1e1e1e !important'
+        dropdown.style.borderColor = '#4a5568 !important'
+      } else {
+        dropdown.style.background = 'white !important'
+        dropdown.style.borderColor = '#d1d5db !important'
+      }
+    })
+
+    // 更新Ant Design选项样式
+    const antOptions = document.querySelectorAll('.ant-select-item')
+    antOptions.forEach((option) => {
+      if (isDark) {
+        option.style.color = '#e2e8f0 !important'
+        option.style.background = 'transparent !important'
+      } else {
+        option.style.color = 'inherit !important'
+        option.style.background = 'transparent !important'
       }
     })
   })
@@ -778,27 +999,69 @@ const setupThemeObserver = () => {
 
   observer.observe(document.body, { attributes: true })
 
+  // 监听系统主题变化
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  const handleSystemThemeChange = (e) => {
+    console.log('[FileBrowser] 系统主题变化:', e.matches ? '暗色' : '亮色')
+    checkTheme()
+  }
+
+  // 添加系统主题变化监听器
+  if (mediaQuery.addEventListener) {
+    mediaQuery.addEventListener('change', handleSystemThemeChange)
+  } else {
+    // 兼容旧版浏览器
+    mediaQuery.addListener(handleSystemThemeChange)
+  }
+
   // 初始检查主题
   checkTheme()
 
-  return observer
+  return { observer, mediaQuery, handleSystemThemeChange }
 }
 
 // 主题观察器实例
-let themeObserver = null
+let themeObservers = null
 
 // 组件挂载时初始化主题观察器
 onMounted(() => {
   // 初始化主题观察器
-  themeObserver = setupThemeObserver()
+  themeObservers = setupThemeObserver()
   console.log('[FileBrowser] 主题观察器已初始化')
+
+  // 修复点3：如果没有用户偏好，则跟随系统/Vuetify 的暗/亮模式作为初始 Monaco 主题
+  const saved = localStorage.getItem('fileBrowser.highlightDark')
+  if (saved === null) {
+    highlightThemeDark.value = isDarkTheme.value
+    currentTheme.value = highlightThemeDark.value ? 'vs-dark' : 'vs-light'
+    if (monacoInstance) {
+      monacoInstance.updateOptions({ theme: currentTheme.value })
+    }
+  }
 })
 
 // 组件卸载时清理主题观察器
 onUnmounted(() => {
-  if (themeObserver) {
-    themeObserver.disconnect()
-    themeObserver = null
+  if (themeObservers) {
+    // 清理DOM变化观察器
+    if (themeObservers.observer) {
+      themeObservers.observer.disconnect()
+    }
+
+    // 清理系统主题变化监听器
+    if (themeObservers.mediaQuery && themeObservers.handleSystemThemeChange) {
+      if (themeObservers.mediaQuery.removeEventListener) {
+        themeObservers.mediaQuery.removeEventListener(
+          'change',
+          themeObservers.handleSystemThemeChange
+        )
+      } else {
+        // 兼容旧版浏览器
+        themeObservers.mediaQuery.removeListener(themeObservers.handleSystemThemeChange)
+      }
+    }
+
+    themeObservers = null
     console.log('[FileBrowser] 主题观察器已清理')
   }
 })
@@ -844,13 +1107,11 @@ const selectedFileName = ref('')
 const renderedDocx = ref('')
 const renderedXlsx = ref('')
 const selectedFileUrl = ref('')
-const placeholderImage = codeSVG
 const newRootPath = ref('')
 const pathSuggestions = ref([])
 const openNodes = ref([])
 // 初始化时目录树为空，不自动加载根目录
 const treeData = ref([])
-const hoveredNode = ref(null)
 const codeIndex = ref(null)
 const hoveredFunction = ref(null)
 // 代码结构搜索
@@ -860,141 +1121,98 @@ const quickFindText = ref('')
 const findResults = ref([])
 const findCurrentIndex = ref(-1)
 
+// 文件操作对话框状态
+const newFileDialog = ref(false)
+const newFileName = ref('')
+const newFolderDialog = ref(false)
+const newFolderName = ref('')
+const renameDialog = ref(false)
+const renameValue = ref('')
+const renameTargetPath = ref('')
+
+// 右键菜单状态
+const contextMenu = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  items: [],
+  target: null,
+  targetType: null // 'tab' | 'file' | 'folder'
+})
+
+// 剪贴板状态
+const clipboard = ref({
+  type: null, // 'copy' | 'cut'
+  path: null
+})
+
+// 侧边栏显示状态
+const showLeftPanel = ref(true)
+const showRightPanel = ref(true)
+
+// 右键菜单图标定义
+const menuIcons = {
+  open: {
+    viewBox: '0 0 24 24',
+    path: 'M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z'
+  },
+  folder: {
+    viewBox: '0 0 24 24',
+    path: 'M19,20H4C2.89,20 2,19.1 2,18V6C2,4.89 2.89,4 4,4H10L12,6H19A2,2 0 0,1 21,8H21L4,8V18L6.14,10H23.21L20.93,18.5C20.7,19.37 19.92,20 19,20Z'
+  },
+  copy: {
+    viewBox: '0 0 24 24',
+    path: 'M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z'
+  },
+  cut: {
+    viewBox: '0 0 24 24',
+    path: 'M9.64,7.64C10.37,6.91 10.37,5.73 9.64,5C8.91,4.27 7.73,4.27 7,5C6.27,5.73 6.27,6.91 7,7.64C7.73,8.37 8.91,8.37 9.64,7.64M21.64,2.64L10.5,13.78L9.64,12.92L20.78,1.78L21.64,2.64M12.92,9.64L14.5,11.22L2.64,23.08L1.78,22.22L12.92,9.64M17,14C17.73,14.27 18.27,14.73 18.64,15.36C19,16 19,16.73 18.64,17.36C18.27,18 17.73,18.45 17,18.73C16.27,19 15.45,19 14.73,18.73C14,18.45 13.55,18 13.27,17.36C13,16.73 13,16 13.27,15.36C13.55,14.73 14,14.27 14.73,14C15.45,13.73 16.27,13.73 17,14Z'
+  },
+  paste: {
+    viewBox: '0 0 24 24',
+    path: 'M19,20H5V4H7V7H17V4H19M12,2A1,1 0 0,1 13,3A1,1 0 0,1 12,4A1,1 0 0,1 11,3A1,1 0 0,1 12,2M19,2H14.82C14.4,0.84 13.3,0 12,0C10.7,0 9.6,0.84 9.18,2H5A2,2 0 0,0 3,4V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V4A2,2 0 0,0 19,2Z'
+  },
+  newFile: {
+    viewBox: '0 0 24 24',
+    path: 'M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z'
+  },
+  newFolder: {
+    viewBox: '0 0 24 24',
+    path: 'M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4M15,9V12H18V14H15V17H13V14H10V12H13V9H15Z'
+  },
+  copyPath: {
+    viewBox: '0 0 24 24',
+    path: 'M10.59,13.41C11,13.8 11,14.4 10.59,14.81C10.2,15.2 9.6,15.2 9.19,14.81L7.05,12.67C6.64,12.26 6.64,11.65 7.05,11.24L9.19,9.1C9.6,8.69 10.2,8.69 10.59,9.1C11,9.5 11,10.1 10.59,10.51L9.67,11.43H14.32L13.4,10.51C13,10.1 13,9.5 13.4,9.1C13.8,8.69 14.4,8.69 14.81,9.1L16.95,11.24C17.35,11.65 17.35,12.26 16.95,12.67L14.81,14.81C14.4,15.2 13.8,15.2 13.4,14.81C13,14.4 13,13.8 13.4,13.41L14.32,12.49H9.67L10.59,13.41M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z'
+  },
+  delete: {
+    viewBox: '0 0 24 24',
+    path: 'M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z'
+  },
+  refresh: {
+    viewBox: '0 0 24 24',
+    path: 'M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z'
+  },
+  rename: {
+    viewBox: '0 0 24 24',
+    path: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z'
+  }
+}
+
 // allowedExtensions 常量已删除，现在使用 checkIfTextFile 函数进行智能文件类型检测
 
-// checkIfTextFile 函数：智能检测文件是否为文本文件
+// checkIfTextFile 函数：内容优先+mime兜底智能检测文本文件
 async function checkIfTextFile(filePath) {
   try {
-    // 首先检查路径是否为目录，如果是目录则直接返回false
+    // 目录直接返回 false
     try {
       const stats = await window.electron.getFileStats(filePath)
-      if (stats && stats.isDirectory) {
-        return false
-      }
+      if (stats && stats.isDirectory) return false
     } catch (error) {
-      // 如果获取文件状态失败，继续后续检查
       console.warn('获取文件状态失败:', error)
     }
-
-    // 然后检查文件扩展名，对于已知的二进制文件类型直接返回false
-    const ext = path.extname(filePath).toLowerCase()
-    const binaryExtensions = [
-      '.zip',
-      '.rar',
-      '.7z',
-      '.dmg',
-      '.exe',
-      '.tar',
-      '.gz',
-      '.iso',
-      '.apk',
-      '.jpg',
-      '.jpeg',
-      '.png',
-      '.gif',
-      '.bmp',
-      '.ico',
-      '.tiff',
-      '.webp',
-      '.mp4',
-      '.avi',
-      '.mov',
-      '.wmv',
-      '.flv',
-      '.mkv',
-      '.webm',
-      '.mp3',
-      '.wav',
-      '.flac',
-      '.aac',
-      '.ogg',
-      '.wma',
-      '.bin',
-      '.dll',
-      '.so',
-      '.dylib',
-      '.class',
-      '.jar'
-    ]
-
-    if (binaryExtensions.includes(ext)) {
-      return false
-    }
-
-    // 对于已知的文本文件类型直接返回true
-    const textExtensions = [
-      '.txt',
-      '.js',
-      '.ts',
-      '.jsx',
-      '.tsx',
-      '.vue',
-      '.html',
-      '.css',
-      '.scss',
-      '.sass',
-      '.json',
-      '.xml',
-      '.yaml',
-      '.yml',
-      '.md',
-      '.markdown',
-      '.py',
-      '.java',
-      '.go',
-      '.c',
-      '.cpp',
-      '.h',
-      '.hpp',
-      '.cs',
-      '.php',
-      '.rb',
-      '.pl',
-      '.sh',
-      '.bash',
-      '.sql',
-      '.log',
-      '.conf',
-      '.ini',
-      '.properties',
-      '.csv',
-      '.toml',
-      '.lock'
-    ]
-
-    if (textExtensions.includes(ext)) {
-      return true
-    }
-
-    // 对于无扩展名或未知扩展名的文件，尝试读取前10个字符
-    try {
-      const content = await window.electron.readFile(filePath, {
-        encoding: 'utf8',
-        maxBytes: 10
-      })
-
-      // 如果能成功读取并解析为UTF-8字符串，就认为是文本文件
-      if (content && typeof content === 'string') {
-        return true
-      }
-    } catch {
-      // UTF-8解析失败，尝试作为二进制读取检查
-      const buffer = await window.electron.readFile(filePath, {
-        encoding: null,
-        maxBytes: 1024
-      })
-
-      // 检查是否包含null字节或其他二进制字符
-      for (let i = 0; i < Math.min(buffer.length, 10); i++) {
-        const byte = buffer[i]
-        if (byte === 0 || (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13)) {
-          return false
-        }
-      }
-      return true
-    }
-
-    return false
+    const isText = await window.electron.isText(filePath)
+    console.log('isText', isText)
+    return isText
   } catch (error) {
     console.error('检查文件类型失败:', error)
     return false
@@ -1047,23 +1265,6 @@ const blacklistedExtensions = [
   '.ogm',
   '.ogx'
 ]
-const customAppMapping = {
-  '.txt': { win32: 'notepad', linux: 'gedit' },
-  '.java': { darwin: 'code', win32: 'code', linux: 'code' },
-  '.js': { darwin: 'code', win32: 'code', linux: 'code' },
-  '.vue': { darwin: 'code', win32: 'code', linux: 'code' },
-  '.go': { darwin: 'code', win32: 'code', linux: 'code' },
-  '.sh': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-  '.md': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-  '.markdown': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-  '.yml': { darwin: 'code', win32: 'code', linux: 'code' },
-  '.yaml': { darwin: 'code', win32: 'code', linux: 'code' },
-  '.json': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-  '.xml': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-  '.html': { darwin: 'code', win32: 'notepad', linux: 'gedit' },
-  '.css': { darwin: 'code', win32: 'notepad', linux: 'gedit' }
-}
-
 // Markdown 渲染器
 const md = new MarkdownIt({
   linkify: true,
@@ -1147,37 +1348,30 @@ async function updateIsCodeFile() {
     isCodeFile.value = false
     return
   }
-  const fileName = path.basename(selectedFileName.value)
-  const isTextFile = await checkIfTextFile(selectedFileName.value)
-  isCodeFile.value =
-    (isTextFile || allowedFileName.includes(fileName)) && !isMarkdown(selectedFileName.value)
-}
-
-// 懒加载大文件：滚动时加载更多
-async function loadMoreLines(selectedPath, loadedLines = 2000, step = 2000) {
-  try {
-    const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
-    let content = ''
-    let lineCount = 0
-    let lines = []
-    for await (const chunk of stream) {
-      content += chunk
-      lines = content.split(/\r?\n/)
-      if (lines.length >= loadedLines + step) {
+  // 1. 先尝试在 treeData 中查找对应的节点，获取完整路径
+  let absPath = ''
+  if (treeData.value && typeof findNodeByPath === 'function') {
+    // 遍历 treeData，找到 name 匹配的节点
+    const stack = Array.isArray(treeData.value) ? [...treeData.value] : [treeData.value]
+    while (stack.length) {
+      const node = stack.pop()
+      if (node && node.name === selectedFileName.value) {
+        absPath = node.path || node.fullPath || ''
         break
       }
+      if (node && node.children && Array.isArray(node.children)) {
+        stack.push(...node.children)
+      }
     }
-    const moreContent =
-      lines.slice(0, loadedLines + step).join('\n') +
-      (lines.length > loadedLines + step ? '\n...\n(继续加载更多)' : '')
-    updateFileState(selectedPath, {
-      fileContent: moreContent,
-      isLargeFile: true,
-      loadedLines: loadedLines + step
-    })
-  } catch (err) {
-    updateFileState(selectedPath, { fileContent: `读取文件失败：${err.message}` })
   }
+  // 2. 如果 treeData 没查到，则拼接 newRootPath
+  if (!absPath && newRootPath.value) {
+    absPath = window.electron.path.resolve(newRootPath.value, selectedFileName.value)
+  }
+  const fileName = window.electron.path.basename(absPath || selectedFileName.value)
+  console.log('[FileBrowser] selectedFileName:', selectedFileName.value, '完整路径:', absPath)
+  const isTextFile = await checkIfTextFile(absPath)
+  isCodeFile.value = (isTextFile || allowedFileName.includes(fileName)) && !isMarkdown(absPath)
 }
 
 // 以下为各个辅助方法，均使用 Composition API 写法
@@ -1218,66 +1412,50 @@ async function initialize(initialPath) {
   const decodedRootPath = props.rootPath ? decodeURIComponent(props.rootPath) : props.rootPath
   console.log('[FileBrowser] decodedInitialPath:', decodedInitialPath)
   console.log('[FileBrowser] decodedRootPath:', decodedRootPath)
-  // 确保代码索引被加载（针对通过外部props自动打开的文件）
-  console.log('[FileBrowser] 通过外部props打开的代码文件，主动加载代码索引')
-  if (props.forceReplace == 'true') {
-    // 当forceReplace为true时，强制使用props.rootPath作为根路径
-    if (decodedRootPath) {
-      console.log('[FileBrowser] 强制使用rootPath作为根路径:', decodedRootPath)
-      newRootPath.value = decodedRootPath
-      rootDir = decodedRootPath
-    } else if (decodedInitialPath) {
-      // 如果没有提供rootPath，则退回到使用initialPath
-      console.log('[FileBrowser] 没有提供rootPath，使用initialPath:', decodedInitialPath)
-      newRootPath.value = decodedInitialPath
-      rootDir = (await isFilePath(
-        decodedInitialPath,
-        checkIfTextFile,
-        allowedFileName,
-        findNodeByPath,
-        treeData.value
-      ))
-        ? path.dirname(decodedInitialPath)
-        : decodedInitialPath
-    }
+
+  // 处理根路径的逻辑
+  if (decodedRootPath) {
+    // 如果提供了rootPath，取其上一层目录作为根路径
+    rootDir = window.electron.path.dirname(decodedRootPath)
+    console.log('[FileBrowser] 使用rootPath构建根路径:', rootDir)
+    newRootPath.value = rootDir
+  } else if (decodedInitialPath) {
+    const ext = window.electron.path.extname(decodedInitialPath)
+    const isFile = !!ext && ext !== ''
+    rootDir = isFile ? window.electron.path.dirname(decodedInitialPath) : decodedInitialPath
+    console.log('[FileBrowser] 使用initialPath构建根路径:', rootDir)
+    newRootPath.value = rootDir
   }
+
+  // 如果有有效的根目录，加载目录树
   if (rootDir) {
     fileContent.value = ''
     await resetTree(rootDir)
     if (initialPath) {
-      if (props.forceReplace == 'true') {
-        console.log('[FileBrowser] forceReplace为true，使用initialPath:', initialPath)
-        const isFile = await isFilePath(
-          initialPath,
-          checkIfTextFile,
-          allowedFileName,
-          findNodeByPath,
-          treeData.value
-        )
-        isFile ? expandToPath(initialPath) : handleNodeSelection([rootDir])
-      } else {
-        expandToPath(initialPath)
-      }
-      if (
-        await isFilePath(
-          initialPath,
-          checkIfTextFile,
-          allowedFileName,
-          findNodeByPath,
-          treeData.value
-        )
-      ) {
+      console.log('有initialPath，展开到该路径:', initialPath)
+      // 使用 window.electron.path.extname 判断是否为文件
+      const ext = window.electron.path.extname(initialPath)
+      const isFile = !!ext && ext !== ''
+
+      if (isFile) {
+        console.log('是文件，加载文件内容')
         await loadFileByType(initialPath)
         const breadcrumbPath = buildBreadcrumb(initialPath)
         addOrSwitchTab({
           path: initialPath,
-          name: path.basename(initialPath),
+          name: window.electron.path.basename(initialPath),
           breadcrumbs: breadcrumbPath
         })
+      } else {
+        console.log('不是文件，选择该路径')
+        handleNodeSelection([initialPath])
       }
+    } else {
+      console.log('没有initialPath，选择根路径')
+      handleNodeSelection([rootDir])
     }
   }
-  newRootPath.value = initialPath
+
   resetRoot()
 }
 
@@ -1294,7 +1472,7 @@ function resetRoot() {
 // 处理路径选择变更，只在用户实际选择或清除路径时触发重置
 function onPathSelectionChanged(newPath) {
   // 如果用户选择了路径（新路径或者已有路径）
-  if (newPath) {
+  if (newPath !== null && newPath !== undefined && newPath !== '') {
     // 更新目录树
     resetTree(newPath).then(() => {
       handleNodeSelection([newPath])
@@ -1308,8 +1486,8 @@ function onPathSelectionChanged(newPath) {
     selectedFileUrl.value = ''
     selectedFileName.value = ''
     updateIsCodeFile() // 更新代码文件状态
-  } else if (newPath === null || newPath === '') {
-    // 用户清除了路径选择
+  } else {
+    // 用户清除了路径选择（包括 undefined/null/空字符串）
     tabs.value = []
     breadcrumbs.value = []
     fileContent.value = ''
@@ -1320,19 +1498,21 @@ function onPathSelectionChanged(newPath) {
     selectedFileName.value = ''
     updateIsCodeFile() // 更新代码文件状态
   }
+  showLeftPanel.value = true
+  showRightPanel.value = true
 }
 
 function isPDF(fileName) {
-  return path.extname(fileName).toLowerCase() === '.pdf'
+  return window.electron.path.extname(fileName).toLowerCase() === '.pdf'
 }
 function isDocx(fileName) {
-  return ['.doc', '.docx'].includes(path.extname(fileName).toLowerCase())
+  return ['.doc', '.docx'].includes(window.electron.path.extname(fileName).toLowerCase())
 }
 function isXlsx(fileName) {
-  return path.extname(fileName).toLowerCase() === '.xlsx'
+  return window.electron.path.extname(fileName).toLowerCase() === '.xlsx'
 }
 function isMarkdown(fileName) {
-  const ext = path.extname(fileName).toLowerCase()
+  const ext = window.electron.path.extname(fileName).toLowerCase()
   return ['.md', '.markdown'].includes(ext)
 }
 function getPDFUrl() {
@@ -1361,7 +1541,7 @@ async function loadFileByType(selectedPath) {
   }
 
   // 早于任何读取操作新增：
-  const extLower = path.extname(selectedPath).toLowerCase()
+  const extLower = window.electron.path.extname(selectedPath).toLowerCase()
   if (blacklistedExtensions.includes(extLower)) {
     store.dispatch('snackbar/showSnackbar', {
       message: `暂不支持在线预览 " ${extLower} " 文件`,
@@ -1371,7 +1551,6 @@ async function loadFileByType(selectedPath) {
   }
 
   // —— 真正开始按类型读取文件 ——
-  const ext = path.extname(selectedPath).toLowerCase()
   try {
     if (isPDF(selectedPath)) {
       const buffer = await window.electron.readFile(selectedPath)
@@ -1386,21 +1565,20 @@ async function loadFileByType(selectedPath) {
       const arrayBuffer = convertBuffer(buffer)
       updateFileState(selectedPath, { renderedXlsx: renderXlsx(arrayBuffer) })
     } else {
-      // 判断文件大小，超过8MB则懒加载
+      // 判断文件大小，超过10MB则懒加载
       try {
         const stat = await window.electron.stat(selectedPath)
-        const maxSize = 0.5 * 1024 * 1024
+        const maxSize = 10 * 1024 * 1024
         if (stat.size > maxSize) {
-          // 懒加载逻辑：先加载前2000行
+          // 懒加载逻辑：先加载前100000行
           const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
           let content = ''
-          let lineCount = 0
-          const maxLines = 2000
+          const maxLines = 100000
           for await (const chunk of stream) {
             content += chunk
             let lines = content.split(/\r?\n/)
             if (lines.length >= maxLines) {
-              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前2000行)'
+              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前100000行)'
               break
             }
           }
@@ -1425,7 +1603,7 @@ async function loadFileByType(selectedPath) {
 }
 
 function updateFileState(selectedPath, updates) {
-  selectedFileName.value = path.basename(selectedPath)
+  selectedFileName.value = window.electron.path.basename(selectedPath)
   updateIsCodeFile() // 更新代码文件状态
   Object.keys(updates).forEach((key) => {
     if (key === 'fileContent') {
@@ -1450,7 +1628,7 @@ function updateFileState(selectedPath, updates) {
 }
 
 function restoreState(tab) {
-  selectedFileName.value = tab.selectedFileName || path.basename(tab.path)
+  selectedFileName.value = tab.selectedFileName || window.electron.path.basename(tab.path)
   updateIsCodeFile() // 更新代码文件状态
   fileContent.value = tab.fileContent || ''
   renderedDocx.value = tab.renderedDocx || ''
@@ -1483,7 +1661,7 @@ async function handleNodeSelection(filePath) {
   if (!node) return
 
   // 只允许打开指定后缀的文件
-  const fileName = path.basename(node.name)
+  const fileName = window.electron.path.basename(node.name)
   const isTextFile = await checkIfTextFile(node.path)
   if (!isTextFile && !allowedFileName.includes(fileName)) {
     store.dispatch('snackbar/showSnackbar', {
@@ -1502,7 +1680,7 @@ async function handleNodeSelection(filePath) {
 }
 
 // 递归搜索文件和文件夹
-async function searchFileAndFolders(dir, query, maxDepth = 6, currentDepth = 0) {
+async function searchFileAndFolders(dir, query, maxDepth = 100, currentDepth = 0) {
   let results = []
   if (currentDepth > maxDepth) return results
   try {
@@ -1528,32 +1706,6 @@ async function searchFileAndFolders(dir, query, maxDepth = 6, currentDepth = 0) 
   }
   return results
 }
-
-// 支持递归文件夹和文件的模糊搜索
-async function fetchPathSuggestions(query) {
-  if (!query || !newRootPath.value) return []
-  try {
-    const items = await searchFileAndFolders(newRootPath.value, query)
-    // 返回所有匹配到的文件和文件夹
-    return items
-  } catch (e) {
-    return []
-  }
-}
-
-function nodeNormalizer(node) {
-  return {
-    id: node.path,
-    label: node.name,
-    children: node.children,
-    isLeaf: !node.isDirectory
-  }
-}
-
-function handleOptionClick(option) {
-  console.log('handleOptionClick', JSON.stringify(option))
-}
-
 function findNodeByPath(nodes, targetPath) {
   for (const node of nodes) {
     if (node.path === targetPath) return node
@@ -1566,10 +1718,10 @@ function findNodeByPath(nodes, targetPath) {
 }
 
 function buildBreadcrumb(fullPath) {
-  const parts = fullPath.split(path.sep).filter((p) => p)
+  const parts = fullPath.split(window.electron.path.sep).filter((p) => p)
   let currentPath = ''
   return parts.map((part, index) => {
-    currentPath += (index ? path.sep : '') + part
+    currentPath += (index ? window.electron.path.sep : '') + part
     return { text: part, path: currentPath }
   })
 }
@@ -1624,7 +1776,7 @@ async function processLocalImages() {
     const currentFilePath = currentTab.value?.path
     if (!currentFilePath) return
 
-    const markdownDir = path.dirname(currentFilePath)
+    const markdownDir = window.electron.path.dirname(currentFilePath)
 
     // 查找所有标记为本地图片的元素
     await nextTick()
@@ -1642,10 +1794,10 @@ async function processLocalImages() {
 
           // 解析相对路径为绝对路径
           let imagePath
-          if (path.isAbsolute(originalSrc)) {
+          if (window.electron.path.isAbsolute(originalSrc)) {
             imagePath = originalSrc
           } else {
-            imagePath = path.resolve(markdownDir, originalSrc)
+            imagePath = window.electron.path.resolve(markdownDir, originalSrc)
           }
 
           console.log('加载本地图片:', imagePath)
@@ -1673,31 +1825,6 @@ async function processLocalImages() {
     }, 100)
   } catch (error) {
     console.error('处理本地图片时出错:', error)
-  }
-}
-
-async function fetchChildren(item) {
-  if (!item.isDirectory) return []
-  try {
-    const children = await window.electron.readDirectory(item.path)
-    children.sort((a, b) => b.mtime - a.mtime)
-    // 构造节点并去除隐藏文件
-    const map = children
-      .map((child) => ({
-        name: child.name,
-        path: child.fullPath,
-        isDirectory: child.isDirectory,
-        children: child.isDirectory ? null : undefined
-      }))
-      .filter((child) => !child.name.startsWith('.'))
-    // 目录一律展示；文件只要不在黑名单中就展示
-    return map.filter(
-      (child) =>
-        child.isDirectory || !blacklistedExtensions.includes(path.extname(child.path).toLowerCase())
-    )
-  } catch (err) {
-    console.error('加载子目录失败：', item.path, err)
-    return []
   }
 }
 
@@ -1737,15 +1864,16 @@ function renderXlsx(buffer) {
 async function expandToPath(targetPath) {
   const homeDir = await window.electron.homeDir
   if (!targetPath.startsWith(homeDir)) return
-  const relativePath = path.relative(homeDir, targetPath)
-  const segments = relativePath.split(path.sep)
+  const relativePath = window.electron.path.relative(homeDir, targetPath)
+  const segments = relativePath.split(window.electron.path.sep)
   let currentNode = treeData.value[0]
   let openPaths = [currentNode.path]
   for (const segment of segments) {
+    // 由于我们已经一次性加载了所有目录树，不再需要懒加载逻辑
+    // 直接查找子节点即可
     if (!currentNode.children || currentNode.children.length === 0) {
-      await fetchChildren(currentNode).then((children) => {
-        currentNode.children = children
-      })
+      // 如果没有子节点，则无法继续导航
+      return
     }
     const child = currentNode.children.find((child) => child.name === segment)
     if (!child) return
@@ -1763,6 +1891,68 @@ async function expandToPath(targetPath) {
   handleNodeSelection([currentNode.path])
 }
 
+/**
+ * 自动展开目录树到指定路径
+ * @param {string} targetPath - 要展开到的目标路径
+ * @param {boolean} selectNode - 是否选中该节点，默认为true
+ * @returns {Promise<void>}
+ */
+async function autoExpandPath(targetPath, selectNode = true) {
+  console.log('自动展开目录树到路径:', targetPath, treeData.value)
+
+  if (!targetPath || !treeData.value || treeData.value.length === 0) {
+    console.warn('无法展开路径: 目标路径为空或目录树未加载')
+    return
+  }
+
+  // 查找路径对应的节点
+  const node = findNodeByPath(targetPath, treeData.value)
+  if (!node) {
+    console.warn('无法找到路径对应的节点:', targetPath)
+    return
+  }
+
+  // 构建路径层级
+  const pathSegments = []
+  let currentPath = targetPath
+
+  // 递归构建父路径数组
+  while (currentPath) {
+    const parentPath = window.electron.path.dirname(currentPath)
+    // 如果到达根路径或者父路径与当前路径相同，则结束
+    if (parentPath === currentPath) break
+
+    pathSegments.unshift(currentPath)
+    currentPath = parentPath
+
+    // 如果到达根目录，也添加到路径中
+    if (treeData.value.some((node) => node.path === parentPath)) {
+      pathSegments.unshift(parentPath)
+      break
+    }
+  }
+
+  // 更新展开节点数组
+  openNodes.value = [...new Set([...openNodes.value, ...pathSegments])]
+
+  // 等待DOM更新后滚动到节点并选中
+  nextTick(() => {
+    // 尝试滚动到节点
+    const targetId = 'node-' + targetPath.replace(/[^a-zA-Z0-9]/g, '-')
+    const targetEl = document.getElementById(targetId)
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+
+    // 如果需要选中节点
+    if (selectNode) {
+      handleNodeSelection([targetPath])
+    }
+  })
+
+  return node
+}
+
 async function openOutside(breadcrumbsArray, shouldFile) {
   if ((!breadcrumbsArray || breadcrumbsArray.length === 0) && !shouldFile) {
     store.dispatch('snackbar/showSnackbar', {
@@ -1773,19 +1963,13 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   }
   let url = breadcrumbsArray[breadcrumbsArray.length - 1].path
   if (url !== null) {
-    const isFile = await isFilePath(
-      url,
-      checkIfTextFile,
-      allowedFileName,
-      findNodeByPath,
-      treeData.value
-    )
+    const isFile = await isFilePath(url, null, allowedFileName, findNodeByPath, treeData.value)
     // 只有在非 Windows 上才加 " / "
     const platform = await window.electron.platform
     if (platform !== 'win32') {
       url = '/' + url
     }
-    const targetPath = shouldFile ? (isFile ? path.dirname(url) : url) : url
+    const targetPath = shouldFile ? (isFile ? window.electron.path.dirname(url) : url) : url
     await window.electron
       .checkPathExists(targetPath)
       .then(async (exists) => {
@@ -1840,14 +2024,10 @@ async function openOutside(breadcrumbsArray, shouldFile) {
 
 // 使用导入的 isFilePath 函数判断文件路径，需要传入必要的参数
 
-// 最大递归深度（可根据实际需求调整）
-const MAX_TREE_DEPTH = 50
+// 已移除最大递归深度限制，一次性加载所有目录结构
 
-// 递归获取目录树，带深度阈值
-async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH) {
-  if (depth >= maxDepth) {
-    return null // 达到阈值，children=null，前端可懒加载
-  }
+// 递归获取目录树，不带深度阈值，一次性加载全部内容
+async function getDirectoryTree(targetPath) {
   let root
   try {
     root = await window.electron.readDirectory(targetPath)
@@ -1855,44 +2035,48 @@ async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH
     return [] // 目录不可读
   }
   const filteredRoot = root.filter((child) => !child.name.startsWith('.'))
-  return await Promise.all(
-    filteredRoot.map(async (child) => {
-      if (child.isDirectory) {
-        const children = await getDirectoryTree(child.fullPath, depth + 1, maxDepth)
-        return {
-          name: child.name,
-          path: child.fullPath,
-          isDirectory: true,
-          children: children // 可能为 null
-        }
-      } else {
-        return {
-          name: child.name,
-          path: child.fullPath,
-          isDirectory: false,
-          children: undefined
-        }
+  // 先分组，再递归
+  const directories = filteredRoot.filter((child) => child.isDirectory)
+  const files = filteredRoot.filter((child) => !child.isDirectory)
+
+  const dirNodes = await Promise.all(
+    directories.map(async (child) => {
+      const children = await getDirectoryTree(child.fullPath)
+      return {
+        name: child.name,
+        path: child.fullPath,
+        isDirectory: true,
+        children: children
       }
     })
   )
+
+  const fileNodes = files.map((child) => ({
+    name: child.name,
+    path: child.fullPath,
+    isDirectory: false,
+    children: undefined
+  }))
+
+  return [...dirNodes, ...fileNodes]
 }
 
 // 重置目录树：仅在用户选定路径后调用
 async function resetTree(newPath) {
   const targetPath = (await isFilePath(
     newPath,
-    checkIfTextFile,
+    null,
     allowedFileName,
     findNodeByPath,
     treeData.value
   ))
-    ? path.dirname(newPath)
+    ? window.electron.path.dirname(newPath)
     : newPath
   try {
-    const children = await getDirectoryTree(targetPath, 0, MAX_TREE_DEPTH)
+    const children = await getDirectoryTree(targetPath)
     treeData.value = [
       {
-        name: path.basename(targetPath),
+        name: window.electron.path.basename(targetPath),
         path: targetPath,
         isDirectory: true,
         children: children
@@ -2034,8 +2218,8 @@ const openInIDE = async (filePath) => {
   // rootDir 应该始终是文件树的根目录，即 newRootPath.value
   let rootDir = newRootPath.value
   // 如果rootDir是文件，则使用其所在的目录
-  if (await isFilePath(rootDir, checkIfTextFile, allowedFileName, findNodeByPath, treeData.value)) {
-    rootDir = path.dirname(rootDir)
+  if (await isFilePath(rootDir, null, allowedFileName, findNodeByPath, treeData.value)) {
+    rootDir = window.electron.path.dirname(rootDir)
   }
   console.log('openInIDE:', encodeURIComponent(pathToOpen), encodeURIComponent(rootDir))
   // 构建带参数的URL
@@ -2111,8 +2295,31 @@ const filterTree = () => {
   filteredTreeData.value = filter(clonedData, searchQuery.value)
 }
 
+/**
+ * 根据输入的路径自动展开目录树
+ * 这是一个示例方法，展示如何使用autoExpandPath
+ * @param {string} inputPath - 要展开到的路径
+ */
+function expandToInputPath(inputPath) {
+  if (!inputPath) return
+
+  // 确保路径格式正确
+  const normalizedPath = path.normalize(inputPath)
+  console.log('尝试展开到路径:', normalizedPath)
+
+  // 调用自动展开方法
+  autoExpandPath(normalizedPath, true).then((node) => {
+    if (node) {
+      console.log('成功展开到路径:', normalizedPath)
+    } else {
+      console.warn('无法展开到路径:', normalizedPath)
+    }
+  })
+}
+
 // Handle node click event
 const handleNodeClick = (data) => {
+  console.log('handleNodeClick:', data)
   if (!data.isDirectory) {
     // For files, load the file content
     handleNodeSelection(data.path)
@@ -2121,65 +2328,38 @@ const handleNodeClick = (data) => {
 
 // Handle node expand event
 const handleNodeExpand = (data) => {
-  console.log('[展开节点]', data.path)
-  console.log('[展开前 openNodes]', JSON.stringify(openNodes.value))
-
-  if (data.isDirectory && (data.children === null || data.children === undefined)) {
-    // Lazy load children when expanding a directory
-    fetchChildren(data)
-  }
-
-  // Add to openNodes if not already there
+  // 只保留核心功能：将展开节点添加到openNodes数组中
   if (!openNodes.value.includes(data.path)) {
     openNodes.value.push(data.path)
-    console.log('[添加到 openNodes]', data.path)
   }
-
-  // 不再调用 setExpandedKeys，避免循环触发
-  // 因为我们已经设置了 expand-on-click-node="true"，树组件会自动处理展开状态
-
-  console.log('[展开后 openNodes]', JSON.stringify(openNodes.value))
+  // 已删除冗余的日志输出和注释，目录树现在一次性加载完成，不需要额外处理
 }
 
 // Handle node collapse event
 const handleNodeCollapse = (data) => {
-  console.log('[折叠节点]', data.path)
-  console.log('[折叠前 openNodes]', JSON.stringify(openNodes.value))
-
-  // 只从 openNodes 中移除当前被折叠的节点，保留其他节点
+  // 移除当前被折叠的节点
   const index = openNodes.value.indexOf(data.path)
   if (index !== -1) {
     openNodes.value.splice(index, 1)
-    console.log('[从 openNodes 移除]', data.path)
-  } else {
-    console.log('[未找到节点路径]', data.path)
   }
 
   // 同时移除所有子节点的路径
   if (data.children && data.children.length > 0) {
     removeChildrenFromOpenNodes(data)
   }
-
-  // 不再调用 setExpandedKeys，避免循环触发
-  // 因为我们已经设置了 expand-on-click-node="true"，树组件会自动处理折叠状态
-
-  console.log('[折叠后 openNodes]', JSON.stringify(openNodes.value))
 }
 
 // 递归移除所有子节点的路径
 function removeChildrenFromOpenNodes(node) {
   if (!node.children) return
-  console.log('[开始移除子节点]', node.path, '子节点数量:', node.children.length)
 
   for (const child of node.children) {
     const childIndex = openNodes.value.indexOf(child.path)
     if (childIndex !== -1) {
       openNodes.value.splice(childIndex, 1)
-      console.log('[移除子节点]', child.path)
-    } else {
-      console.log('[子节点未在 openNodes 中]', child.path)
     }
 
+    // 递归移除更深层级的子节点
     if (child.children && child.children.length > 0) {
       removeChildrenFromOpenNodes(child)
     }
@@ -2191,7 +2371,10 @@ const handleNodeContextMenu = (event, data) => {
   // 阻止默认右键菜单
   event.preventDefault()
   console.log('[节点右键菜单]', data.path)
-  // 这里可以添加自定义右键菜单逻辑
+
+  // 显示右键菜单
+  const menuType = data.isDirectory ? 'folder' : 'file'
+  showContextMenu(event, menuType, { path: data.path, name: data.name })
 }
 
 // Initialize filteredTreeData with the original treeData
@@ -2199,6 +2382,28 @@ watch(
   treeData,
   (newVal) => {
     filteredTreeData.value = newVal
+
+    // 当目录树加载完成后，自动查找并选择指定路径的节点
+    if (newVal && newVal.length > 0 && props.localPath) {
+      console.log('目录树加载完成，自动查找节点:', props.localPath)
+      // 使用 nextTick 确保 DOM 已更新
+      nextTick(async () => {
+        if (isMarkdown(props.localPath)) {
+          handleLinkClick(props.localPath)
+          return
+        }
+        // 检查是否是文件路径
+        const isFile = await window.electron.isText(props.localPath)
+
+        if (isFile) {
+          // 如果是文件，展开到该路径并选择该文件
+          console.log('找到文件路径，自动选择:', props.localPath)
+          expandToPath(props.localPath)
+          handleNodeSelection(props.localPath)
+          loadFileByType(props.localPath)
+        }
+      })
+    }
   },
   { immediate: true }
 )
@@ -2206,6 +2411,27 @@ watch(
 // 生命周期挂载时执行初始化
 onMounted(() => {
   initializePage()
+
+  // 从localStorage读取侧边栏显示偏好
+  const savedLeftPanel = localStorage.getItem('fileBrowser.showLeftPanel')
+  const savedRightPanel = localStorage.getItem('fileBrowser.showRightPanel')
+
+  if (savedLeftPanel !== null) {
+    showLeftPanel.value = savedLeftPanel === 'true'
+  }
+
+  if (savedRightPanel !== null) {
+    showRightPanel.value = savedRightPanel === 'true'
+  }
+
+  // 添加全局点击事件监听，用于隐藏右键菜单
+  document.addEventListener('click', hideContextMenu)
+})
+
+// 组件卸载时清理
+onUnmounted(() => {
+  // 移除事件监听
+  document.removeEventListener('click', hideContextMenu)
 })
 
 // 组件激活时重新检查主题（解决返回页面时样式不一致的问题）
@@ -2214,6 +2440,11 @@ onActivated(() => {
   checkTheme()
   console.log('[FileBrowser] 组件激活，重新检查主题样式')
 })
+
+// 工具函数：将路径转换为Unix格式
+const toUnixPath = (path) => {
+  return path.replace(/\\/g, '/')
+}
 
 // 获取代码索引信息
 async function loadCodeIndex(filePath) {
@@ -2224,11 +2455,15 @@ async function loadCodeIndex(filePath) {
   }
 
   try {
-    console.log('Loading code index for:', filePath)
-    const repoPath = pathSuggestions.value.find((item) =>
-      newRootPath.value.includes(item.value)
-    ).value
-    const response = await checkIndexApi(repoPath, path.relative(repoPath, filePath))
+    await loadPathSuggestions()
+    console.log('Loading code index for:', filePath, newRootPath.value, pathSuggestions.value)
+    const repoPath = pathSuggestions.value.find((item) => {
+      return filePath.includes(item.value)
+    }).value
+    const response = await checkIndexApi(
+      repoPath,
+      toUnixPath(window.electron.path.relative(repoPath, filePath))
+    )
 
     if (response && response.data.code === 0) {
       codeIndex.value = response.data.data
@@ -2282,40 +2517,40 @@ function findInCode() {
   }
 
   const searchTerm = quickFindText.value
-  
+
   // 清除之前的搜索装饰
   if (searchDecorations.length) {
     monacoInstance.deltaDecorations(searchDecorations, [])
     searchDecorations = []
   }
-  
+
   // 使用Monaco的搜索API
   const model = monacoInstance.getModel()
   const matches = model.findMatches(
     searchTerm,
-    false,   // 不想要搜索整个单词
-    false,   // 支持正则表达式
-    true,    // 区分大小写
-    null,    // 跳过单词分隔符
-    true     // 支持回滚(可以在前开始)
+    false, // 不想要搜索整个单词
+    false, // 支持正则表达式
+    true, // 区分大小写
+    null, // 跳过单词分隔符
+    true // 支持回滚(可以在前开始)
   )
-  
+
   findResults.value = matches
   findCurrentIndex.value = findResults.value.length > 0 ? 0 : -1
 
   // 创建搜索高亮装饰
   if (matches.length > 0) {
-    const decorations = matches.map(match => ({
+    const decorations = matches.map((match) => ({
       range: match.range,
       options: {
         inlineClassName: 'monaco-search-highlight',
         stickiness: monacoGlobal.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
       }
     }))
-    
+
     // 添加装饰并保存装饰ID
     searchDecorations = monacoInstance.deltaDecorations([], decorations)
-    
+
     // 当前选中项特殊高亮
     jumpToResult(findCurrentIndex.value)
   }
@@ -2337,26 +2572,26 @@ function findInCode() {
 // 跳转到特定的搜索结果
 function jumpToResult(index) {
   if (index < 0 || index >= findResults.value.length) return
-  
+
   // 如果Monaco实例未初始化，将操作加入等待队列
   if (!monacoReady) {
     console.log(`Monaco编辑器尚未准备好，缓存跳转操作到索引 ${index}`)
     pendingScrollActions.push(() => jumpToResult(index))
     return
   }
-  
+
   // 再次检查实例
   if (!monacoInstance) {
     console.warn('Monaco编辑器实例仍未初始化，无法跳转到搜索结果')
     return
   }
-  
+
   // 获取当前选中的结果
   const match = findResults.value[index]
-  
+
   // 滚动到匹配位置
   monacoInstance.revealRangeInCenter(match.range)
-  
+
   // 选中文本
   monacoInstance.setSelection(match.range)
 }
@@ -2370,6 +2605,7 @@ function findNext() {
 }
 
 // 查找上一个结果
+// eslint-disable-next-line no-unused-vars
 function findPrevious() {
   if (findResults.value.length === 0) return
 
@@ -2383,24 +2619,31 @@ function changeHighlightTheme() {
   highlightThemeDark.value = !highlightThemeDark.value
 
   // 存储用户的主题偏好
-  localStorage.setItem(
-    'fileBrowser.highlightDark',
-    highlightThemeDark.value ? 'true' : 'false'
-  )
-  
+  localStorage.setItem('fileBrowser.highlightDark', highlightThemeDark.value ? 'true' : 'false')
+
   // 为Monaco编辑器切换主题
   currentTheme.value = highlightThemeDark.value ? 'vs-dark' : 'vs-light'
-  
+
   // 更新Monaco编辑器选项并应用新主题
   if (monacoInstance) {
     monacoInstance.updateOptions({ theme: currentTheme.value })
   }
-  
-  // 显示主题切换成功提示
-  store.dispatch('snackbar/showSnackbar', {
-    message: `已切换到${highlightThemeDark.value ? '深色' : '浅色'}主题`,
-    color: 'success'
-  })
+}
+
+// 切换左侧面板显示状态
+function toggleLeftPanel() {
+  showLeftPanel.value = !showLeftPanel.value
+
+  // 存储用户偏好
+  localStorage.setItem('fileBrowser.showLeftPanel', showLeftPanel.value.toString())
+}
+
+// 切换右侧面板显示状态
+function toggleRightPanel() {
+  showRightPanel.value = !showRightPanel.value
+
+  // 存储用户偏好
+  localStorage.setItem('fileBrowser.showRightPanel', showRightPanel.value.toString())
 }
 
 // 解析函数描述
@@ -2420,6 +2663,721 @@ function getParsedDescription(description) {
     // 解析失败，返回原始描述
     return { description: description, process: [] }
   }
+}
+
+// 文件操作功能
+function createNewFile() {
+  newFileName.value = ''
+  newFileDialog.value = true
+}
+
+function createNewFolder() {
+  newFolderName.value = ''
+  newFolderDialog.value = true
+}
+
+async function confirmCreateFile() {
+  if (!newFileName.value.trim()) return
+
+  try {
+    // 确定创建目录：优先使用右键菜单的目标路径，其次使用当前选中路径的目录，最后使用根路径
+    let currentDir
+    if (contextMenu.value.target?.path) {
+      // 从右键菜单触发，检查目标是文件还是文件夹
+      const targetPath = contextMenu.value.target.path
+      try {
+        const stats = await window.electron.getFileStats(targetPath)
+        currentDir = stats.isDirectory ? targetPath : window.electron.path.dirname(targetPath)
+      } catch {
+        currentDir = window.electron.path.dirname(targetPath)
+      }
+    } else {
+      // 从其他方式触发（如快捷键）
+      currentDir = currentTab.value?.path
+        ? window.electron.path.dirname(currentTab.value.path)
+        : newRootPath.value
+    }
+
+    const newFilePath = window.electron.path.join(currentDir, newFileName.value)
+
+    await window.electron.saveFile(newFilePath, '', { encoding: 'utf-8' })
+
+    // 直接添加新文件节点到目录树
+    const newFileNode = {
+      name: newFileName.value,
+      path: newFilePath,
+      isDirectory: false,
+      children: undefined
+    }
+    addNodeToTree(currentDir, newFileNode)
+
+    // 打开新创建的文件
+    await loadFileByType(newFilePath)
+    const breadcrumbPath = buildBreadcrumb(newFilePath)
+    addOrSwitchTab({
+      path: newFilePath,
+      name: newFileName.value,
+      breadcrumbs: breadcrumbPath
+    })
+
+    newFileDialog.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: `文件 ${newFileName.value} 创建成功`,
+      type: 'success'
+    })
+  } catch (err) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: `创建文件失败：${err.message}`,
+      type: 'error'
+    })
+  }
+}
+
+async function confirmCreateFolder() {
+  if (!newFolderName.value.trim()) return
+
+  try {
+    // 确定创建目录：优先使用右键菜单的目标路径，其次使用当前选中路径的目录，最后使用根路径
+    let currentDir
+    if (contextMenu.value.target?.path) {
+      // 从右键菜单触发，检查目标是文件还是文件夹
+      const targetPath = contextMenu.value.target.path
+      try {
+        const stats = await window.electron.getFileStats(targetPath)
+        currentDir = stats.isDirectory ? targetPath : window.electron.path.dirname(targetPath)
+      } catch {
+        currentDir = window.electron.path.dirname(targetPath)
+      }
+    } else {
+      // 从其他方式触发（如快捷键）
+      currentDir = currentTab.value?.path
+        ? window.electron.path.dirname(currentTab.value.path)
+        : newRootPath.value
+    }
+
+    const newFolderPath = window.electron.path.join(currentDir, newFolderName.value)
+
+    await window.electron.createDirectory(newFolderPath)
+
+    // 直接添加新文件夹节点到目录树
+    const newFolderNode = {
+      name: newFolderName.value,
+      path: newFolderPath,
+      isDirectory: true,
+      children: [] // 新建的空文件夹，子内容为空数组
+    }
+    addNodeToTree(currentDir, newFolderNode)
+
+    newFolderDialog.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: `文件夹 ${newFolderName.value} 创建成功`,
+      type: 'success'
+    })
+  } catch (err) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: `创建文件夹失败：${err.message}`,
+      type: 'error'
+    })
+  }
+}
+
+// 重命名文件/文件夹
+async function renameFile(filePath) {
+  renameTargetPath.value = filePath
+  renameValue.value = window.electron.path.basename(filePath)
+  renameDialog.value = true
+}
+
+// 确认重命名
+async function confirmRename() {
+  if (!renameValue.value.trim() || !renameTargetPath.value) return
+
+  try {
+    const oldPath = renameTargetPath.value
+    const newPath = window.electron.path.join(
+      window.electron.path.dirname(oldPath),
+      renameValue.value
+    )
+
+    // 检查新文件名是否与原文件名相同
+    if (oldPath === newPath) {
+      renameDialog.value = false
+      return
+    }
+
+    // 检查新文件是否已存在
+    try {
+      await window.electron.getFileStats(newPath)
+      store.dispatch('snackbar/showSnackbar', {
+        message: '文件名已存在，请选择其他名称',
+        type: 'error'
+      })
+      return
+    } catch {
+      // 文件不存在，可以继续重命名
+    }
+
+    // 使用move接口进行重命名
+    await window.electron.moveFile(oldPath, newPath)
+
+    // 如果重命名的是当前打开的文件，更新标签页
+    const tabIndex = tabs.value.findIndex((tab) => tab.path === oldPath)
+    if (tabIndex !== -1) {
+      tabs.value[tabIndex].path = newPath
+      tabs.value[tabIndex].name = window.electron.path.basename(newPath)
+      if (activeTab.value === tabIndex) {
+        // 更新当前选中的文件路径
+        if (currentTab.value) {
+          currentTab.value.path = newPath
+        }
+      }
+    }
+
+    // 直接更新目录树中的节点
+    updateNodeInTree(oldPath, newPath)
+
+    renameDialog.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: `重命名成功`,
+      type: 'success'
+    })
+  } catch (err) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: `重命名失败：${err.message}`,
+      type: 'error'
+    })
+  }
+}
+
+// 直接操作树节点的函数
+function addNodeToTree(parentPath, newNode) {
+  const parentNode = findNodeByPath(treeData.value, parentPath)
+  if (parentNode && parentNode.isDirectory) {
+    if (!parentNode.children) {
+      parentNode.children = []
+    }
+    // 检查节点是否已存在
+    const existingIndex = parentNode.children.findIndex((child) => child.path === newNode.path)
+    if (existingIndex === -1) {
+      // 插入新节点并保持排序（目录在前，文件在后，按名称排序）
+      const insertIndex = parentNode.children.findIndex((child) => {
+        if (newNode.isDirectory && !child.isDirectory) return true
+        if (!newNode.isDirectory && child.isDirectory) return false
+        return newNode.name.localeCompare(child.name) < 0
+      })
+      if (insertIndex === -1) {
+        parentNode.children.push(newNode)
+      } else {
+        parentNode.children.splice(insertIndex, 0, newNode)
+      }
+    }
+  }
+}
+
+function removeNodeFromTree(nodePath) {
+  const parentPath = window.electron.path.dirname(nodePath)
+  const parentNode = findNodeByPath(treeData.value, parentPath)
+  if (parentNode && parentNode.children) {
+    const nodeIndex = parentNode.children.findIndex((child) => child.path === nodePath)
+    if (nodeIndex !== -1) {
+      parentNode.children.splice(nodeIndex, 1)
+    }
+  }
+}
+
+function updateNodeInTree(oldPath, newPath) {
+  const node = findNodeByPath(treeData.value, oldPath)
+  if (node) {
+    node.path = newPath
+    node.name = window.electron.path.basename(newPath)
+    // 如果节点有子节点，需要递归更新所有子节点的路径
+    if (node.children) {
+      updateChildrenPaths(node.children, oldPath, newPath)
+    }
+  }
+}
+
+function updateChildrenPaths(children, oldParentPath, newParentPath) {
+  children.forEach((child) => {
+    const relativePath = window.electron.path.relative(oldParentPath, child.path)
+    child.path = window.electron.path.join(newParentPath, relativePath)
+    if (child.children) {
+      updateChildrenPaths(child.children, oldParentPath, newParentPath)
+    }
+  })
+}
+
+// 删除文件
+async function deleteFileByPath(filePath) {
+  const confirmed = await window.electron.showMessageBox({
+    type: 'warning',
+    buttons: ['删除', '取消'],
+    defaultId: 1,
+    message: `确定要删除 "${window.electron.path.basename(filePath)}" 吗？`,
+    detail: '此操作不可撤销。'
+  })
+
+  if (confirmed.response === 0) {
+    try {
+      await window.electron.deleteFile(filePath)
+
+      // 关闭对应的标签页
+      const tabIndex = tabs.value.findIndex((tab) => tab.path === filePath)
+      if (tabIndex !== -1) {
+        removeTab(tabIndex)
+      }
+
+      // 直接从目录树中删除节点
+      removeNodeFromTree(filePath)
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: '文件删除成功',
+        type: 'success'
+      })
+    } catch (err) {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `删除文件失败：${err.message}`,
+        type: 'error'
+      })
+    }
+  }
+}
+
+// 右键菜单功能
+function showContextMenu(event, type, target = null) {
+  event.preventDefault()
+  event.stopPropagation()
+
+  const items = getContextMenuItems(type, target)
+
+  contextMenu.value = {
+    show: true,
+    x: event.clientX,
+    y: event.clientY,
+    items,
+    target,
+    targetType: type
+  }
+
+  // 确保菜单不会超出屏幕边界
+  nextTick(() => {
+    const menu = document.querySelector('.context-menu')
+    if (menu) {
+      const rect = menu.getBoundingClientRect()
+      const windowWidth = window.innerWidth
+      const windowHeight = window.innerHeight
+
+      if (rect.right > windowWidth) {
+        contextMenu.value.x = windowWidth - rect.width - 10
+      }
+      if (rect.bottom > windowHeight) {
+        contextMenu.value.y = windowHeight - rect.height - 10
+      }
+    }
+  })
+}
+
+function hideContextMenu() {
+  contextMenu.value.show = false
+}
+
+function getContextMenuItems(type) {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+  const cmdOrCtrl = isMac ? 'Cmd' : 'Ctrl'
+
+  if (type === 'tab') {
+    return [
+      {
+        id: 'open-in-folder',
+        label: '在文件夹中显示',
+        icon: menuIcons.folder,
+        action: 'openInFolder'
+      },
+      { separator: true },
+      {
+        id: 'copy-path',
+        label: '复制路径',
+        icon: menuIcons.copyPath,
+        action: 'copyPath'
+      },
+      { separator: true },
+      {
+        id: 'close-tab',
+        label: '关闭',
+        shortcut: `${cmdOrCtrl}+W`,
+        action: 'closeTab'
+      },
+      {
+        id: 'close-other-tabs',
+        label: '关闭其他标签页',
+        action: 'closeOtherTabs'
+      },
+      {
+        id: 'close-all-tabs',
+        label: '关闭所有标签页',
+        action: 'closeAllTabs'
+      }
+    ]
+  }
+
+  if (type === 'file') {
+    return [
+      {
+        id: 'open',
+        label: '打开',
+        icon: menuIcons.open,
+        action: 'openFile'
+      },
+      {
+        id: 'open-in-folder',
+        label: '在文件夹中显示',
+        icon: menuIcons.folder,
+        action: 'openInFolder'
+      },
+      { separator: true },
+      {
+        id: 'copy',
+        label: '复制',
+        icon: menuIcons.copy,
+        shortcut: `${cmdOrCtrl}+C`,
+        action: 'copyFile'
+      },
+      {
+        id: 'cut',
+        label: '剪切',
+        icon: menuIcons.cut,
+        shortcut: `${cmdOrCtrl}+X`,
+        action: 'cutFile'
+      },
+      {
+        id: 'paste',
+        label: '粘贴',
+        icon: menuIcons.paste,
+        shortcut: `${cmdOrCtrl}+V`,
+        action: 'pasteFile',
+        disabled: !clipboard.value.path
+      },
+      { separator: true },
+      {
+        id: 'new-file',
+        label: '新建文件',
+        icon: menuIcons.newFile,
+        shortcut: `${cmdOrCtrl}+N`,
+        action: 'newFile'
+      },
+      {
+        id: 'new-folder',
+        label: '新建文件夹',
+        icon: menuIcons.newFolder,
+        action: 'newFolder'
+      },
+      { separator: true },
+      {
+        id: 'rename',
+        label: '重命名',
+        icon: menuIcons.rename,
+        shortcut: 'F2',
+        action: 'renameFile'
+      },
+      {
+        id: 'copy-path',
+        label: '复制路径',
+        icon: menuIcons.copyPath,
+        action: 'copyPath'
+      },
+      { separator: true },
+      {
+        id: 'delete',
+        label: '删除',
+        icon: menuIcons.delete,
+        shortcut: 'Delete',
+        action: 'deleteFile'
+      }
+    ]
+  }
+
+  if (type === 'folder') {
+    return [
+      {
+        id: 'open-in-folder',
+        label: '在文件夹中显示',
+        icon: menuIcons.folder,
+        action: 'openInFolder'
+      },
+      { separator: true },
+      {
+        id: 'copy',
+        label: '复制',
+        icon: menuIcons.copy,
+        shortcut: `${cmdOrCtrl}+C`,
+        action: 'copyFile'
+      },
+      {
+        id: 'cut',
+        label: '剪切',
+        icon: menuIcons.cut,
+        shortcut: `${cmdOrCtrl}+X`,
+        action: 'cutFile'
+      },
+      {
+        id: 'paste',
+        label: '粘贴',
+        icon: menuIcons.paste,
+        shortcut: `${cmdOrCtrl}+V`,
+        action: 'pasteFile',
+        disabled: !clipboard.value.path
+      },
+      { separator: true },
+      {
+        id: 'new-file',
+        label: '新建文件',
+        icon: menuIcons.newFile,
+        shortcut: `${cmdOrCtrl}+N`,
+        action: 'newFile'
+      },
+      {
+        id: 'new-folder',
+        label: '新建文件夹',
+        icon: menuIcons.newFolder,
+        action: 'newFolder'
+      },
+      { separator: true },
+      {
+        id: 'rename',
+        label: '重命名',
+        icon: menuIcons.rename,
+        shortcut: 'F2',
+        action: 'renameFile'
+      },
+      {
+        id: 'copy-path',
+        label: '复制路径',
+        icon: menuIcons.copyPath,
+        action: 'copyPath'
+      },
+      { separator: true },
+      {
+        id: 'delete',
+        label: '删除',
+        icon: menuIcons.delete,
+        shortcut: 'Delete',
+        action: 'deleteFile'
+      }
+    ]
+  }
+
+  return []
+}
+
+// 标签页右键菜单处理
+function handleTabContextMenu(event, tab, index) {
+  showContextMenu(event, 'tab', { tab, index })
+}
+
+// 右键菜单动作处理
+async function handleContextMenuAction(action) {
+  const target = contextMenu.value.target
+  hideContextMenu()
+
+  try {
+    switch (action) {
+      case 'openFile':
+        if (target?.path) {
+          await loadFileByType(target.path)
+          const breadcrumbPath = buildBreadcrumb(target.path)
+          addOrSwitchTab({
+            path: target.path,
+            name: window.electron.path.basename(target.path),
+            breadcrumbs: breadcrumbPath
+          })
+        }
+        break
+
+      case 'openInFolder':
+        const pathToShow = target?.tab?.path || target?.path
+        if (pathToShow) {
+          await window.electron.showItemInFolder(pathToShow)
+        }
+        break
+
+      case 'copyFile':
+        if (target?.path || target?.tab?.path) {
+          clipboard.value = {
+            type: 'copy',
+            path: target?.path || target?.tab?.path
+          }
+          store.dispatch('snackbar/showSnackbar', {
+            message: '已复制到剪贴板',
+            type: 'success'
+          })
+        }
+        break
+
+      case 'cutFile':
+        if (target?.path || target?.tab?.path) {
+          clipboard.value = {
+            type: 'cut',
+            path: target?.path || target?.tab?.path
+          }
+          store.dispatch('snackbar/showSnackbar', {
+            message: '已剪切到剪贴板',
+            type: 'success'
+          })
+        }
+        break
+
+      case 'pasteFile':
+        if (clipboard.value.path) {
+          await handlePasteFile(target?.path || newRootPath.value)
+        }
+        break
+
+      case 'copyPath':
+        const pathToCopy = target?.tab?.path || target?.path
+        if (pathToCopy) {
+          await navigator.clipboard.writeText(pathToCopy)
+          store.dispatch('snackbar/showSnackbar', {
+            message: '路径已复制到剪贴板',
+            type: 'success'
+          })
+        }
+        break
+
+      case 'closeTab':
+        if (target?.index !== undefined) {
+          removeTab(target.index)
+        }
+        break
+
+      case 'closeOtherTabs':
+        closeOtherTabs()
+        break
+
+      case 'closeAllTabs':
+        closeAllTabs()
+        break
+
+      case 'newFile':
+        createNewFile()
+        break
+
+      case 'newFolder':
+        createNewFolder()
+        break
+
+      case 'renameFile':
+        const pathToRename = target?.path || target?.tab?.path
+        if (pathToRename) {
+          await renameFile(pathToRename)
+        }
+        break
+
+      case 'deleteFile':
+        const pathToDelete = target?.path || target?.tab?.path
+        if (pathToDelete) {
+          await deleteFileByPath(pathToDelete)
+        }
+        break
+    }
+  } catch (error) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: `操作失败：${error.message}`,
+      type: 'error'
+    })
+  }
+}
+
+// 粘贴文件处理
+async function handlePasteFile(targetDir) {
+  if (!clipboard.value.path) return
+
+  const sourcePath = clipboard.value.path
+  const fileName = window.electron.path.basename(sourcePath)
+
+  // 检查目标路径是否为目录，如果是文件则使用其父目录
+  let actualTargetDir = targetDir
+  try {
+    const stats = await window.electron.getFileStats(targetDir)
+    if (!stats.isDirectory) {
+      actualTargetDir = window.electron.path.dirname(targetDir)
+    }
+  } catch (error) {
+    // 如果获取文件状态失败，假设是目录
+    console.warn('无法获取目标路径状态，假设为目录:', error)
+  }
+
+  // 检查actualTargetDir，如果与sourcePath属于同级目录，则忽略操作
+  if (window.electron.path.dirname(sourcePath) === actualTargetDir) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '无法将文件移动到自身',
+      type: 'warning'
+    })
+    return
+  }
+  const targetPath = window.electron.path.join(actualTargetDir, fileName)
+
+  try {
+    if (clipboard.value.type === 'copy') {
+      await window.electron.copyFile(sourcePath, targetPath)
+
+      // 直接添加复制的文件/文件夹节点到目标目录
+      const stats = await window.electron.getFileStats(targetPath)
+      const newNode = {
+        name: fileName,
+        path: targetPath,
+        isDirectory: stats.isDirectory,
+        children: stats.isDirectory ? null : undefined
+      }
+      addNodeToTree(actualTargetDir, newNode)
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: '文件复制成功',
+        type: 'success'
+      })
+    } else if (clipboard.value.type === 'cut') {
+      await window.electron.moveFile(sourcePath, targetPath)
+
+      // 从原位置删除节点
+      removeNodeFromTree(sourcePath)
+
+      // 在目标位置添加节点
+      const stats = await window.electron.getFileStats(targetPath)
+      const newNode = {
+        name: fileName,
+        path: targetPath,
+        isDirectory: stats.isDirectory,
+        children: stats.isDirectory ? null : undefined
+      }
+      addNodeToTree(actualTargetDir, newNode)
+
+      clipboard.value = { type: null, path: null } // 清空剪贴板
+      store.dispatch('snackbar/showSnackbar', {
+        message: '文件移动成功',
+        type: 'success'
+      })
+    }
+  } catch (error) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: `操作失败：${error.message}`,
+      type: 'error'
+    })
+  }
+}
+
+// 标签页操作函数
+function closeOtherTabs() {
+  if (tabs.value.length <= 1) return
+
+  const currentTab = tabs.value[activeTab.value]
+  tabs.value = [currentTab]
+  activeTab.value = 0
+}
+
+function closeAllTabs() {
+  tabs.value = []
+  activeTab.value = -1
+  fileContent.value = ''
+  selectedFileName.value = ''
 }
 </script>
 
@@ -2568,12 +3526,12 @@ body {
   }
 
   :deep(.el-tree__empty-block) {
-    background-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: #111 !important;
     border-radius: 4px;
   }
 
   :deep(.el-tree-node__content:hover) {
-    background-color: rgba(255, 255, 255, 0.1) !important;
+    background-color: #111 !important;
   }
 }
 .breadcrumb-container {
@@ -2584,7 +3542,7 @@ body {
   max-width: 100%;
 }
 .breadcrumb-container::-webkit-scrollbar {
-  height: 4px;
+  height: 0px;
 }
 .breadcrumb-container::-webkit-scrollbar-track {
   background: #f1f1f1;
@@ -2648,7 +3606,7 @@ body {
 
 /* 右侧文件内容面板 */
 .file-content-panel {
-  width: 80%;
+  width: 100%;
   height: 100%;
   overflow: hidden;
   display: flex;
@@ -2835,5 +3793,184 @@ body {
 }
 .tabs-wrapper {
   overflow-x: auto !important;
+}
+
+/* Code search container styles */
+.code-search-container {
+  position: fixed;
+  top: 80px;
+  right: 36px;
+  z-index: 20;
+  width: 250px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.13);
+  border-radius: 8px;
+  padding: 14px 18px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+}
+
+.code-search-container.dark-theme {
+  background: rgba(30, 30, 30, 0.99) !important;
+  border: 1px solid #383838 !important;
+  color: #e2e8f0 !important;
+}
+
+/* 右键菜单样式 */
+.context-menu {
+  position: fixed;
+  background: rgba(var(--v-theme-surface), 1);
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  z-index: 10000;
+  min-width: 200px;
+  padding: 4px 0;
+  backdrop-filter: blur(8px);
+}
+
+.context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: transparent;
+}
+
+.context-menu-option {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-size: 13px;
+  color: rgba(var(--v-theme-on-surface), 0.87);
+}
+
+.context-menu-option:hover:not(.disabled) {
+  background: rgba(var(--v-theme-primary), 0.1);
+}
+
+.context-menu-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.context-menu-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.menu-icon {
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.context-menu-text {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.context-menu-shortcut {
+  font-size: 11px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-left: 16px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: rgba(var(--v-theme-outline), 0.1);
+  margin: 4px 0;
+}
+
+/* Ant Design 组件深度样式覆盖 */
+:deep(.ant-select-selector) {
+  transition: all 0.3s ease !important;
+}
+
+/* 暗色主题下的 Ant Design 选择器样式 */
+.v-theme--dark :deep(.ant-select-selector) {
+  background-color: #1e1e1e !important;
+  border-color: #4a5568 !important;
+  color: #e2e8f0 !important;
+}
+
+.v-theme--dark :deep(.ant-select-selector:hover) {
+  border-color: #6b7280 !important;
+}
+
+.v-theme--dark :deep(.ant-select-selector:focus) {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* 暗色主题下的下拉框样式 */
+.v-theme--dark :deep(.ant-select-dropdown) {
+  background-color: #1e1e1e !important;
+  border-color: #4a5568 !important;
+}
+
+.v-theme--dark :deep(.ant-select-item) {
+  color: #e2e8f0 !important;
+  background-color: transparent !important;
+}
+
+.v-theme--dark :deep(.ant-select-item:hover) {
+  background-color: #374151 !important;
+}
+
+.v-theme--dark :deep(.ant-select-item-option-selected) {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* 亮色主题下的 Ant Design 选择器样式 */
+.v-theme--light :deep(.ant-select-selector) {
+  background-color: white !important;
+  border-color: #d1d5db !important;
+  color: inherit !important;
+}
+
+.v-theme--light :deep(.ant-select-selector:hover) {
+  border-color: #9ca3af !important;
+}
+
+.v-theme--light :deep(.ant-select-selector:focus) {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
+
+/* 亮色主题下的下拉框样式 */
+.v-theme--light :deep(.ant-select-dropdown) {
+  background-color: white !important;
+  border-color: #d1d5db !important;
+}
+
+.v-theme--light :deep(.ant-select-item) {
+  color: inherit !important;
+  background-color: transparent !important;
+}
+
+.v-theme--light :deep(.ant-select-item:hover) {
+  background-color: #f3f4f6 !important;
+}
+
+.v-theme--light :deep(.ant-select-item-option-selected) {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* 图标禁用状态样式 */
+.icon-disabled {
+  opacity: 0.4 !important;
+  filter: grayscale(100%) !important;
 }
 </style>
