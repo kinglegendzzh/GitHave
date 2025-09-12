@@ -187,7 +187,11 @@
 
       <div class="content-container">
         <!-- 左侧目录树 -->
-        <div v-show="showLeftPanel" class="file-tree-panel" :style="{ width: leftPanelWidth + 'px' }">
+        <div
+          v-show="showLeftPanel"
+          class="file-tree-panel"
+          :style="{ width: leftPanelWidth + 'px' }"
+        >
           <div outlined class="pa-1 file-tree-card">
             <v-divider></v-divider>
             <div class="file-tree-search-container pa-2">
@@ -309,7 +313,11 @@
           <!-- 主要预览区域 -->
           <div class="d-flex flex-grow-1" style="height: 100%">
             <!-- 文件内容预览区域 -->
-            <v-card tonal class="flex-grow-1 pa-0 main-preview" style="height: 100%; overflow-y: auto; min-width: 0;">
+            <v-card
+              tonal
+              class="flex-grow-1 pa-0 main-preview"
+              style="height: 100%; overflow-y: auto; min-width: 0"
+            >
               <v-card-text class="pt-1 h-100 pb-2 mb-2">
                 <div v-if="selectedFileName" class="preview-content">
                   <!-- 文件操作按钮 -->
@@ -387,7 +395,12 @@
 
             <!-- 右侧拖拽分隔条（在主预览与索引侧之间） -->
             <div
-              v-if="showRightPanel && isCodeFile && codeIndex && Object.keys(codeIndex.functions || {}).length > 0"
+              v-if="
+                showRightPanel &&
+                isCodeFile &&
+                codeIndex &&
+                Object.keys(codeIndex.functions || {}).length > 0
+              "
               class="resizer resizer-right"
               @mousedown="startResizing('right', $event)"
             ></div>
@@ -475,8 +488,16 @@
                     class="pa-2 function-card"
                     :class="{ 'elevation-2': hoveredFunction === functionItem.name }"
                     style="cursor: pointer; transition: all 0.2s"
-                    @mouseenter="hoveredFunction = functionItem.name"
-                    @mouseleave="hoveredFunction = null"
+                    @mouseenter="
+                      hoveredFunction = functionItem.name,
+                      hoveredFilePath = filePath,
+                      handleFunctionMouseEnter($event, functionItem, filePath)
+                    "
+                    @mouseleave="
+                      hoveredFunction = null,
+                      hoveredFilePath = null,
+                      handleFunctionMouseLeave()
+                    "
                   >
                     <div class="d-flex align-center mb-1">
                       <v-icon size="small" color="primary" class="mr-2"
@@ -728,6 +749,90 @@
       @click="hideContextMenu"
       @contextmenu.prevent="hideContextMenu"
     ></div>
+
+    <!-- 函数详情气泡浮窗 -->
+    <div
+      v-if="functionTooltip.show"
+      class="function-tooltip"
+      :style="{ left: functionTooltip.x + 'px', top: functionTooltip.y + 'px' }"
+    >
+      <v-card class="pa-3" style="max-width: 400px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)">
+        <div v-if="functionTooltip.loading" class="text-center">
+          <v-progress-circular indeterminate size="24" class="mr-2"></v-progress-circular>
+          <span class="text-caption">加载中...</span>
+        </div>
+        <div v-else-if="functionTooltip.data">
+          <div class="d-flex align-center mb-2">
+            <v-icon size="small" color="primary" class="mr-2">mdi-function-variant</v-icon>
+            <span class="font-weight-bold text-primary">{{ functionTooltip.data.name }}</span>
+            <v-chip v-if="functionTooltip.data.function_type" size="x-small" class="ml-2" color="info">
+              {{ functionTooltip.data.function_type }}
+            </v-chip>
+          </div>
+
+          <div v-if="functionTooltip.data.package" class="text-caption text-success mb-1">
+            <v-icon size="x-small" class="mr-1">mdi-package-variant</v-icon>
+            {{ functionTooltip.data.package }}
+          </div>
+
+          <div class="text-caption text-medium-emphasis mb-1">
+            <v-icon size="x-small" class="mr-1">mdi-file-code</v-icon>
+            {{ functionTooltip.data.file }}
+          </div>
+
+          <div class="text-caption text-medium-emphasis mb-2">
+            <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>
+            行 {{ functionTooltip.data.start_line }} - {{ functionTooltip.data.end_line }} ({{ functionTooltip.data.lines }} 行)
+          </div>
+
+          <div v-if="functionTooltip.data.description" class="text-caption mb-2">
+            <strong>描述：</strong>{{ functionTooltip.data.description }}
+          </div>
+
+          <v-divider class="my-2"></v-divider>
+
+          <div class="d-flex justify-space-between text-caption mb-1">
+            <div><strong>复杂度：</strong>{{ functionTooltip.data.complexity || 'N/A' }}</div>
+            <div><strong>深度：</strong>{{ functionTooltip.data.depth || 'N/A' }}</div>
+          </div>
+
+          <div class="d-flex justify-space-between text-caption mb-1">
+            <div><strong>扇入：</strong>{{ functionTooltip.data.fan_in || 0 }}</div>
+            <div><strong>扇出：</strong>{{ functionTooltip.data.fan_out || 0 }}</div>
+          </div>
+
+          <div class="text-caption mb-2">
+            <strong>重要性评分：</strong>
+            <v-chip size="x-small" :color="functionTooltip.data.score > 2 ? 'error' : functionTooltip.data.score > 1 ? 'warning' : 'success'">
+              {{ functionTooltip.data.score ? functionTooltip.data.score.toFixed(2) : 'N/A' }}
+            </v-chip>
+          </div>
+
+          <div v-if="functionTooltip.data.imports && functionTooltip.data.imports.length > 0" class="mb-2">
+            <div class="text-caption font-weight-medium mb-1">
+              <v-icon size="x-small" class="mr-1">mdi-import</v-icon>
+              导入模块：
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              {{ functionTooltip.data.imports.slice(0, 3).join(', ') }}
+              <span v-if="functionTooltip.data.imports.length > 3">等{{ functionTooltip.data.imports.length }}个</span>
+            </div>
+          </div>
+
+          <div v-if="functionTooltip.data.calls && functionTooltip.data.calls.length > 0" class="mt-2">
+            <div class="text-caption font-weight-medium mb-1">
+              <v-icon size="x-small" class="mr-1">mdi-call-made</v-icon>
+              调用函数：
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              {{ functionTooltip.data.calls.slice(0, 3).join(', ') }}
+              <span v-if="functionTooltip.data.calls.length > 3">等{{ functionTooltip.data.calls.length }}个</span>
+            </div>
+          </div>
+        </div>
+        <div v-else class="text-caption text-medium-emphasis">暂无详细信息</div>
+      </v-card>
+    </div>
   </v-container>
 </template>
 
@@ -769,7 +874,8 @@ import {
   checkIndexApi,
   listGraph,
   resetIndexApi,
-  deleteIndexSomeApi
+  deleteIndexSomeApi,
+  getFunctionInfo
 } from '../service/api.js'
 import AnalysisReportModal from '../components/ai/AnalysisReportModal.vue'
 import { omit } from '../service/str'
@@ -1227,6 +1333,17 @@ const codeStructureSearch = ref('')
 const quickFindText = ref('')
 const findResults = ref([])
 const findCurrentIndex = ref(-1)
+
+// 函数详情气泡浮窗
+const functionTooltip = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  loading: false,
+  data: null,
+  functionName: '',
+  packageName: ''
+})
 
 // 文件操作对话框状态
 const newFileDialog = ref(false)
@@ -2191,7 +2308,10 @@ async function getDirectoryTree(targetPath) {
   const directories = filteredRoot.filter((child) => child.isDirectory)
   const files = filteredRoot.filter((child) => !child.isDirectory)
   console.log('[DEBUG] 目录数量:', directories.length, '文件数量:', files.length)
-  console.log('[DEBUG] 目录名称:', directories.map(d => d.name))
+  console.log(
+    '[DEBUG] 目录名称:',
+    directories.map((d) => d.name)
+  )
 
   const dirNodes = await Promise.all(
     directories.map(async (child) => {
@@ -2550,14 +2670,14 @@ watch(
     console.log('[DEBUG] treeData 变化，新数据长度:', newVal?.length || 0)
     filteredTreeData.value = newVal
     console.log('[DEBUG] filteredTreeData 设置完成，当前 openNodes:', openNodes.value)
-    
+
     // 强制刷新 el-tree 展开状态
     nextTick(() => {
       console.log('[DEBUG] nextTick 中检查 treeRef:', treeRef.value)
       if (treeRef.value && openNodes.value.length > 0) {
         console.log('[DEBUG] 尝试设置展开节点:', openNodes.value)
         // 强制设置展开节点
-        openNodes.value.forEach(nodeKey => {
+        openNodes.value.forEach((nodeKey) => {
           try {
             treeRef.value.setExpanded(nodeKey, true)
             console.log('[DEBUG] 成功展开节点:', nodeKey)
@@ -2676,7 +2796,7 @@ function startIndexProgressMonitoring(targetPath) {
         if (seconds < 60) return `${seconds}秒`
         if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
         const hours = Math.floor(seconds / 3600)
-        const minutes = Math.floor((seconds % 60))
+        const minutes = Math.floor(seconds % 60)
         const remainingSeconds = seconds % 60
         return `${hours}小时${minutes}分${remainingSeconds}秒`
       }
@@ -3015,6 +3135,78 @@ function filterFunctions(functions) {
 
     return false
   })
+}
+
+// 获取函数详细信息
+async function fetchFunctionDetails(functionName, packageName, filePath) {
+  try {
+    functionTooltip.value.loading = true
+    const repoPath = newRootPath.value
+    // filePath 已经是相对路径，直接使用
+    
+    console.log('[DEBUG] 获取函数详情:', { functionName, packageName, filePath, repoPath })
+    
+    const response = await getFunctionInfo(repoPath, filePath, packageName, functionName)
+    
+    console.log('[DEBUG] 函数详情响应:', response)
+    
+    if (response && response.data && response.data.code === 0) {
+      functionTooltip.value.data = response.data.data.functions[0] || null
+      console.log('[DEBUG] 设置函数详情数据:', functionTooltip.value.data)
+    } else {
+      functionTooltip.value.data = null
+      console.log('[DEBUG] 函数详情响应无效或为空')
+    }
+  } catch (error) {
+    console.error('获取函数详情失败:', error)
+    functionTooltip.value.data = null
+  } finally {
+    functionTooltip.value.loading = false
+  }
+}
+
+// 处理函数卡片鼠标进入事件
+function handleFunctionMouseEnter(event, functionItem, filePath) {
+  const rect = event.target.getBoundingClientRect()
+  // 确保气泡浮窗不会超出屏幕边界
+  const tooltipWidth = 400 // 气泡浮窗最大宽度
+  let x = rect.right + 10
+  let y = rect.top
+  
+  // 如果右侧空间不够，显示在左侧
+  if (x + tooltipWidth > window.innerWidth) {
+    x = rect.left - tooltipWidth - 10
+  }
+  
+  // 如果下方空间不够，向上调整
+  if (y + 200 > window.innerHeight) {
+    y = Math.max(10, y - 200)
+  }
+  
+  functionTooltip.value.x = x
+  functionTooltip.value.y = y
+  functionTooltip.value.functionName = functionItem.name
+  functionTooltip.value.packageName = functionItem.package || ''
+  functionTooltip.value.show = true
+  
+  console.log('[DEBUG] 鼠标进入函数卡片:', { functionItem, filePath })
+  console.log('[DEBUG] 设置气泡浮窗显示:', functionTooltip.value)
+  console.log('[DEBUG] 气泡浮窗位置:', { x, y, rect, windowSize: { width: window.innerWidth, height: window.innerHeight } })
+
+  // 延迟获取详细信息，避免频繁请求
+  setTimeout(() => {
+    if (functionTooltip.value.show && functionTooltip.value.functionName === functionItem.name) {
+      // filePath 在这里是相对路径，直接传递给 fetchFunctionDetails
+      fetchFunctionDetails(functionItem.name, functionItem.package || '', filePath)
+    }
+  }, 300)
+}
+
+// 处理函数卡片鼠标离开事件
+function handleFunctionMouseLeave() {
+  functionTooltip.value.show = false
+  functionTooltip.value.data = null
+  functionTooltip.value.loading = false
 }
 
 // 在代码中查找文本
@@ -4171,16 +4363,20 @@ body {
   bottom: 0;
   left: 1px;
   right: 1px;
-  border-left: 1px solid rgba(0,0,0,0.06);
-  border-right: 1px solid rgba(0,0,0,0.06);
+  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
 }
 .resizer:hover::after,
 body.resizing .resizer::after {
-  border-left-color: rgba(0,0,0,0.15);
-  border-right-color: rgba(0,0,0,0.15);
+  border-left-color: rgba(0, 0, 0, 0.15);
+  border-right-color: rgba(0, 0, 0, 0.15);
 }
-.resizer-left { flex: 0 0 auto; }
-.resizer-right { flex: 0 0 auto; }
+.resizer-left {
+  flex: 0 0 auto;
+}
+.resizer-right {
+  flex: 0 0 auto;
+}
 
 .file-tree-card {
   height: 100%;
@@ -4557,5 +4753,24 @@ body.resizing .resizer::after {
 .icon-disabled {
   opacity: 0.4 !important;
   filter: grayscale(100%) !important;
+}
+
+/* 函数详情气泡浮窗样式 */
+.function-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
