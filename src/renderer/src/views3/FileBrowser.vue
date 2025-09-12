@@ -550,6 +550,67 @@
       </v-card>
     </v-dialog>
 
+    <!-- 索引进度对话框（SpaceLens 同款） -->
+    <v-dialog v-model="indexProgressVisible" persistent max-width="500">
+      <v-card>
+        <v-card-title class="text-h6"> 正在构建索引 </v-card-title>
+        <v-card-text>
+          <div class="mb-4">
+            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+            <p>正在为项目构建索引，这可能需要一些时间...</p>
+            <p v-if="indexProgressData.estimatedTime">
+              预计还剩：{{ indexProgressData.estimatedTime }}
+            </p>
+          </div>
+
+          <v-progress-linear
+            :model-value="indexProgressData.progress"
+            color="primary"
+            height="8"
+            rounded
+          ></v-progress-linear>
+
+          <div class="mt-2 text-center">
+            <small>{{ indexProgressData.progress }}% 完成</small>
+          </div>
+
+          <div v-if="indexProgressData.currentFile" class="mt-3">
+            <small class="text-grey">当前处理：{{ indexProgressData.currentFile }}</small>
+          </div>
+          <div v-if="indexProgressData.remainingFiles" class="mt-3">
+            <small class="text-grey"
+              >剩余索引文件数：{{ indexProgressData.remainingFiles }} /
+              {{ indexProgressData.totalFiles }}</small
+            >
+          </div>
+          <div v-if="indexProgressData.totalFunctions" class="mt-3">
+            <small class="text-grey"
+              >已索引的函数量：<strong style="color: #1976d2">{{
+                indexProgressData.totalFunctions
+              }}</strong></small
+            >
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="hideIndexProcess"> 隐藏并后台运行 </v-btn>
+          <v-btn color="red" variant="text" @click="cancelIndexProcess"> 取消 </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 代码分析/流程图弹窗（SpaceLens 同款） -->
+    <AnalysisReportModal
+      v-model="analysisReportDrawerVisible"
+      :repo-i-d="modalRepoID"
+      :target-path="modalTargetPath"
+      :scope-text="modalScopeText"
+      :whole-code="wholeCode"
+      :api="apiType"
+      :count="count"
+      :config="weightConfig"
+    />
+
     <!-- 新建文件对话框 -->
     <v-dialog v-model="newFileDialog" max-width="400">
       <v-card>
@@ -689,7 +750,15 @@ import hljs from 'highlight.js'
 import MonacoEditor from 'monaco-editor-vue3'
 
 import * as XLSX from 'xlsx'
-import { listRepos, pullRepo, checkIndexApi } from '../service/api.js'
+import {
+  listRepos,
+  pullRepo,
+  checkIndexApi,
+  listGraph,
+  resetIndexApi,
+  deleteIndexSomeApi
+} from '../service/api.js'
+import AnalysisReportModal from '../components/ai/AnalysisReportModal.vue'
 import { omit } from '../service/str'
 // router import removed as we're using IPC instead of direct routing
 // Vuex store（假定已配置）
@@ -1092,6 +1161,31 @@ const progress = ref(0)
 const progressTitle = ref('')
 const progressMessage = ref('')
 let progressTimer = null
+
+// —— 索引进度（SpaceLens 同款）——
+const indexProgressVisible = ref(false)
+const indexProgressData = ref({
+  progress: 0,
+  totalFiles: 0,
+  scannedFiles: 0,
+  currentFile: '',
+  remainingFiles: 0,
+  totalFunctions: 0,
+  estimatedTime: ''
+})
+let indexProgressTimer = null
+const pendingReportAction = ref(null)
+
+// —— 报告/流程图弹窗（SpaceLens 同款）——
+const analysisReportDrawerVisible = ref(false)
+const modalRepoID = ref('')
+const modalTargetPath = ref('')
+const modalScopeText = ref('')
+const wholeCode = ref(false)
+const apiType = ref('')
+const count = ref(0)
+// 轻量权重配置传递（沿用 SpaceLens 默认值）
+const weightConfig = ref({ alpha: 0.2, beta: 0.2, gamma: 0.1, delta: 0.5 })
 
 // 控制是否处于加载状态
 const loading = ref(true)
@@ -2097,6 +2191,7 @@ async function loadPathSuggestions() {
       const sortedData = [...response.data].sort((a, b) => b.id - a.id)
 
       pathSuggestions.value = sortedData.map((repo) => ({
+        id: repo.id,
         value: repo.local_path,
         // 如果desc为空则只显示name，否则显示desc(name)
         title: repo.desc ? `${omit(repo.desc, 40)}(${repo.name})` : repo.name,
@@ -2444,6 +2539,319 @@ onActivated(() => {
 // 工具函数：将路径转换为Unix格式
 const toUnixPath = (path) => {
   return path.replace(/\\/g, '/')
+}
+
+// —— 索引与分析功能（从 SpaceLens 迁移）——
+const MIN_INDEX_TIME = 1
+const MAX_INDEX_TIME = 6
+
+function hideIndexProcess() {
+  stopIndexProgressMonitoring()
+  indexProgressVisible.value = false
+  pendingReportAction.value = null
+}
+
+async function cancelIndexProcess() {
+  if (!newRootPath.value || !indexProgressData.value.currentFile) return
+  await resetIndexApi(
+    newRootPath.value,
+    window.electron.path.relative(newRootPath.value, indexProgressData.value.currentFile)
+  )
+  hideIndexProcess()
+}
+
+function startIndexProgressMonitoring(targetPath) {
+  const checkProgress = async () => {
+    try {
+      const response = await checkIndexApi(
+        newRootPath.value,
+        window.electron.path.relative(newRootPath.value, targetPath)
+      )
+      const { real_file_count, total_file_count, total_function_count } = response.data.data
+
+      const minSeconds = Math.ceil((real_file_count - total_file_count) * MIN_INDEX_TIME)
+      const maxSeconds = Math.ceil((real_file_count - total_file_count) * MAX_INDEX_TIME)
+      const formatTime = (seconds) => {
+        if (seconds < 60) return `${seconds}秒`
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+        const hours = Math.floor(seconds / 3600)
+        const minutes = Math.floor((seconds % 60))
+        const remainingSeconds = seconds % 60
+        return `${hours}小时${minutes}分${remainingSeconds}秒`
+      }
+      const minTimeFormatted = formatTime(minSeconds)
+      const maxTimeFormatted = formatTime(maxSeconds)
+
+      const progress =
+        real_file_count > 0 ? Math.round(((total_file_count - 1) / real_file_count) * 100) : 0
+      indexProgressData.value.totalFiles = real_file_count
+      indexProgressData.value.scannedFiles = total_file_count
+      indexProgressData.value.currentFile = targetPath
+      indexProgressData.value.remainingFiles = real_file_count - total_file_count
+      indexProgressData.value.totalFunctions = total_function_count || 0
+      indexProgressData.value.estimatedTime = `${minTimeFormatted}~${maxTimeFormatted}`
+      indexProgressData.value.progress = progress
+    } catch (e) {
+      console.error('检查索引进度失败:', e)
+    }
+  }
+  checkProgress()
+  indexProgressTimer = setInterval(checkProgress, 2000)
+}
+
+function stopIndexProgressMonitoring() {
+  if (indexProgressTimer) {
+    clearInterval(indexProgressTimer)
+    indexProgressTimer = null
+  }
+}
+
+async function startIndexProcess4Toolbar(targetPath) {
+  try {
+    indexProgressVisible.value = true
+    startIndexProgressMonitoring(targetPath)
+    const response = await listGraph(
+      newRootPath.value,
+      window.electron.path.relative(newRootPath.value, targetPath)
+    )
+    if (response && response.data && response.data.code === 0) {
+      stopIndexProgressMonitoring()
+      indexProgressVisible.value = false
+
+      const checkIndex = await checkIndexApi(
+        newRootPath.value,
+        window.electron.path.relative(newRootPath.value, targetPath)
+      )
+      const { real_file_count, total_file_count, total_function_count, functions } =
+        checkIndex.data.data
+      let message = `索引状态检查完成\n`
+      message += `函数索引量: ${total_function_count}\n`
+      message += `总文件数量: ${total_file_count}`
+
+      store.dispatch('snackbar/showSnackbar', {
+        message,
+        color: 'success',
+        timeout: 8000
+      })
+    } else {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `${targetPath} 的索引构建失败，错误信息：${response?.data?.message || '未知错误'}`,
+        color: 'error'
+      })
+    }
+  } catch (error) {
+    console.error('启动索引进程失败:', error)
+    stopIndexProgressMonitoring()
+    indexProgressVisible.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: '启动索引进程失败',
+      color: 'error'
+    })
+    throw error
+  }
+}
+
+async function startIndexProcess(targetPath) {
+  try {
+    indexProgressVisible.value = true
+    startIndexProgressMonitoring(targetPath)
+    const response = await listGraph(
+      newRootPath.value,
+      window.electron.path.relative(newRootPath.value, targetPath)
+    )
+    if (response && response.data && response.data.code === 0) {
+      stopIndexProgressMonitoring()
+      indexProgressVisible.value = false
+      if (pendingReportAction.value) {
+        const action = pendingReportAction.value
+        pendingReportAction.value = null
+        setTimeout(() => action(), 500)
+      }
+    } else {
+      store.dispatch('snackbar/showSnackbar', {
+        message: `${targetPath} 的索引构建失败，错误信息：${response?.data?.message || '未知错误'}`,
+        color: 'error'
+      })
+    }
+  } catch (error) {
+    console.error('启动索引进程失败:', error)
+    stopIndexProgressMonitoring()
+    indexProgressVisible.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: '启动索引进程失败',
+      color: 'error'
+    })
+    throw error
+  }
+}
+
+async function checkIndexStatus4Toolbar(targetPath) {
+  try {
+    const response = await checkIndexApi(
+      newRootPath.value,
+      window.electron.path.relative(newRootPath.value, targetPath)
+    )
+    const { real_file_count, total_file_count, total_function_count } = response.data.data
+    const unindexedFiles = real_file_count - total_file_count
+    if (unindexedFiles > 0) {
+      const minSeconds = Math.ceil(unindexedFiles * MIN_INDEX_TIME)
+      const maxSeconds = Math.ceil(unindexedFiles * MAX_INDEX_TIME)
+      const formatTime = (seconds) => {
+        if (seconds < 60) return `${seconds}秒`
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+        const hours = Math.floor(seconds / 3600)
+        const minutes = Math.floor((seconds % 3600) / 60)
+        const remainingSeconds = seconds % 60
+        return `${hours}小时${minutes}分${remainingSeconds}秒`
+      }
+      const minTimeFormatted = formatTime(minSeconds)
+      const maxTimeFormatted = formatTime(maxSeconds)
+      const confirmed = window.confirm(
+        `检测到当前路径下有 ${unindexedFiles} 个文件未建立索引，\n` +
+          `预计需要 ${minTimeFormatted}-${maxTimeFormatted}进行初始化索引。\n\n` +
+          `确认继续吗？`
+      )
+      if (!confirmed) return false
+      await startIndexProcess4Toolbar(targetPath)
+      return true
+    } else {
+      const confirmed = window.confirm(
+        `当前路径已经构建过索引，共索引 ${total_file_count}/${real_file_count} 个文件，共 ${total_function_count} 个函数，确定继续并更新索引？`
+      )
+      if (!confirmed) return false
+      if (window.electron.path.relative(newRootPath.value, targetPath) !== '') {
+        await deleteIndexSomeApi(
+          newRootPath.value,
+          window.electron.path.relative(newRootPath.value, targetPath)
+        )
+        await store.dispatch('snackbar/showSnackbar', {
+          message: `已清除 ${window.electron.path.relative(newRootPath.value, targetPath)} 的索引，开始重新索引`,
+          color: 'warning'
+        })
+      }
+      await startIndexProcess4Toolbar(targetPath)
+      return true
+    }
+  } catch (error) {
+    console.error('检查索引状态失败:', error)
+    return false
+  }
+}
+
+async function checkIndexStatus(targetPath, onProceed) {
+  try {
+    const response = await checkIndexApi(
+      newRootPath.value,
+      window.electron.path.relative(newRootPath.value, targetPath)
+    )
+    const { real_file_count, total_file_count } = response.data.data
+    const unindexedFiles = real_file_count - total_file_count
+    if (unindexedFiles > 0) {
+      const minSeconds = Math.ceil(unindexedFiles * MIN_INDEX_TIME)
+      const maxSeconds = Math.ceil(unindexedFiles * MAX_INDEX_TIME)
+      const formatTime = (seconds) => {
+        if (seconds < 60) return `${seconds}秒`
+        if (seconds < 3600) return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+        const hours = Math.floor(seconds / 3600)
+        const minutes = Math.floor((seconds % 3600) / 60)
+        const remainingSeconds = seconds % 60
+        return `${hours}小时${minutes}分${remainingSeconds}秒`
+      }
+      const minTimeFormatted = formatTime(minSeconds)
+      const maxTimeFormatted = formatTime(maxSeconds)
+      const confirmed = window.confirm(
+        `检测到当前路径下有 ${unindexedFiles} 个文件未建立索引，\n` +
+          `预计需要 ${minTimeFormatted}-${maxTimeFormatted}进行初始化索引。\n\n` +
+          `确认继续吗？`
+      )
+      if (!confirmed) return false
+      if (onProceed) {
+        pendingReportAction.value = onProceed
+      }
+      await startIndexProcess(targetPath)
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error('检查索引状态失败:', error)
+    return false
+  }
+}
+
+async function generateAnalysisReportForPath(targetPath) {
+  try {
+    if (!newRootPath.value) return
+    const selectedItem = pathSuggestions.value.find((item) => item.value === newRootPath.value)
+    if (!selectedItem) {
+      console.warn('未找到匹配的仓库路径')
+      return
+    }
+    const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+      newRootPath.value
+    )
+    if (indexing) {
+      window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
+      return
+    }
+    if (!hasFullIndex) {
+      const indexCheckResult = await checkIndexStatus(targetPath, () =>
+        generateAnalysisReportForPath(targetPath)
+      )
+      if (!indexCheckResult) return
+    }
+    modalRepoID.value = selectedItem.id?.toString?.() || ''
+    modalTargetPath.value = targetPath
+    modalScopeText.value = '单点文件集'
+    apiType.value = 'deepResearch'
+    // 仅单文件强制 wholeCode=true
+    const stats = await window.electron.getFileStats(targetPath)
+    wholeCode.value = !stats.isDirectory
+    count.value = stats.isDirectory ? 0 : 1
+    analysisReportDrawerVisible.value = true
+    store.dispatch('snackbar/showSnackbar', {
+      message: `正在为单点文件集生成代码分析报告，请稍等片刻后在'文件枢纽'中查看...`,
+      color: 'info'
+    })
+  } catch (error) {
+    console.error('生成代码分析报告失败:', error)
+    store.dispatch('snackbar/showSnackbar', { message: '生成代码分析报告失败', color: 'error' })
+  }
+}
+
+async function generateFlowchartForPath(targetPath) {
+  try {
+    if (!newRootPath.value) return
+    const selectedItem = pathSuggestions.value.find((item) => item.value === newRootPath.value)
+    if (!selectedItem) {
+      console.warn('未找到匹配的仓库路径')
+      return
+    }
+    const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+      newRootPath.value
+    )
+    if (indexing) {
+      window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
+      return
+    }
+    if (!hasFullIndex) {
+      const shouldProceed = await checkIndexStatus(targetPath, () =>
+        generateFlowchartForPath(targetPath)
+      )
+      if (!shouldProceed) return
+    }
+    modalRepoID.value = selectedItem.id?.toString?.() || ''
+    modalTargetPath.value = targetPath
+    modalScopeText.value = '单点文件集'
+    apiType.value = 'flowChart'
+    // 仅单文件强制 wholeCode=true
+    const stats = await window.electron.getFileStats(targetPath)
+    wholeCode.value = !stats.isDirectory
+    count.value = stats.isDirectory ? 0 : 1
+    analysisReportDrawerVisible.value = true
+  } catch (error) {
+    console.error('生成流程图失败:', error)
+    store.dispatch('snackbar/showSnackbar', { message: '生成流程图失败', color: 'error' })
+  }
 }
 
 // 获取代码索引信息
@@ -3023,6 +3431,22 @@ function getContextMenuItems(type) {
   if (type === 'file') {
     return [
       {
+        id: 'build-index',
+        label: '构建索引',
+        action: 'buildIndex'
+      },
+      {
+        id: 'analysis-report',
+        label: '生成代码分析报告',
+        action: 'analysisReport'
+      },
+      {
+        id: 'generate-flowchart',
+        label: '解释并生成流程图',
+        action: 'generateFlowchart'
+      },
+      { separator: true },
+      {
         id: 'open',
         label: '打开',
         icon: menuIcons.open,
@@ -3098,6 +3522,22 @@ function getContextMenuItems(type) {
 
   if (type === 'folder') {
     return [
+      {
+        id: 'build-index',
+        label: '构建索引',
+        action: 'buildIndex'
+      },
+      {
+        id: 'analysis-report',
+        label: '生成代码分析报告',
+        action: 'analysisReport'
+      },
+      {
+        id: 'generate-flowchart',
+        label: '解释并生成流程图',
+        action: 'generateFlowchart'
+      },
+      { separator: true },
       {
         id: 'open-in-folder',
         label: '在文件夹中显示',
@@ -3181,6 +3621,24 @@ async function handleContextMenuAction(action) {
 
   try {
     switch (action) {
+      case 'buildIndex':
+        if (target?.path) {
+          await checkIndexStatus4Toolbar(target.path)
+        }
+        break
+
+      case 'analysisReport':
+        if (target?.path) {
+          await generateAnalysisReportForPath(target.path)
+        }
+        break
+
+      case 'generateFlowchart':
+        if (target?.path) {
+          await generateFlowchartForPath(target.path)
+        }
+        break
+
       case 'openFile':
         if (target?.path) {
           await loadFileByType(target.path)
