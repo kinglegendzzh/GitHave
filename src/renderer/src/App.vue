@@ -11,6 +11,7 @@ import MainLayout from './components/MainLayout.vue'
 import BlankLayout from './views/BlankLayout.vue'
 import IDE from './views3/IDE.vue'
 import ClipboardRepoImporter from './components/ClipboardRepoImporter.vue'
+import { initializeApp } from './utils/app-initializer.js'
 
 export default {
   name: 'App',
@@ -31,70 +32,63 @@ export default {
     if (this.checkFirstInstall()) {
       return
     }
-    this.initializeApp()
+    initializeApp()
   },
   methods: {
     checkFirstInstall() {
       // 检查是否是初次安装
       const onboardingCompleted = localStorage.getItem('onboarding_completed')
-      
+
       // 如果存在初次安装标识且未完成引导，则跳转到新手引导页面
       if (!onboardingCompleted) {
         this.$router.push('/onboarding')
         return true
       }
       return false
-    },
-    
-    async initializeApp() {
-      console.log('[App.vue] initializeApp')
-      try {
-        // 调用 checkAppHealth 检测 app 进程健康状态
-        const health = await window.electron.checkAppHealth()
-        console.log('[App.vue] app-health', health)
-        // 如果状态不是“已启动”或正在清理，则启动服务
-        if (health.state !== '已启动' && health.state !== '正在清理端口并重启核心服务') {
-          const sysCfg = await window.electron.sysConfig()
-          console.log('[App.vue] sysConfig', sysCfg)
-          const configPath = sysCfg.configPath
-          if (configPath) {
-            const result = await window.electron.startApp(configPath)
-            console.log('[App.vue] startApp result', result)
-          } else {
-            console.error('[App.vue] 未获取到配置文件路径，无法启动 app')
-          }
-        }
-      } catch (error) {
-        console.error('[App.vue] initializeApp error:', error)
-      }
-      try {
-        // 调用 checkAppHealth 检测 app 进程健康状态
-        const health = await window.electron.checkFmHttpHealth()
-        console.log('[App.vue] app-health', health)
-        // 如果状态不是“已启动”或正在清理，则启动服务
-        if (health.state !== '已启动' && health.state !== '正在清理端口并重启索引') {
-          const fmCfg = await window.electron.fmConfig()
-          console.log('[App.vue] fmConfig', fmCfg)
-          const configPath = fmCfg.configPath
-
-          if (configPath) {
-            const result = await window.electron.startFmHttp(configPath)
-            console.log('[App.vue] startFm result', result)
-          } else {
-            console.error('[App.vue] 未获取到配置文件路径，无法启动 fm')
-          }
-        }
-      } catch (error) {
-        console.error('[App.vue] initializeApp error:', error)
-      }
     }
   }
 }
 </script>
 
 <style scoped>
+/* 🌟 */
 .app-container {
-  /* 此处可放置通用样式 */
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  position: relative;
+}
+
+/* 强制隐藏所有滚动条 */
+:deep(*) {
+  /* Webkit浏览器 */
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE和Edge */
+}
+
+:deep(*::-webkit-scrollbar) {
+  display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 确保根元素不会溢出 */
+:deep(html) {
+  overflow: hidden !important;
+}
+
+:deep(body) {
+  overflow: hidden !important;
+}
+
+:deep(#app) {
+  overflow: hidden !important;
 }
 
 /* 默认浅色模式 */
@@ -123,5 +117,103 @@ export default {
     background-color: #18191a;
     color: #fff;
   }
+}
+
+/* 全局 Ant Design 按钮夜间模式适配 */
+.v-theme--dark .ant-btn,
+.v-theme--dark .a-button {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.v-theme--dark .ant-btn-dashed,
+.v-theme--dark .a-button.ant-btn-dashed,
+.v-theme--dark .ant-btn[type="dashed"] {
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.v-theme--dark .ant-btn-dashed:hover,
+.v-theme--dark .a-button.ant-btn-dashed:hover,
+.v-theme--dark .ant-btn[type="dashed"]:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.v-theme--dark .ant-btn-dashed:focus,
+.v-theme--dark .a-button.ant-btn-dashed:focus,
+.v-theme--dark .ant-btn[type="dashed"]:focus {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.v-theme--dark .ant-btn-dangerous,
+.v-theme--dark .a-button[danger] {
+  color: #ff7875 !important;
+  border-color: #ff7875 !important;
+}
+
+.v-theme--dark .ant-btn-dangerous:hover,
+.v-theme--dark .a-button[danger]:hover {
+  background-color: rgba(255, 120, 117, 0.1) !important;
+  border-color: #ff4d4f !important;
+  color: #ff4d4f !important;
+}
+
+/* 深度覆盖 - 确保全局样式生效 */
+.v-theme--dark :deep(.ant-btn-dashed) {
+  background-color: transparent !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.v-theme--dark :deep(.ant-btn-dashed:hover) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.v-theme--dark :deep(.ant-btn-dashed:focus) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* 其他类型按钮的夜间模式适配 */
+.v-theme--dark .ant-btn-primary {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #fff !important;
+}
+
+.v-theme--dark .ant-btn-default {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.v-theme--dark .ant-btn-default:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.v-theme--dark .ant-btn-text {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.v-theme--dark .ant-btn-text:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.v-theme--dark .ant-btn-link {
+  color: #40a9ff !important;
+}
+
+.v-theme--dark .ant-btn-link:hover {
+  color: #69c0ff !important;
 }
 </style>

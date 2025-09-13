@@ -1,19 +1,19 @@
 <template>
   <div class="onboarding-container">
     <!-- 顶部进度条 -->
-    <div class="progress-header">
-      <div class="progress-bar-top">
+    <div class="progress-header drag-region">
+      <div class="progress-bar-top" style="max-width: 60%">
         <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
       </div>
       <div class="progress-text">
         {{ currentStep }}/{{ totalSteps }} - {{ stepTitles[currentStep - 1] }}
       </div>
       <!-- 跳过按钮 -->
-      <div class="skip-button">
-        <v-btn variant="text" size="small" color="white" @click="skipOnboarding">
-          <v-icon left>mdi-skip-next</v-icon>
+      <div class="skip-button no-drag">
+        <a-button type="text" size="small" class="wt-btn" @click="skipOnboarding">
+          <template #icon><FastForwardOutlined /></template>
           跳过
-        </v-btn>
+        </a-button>
       </div>
     </div>
 
@@ -22,30 +22,16 @@
       <!-- 步骤1: 欢迎页面 -->
       <div v-if="currentStep === 1" class="step-content welcome-step">
         <div class="welcome-icon">
-          <v-icon size="80" color="primary">mdi-rocket-launch</v-icon>
+          <img :src="bannerSvg" alt="GitHave Logo" class="logo-banner" />
         </div>
         <h1 class="welcome-title">欢迎使用 GitHave</h1>
         <p class="welcome-subtitle">让我们花几分钟时间来设置您的环境</p>
-        <div class="feature-list">
-          <div class="feature-item">
-            <v-icon color="success">mdi-check-circle</v-icon>
-            <span>空间透镜、深度搜索、智能代码分析</span>
-          </div>
-          <div class="feature-item">
-            <v-icon color="success">mdi-check-circle</v-icon>
-            <span>AI 驱动的代码仓库助手</span>
-          </div>
-          <div class="feature-item">
-            <v-icon color="success">mdi-check-circle</v-icon>
-            <span>本地/云端模型双支持</span>
-          </div>
-        </div>
       </div>
 
       <!-- 步骤2: 环境检测 -->
       <div v-if="currentStep === 2" class="step-content env-check-step">
         <h2 class="step-title">
-          <v-icon class="mr-2" color="primary">mdi-shield-check</v-icon>
+          <SafetyCertificateOutlined class="mr-2" style="color: #1890ff" />
           环境检测
         </h2>
         <p class="step-description">检查您的系统是否具备运行 GitHave 所需的基础环境</p>
@@ -65,25 +51,21 @@
             </div>
             <div class="env-card-status">
               <template v-if="pythonInstalled === null">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <span>检测中...</span>
               </template>
               <template v-else-if="pythonInstalled">
-                <v-icon color="success">mdi-check-circle</v-icon>
+                <CheckCircleOutlined style="color: #52c41a" />
                 <span>已安装</span>
               </template>
               <template v-else-if="pythonInstalling">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <div class="installing-info">
                   <span>安装中 ({{ pythonProgress }}%)</span>
                   <div v-if="networkSpeed.downloadSpeedFormatted !== '0 B/s'" class="network-speed">
                     <div class="speed-item">
-                      <v-icon size="14" color="primary">mdi-download</v-icon>
+                      <DownloadOutlined style="font-size: 14px; color: #1890ff" />
                       <span>{{ networkSpeed.downloadSpeedFormatted }}</span>
-                    </div>
-                    <div class="speed-item">
-                      <v-icon size="14" color="success">mdi-upload</v-icon>
-                      <span>{{ networkSpeed.uploadSpeedFormatted }}</span>
                     </div>
                     <div v-if="networkSpeed.interfaceName" class="interface-name">
                       <span>{{ networkSpeed.interfaceName }}</span>
@@ -92,14 +74,14 @@
                 </div>
               </template>
               <template v-else>
-                <v-icon color="error">mdi-close-circle</v-icon>
+                <CloseCircleOutlined style="color: #ff4d4f" />
                 <span>未安装</span>
-                <v-btn size="small" variant="outlined" color="primary" @click="openPythonWebsite"
-                  >前往官网</v-btn
+                <a-button size="small" type="default" class="blk-btn" @click="openPythonWebsite"
+                  >前往官网安装</a-button
                 >
-                <v-btn size="small" color="primary" @click="installSinglePackage('python')"
-                  >一键安装</v-btn
-                >
+                <a-button size="small" type="primary" @click="installSinglePackage('python')">{{
+                  isWindows ? '打开微软商店' : '一键安装'
+                }}</a-button>
               </template>
             </div>
           </div>
@@ -114,25 +96,21 @@
             </div>
             <div class="env-card-status">
               <template v-if="gitInstalled === null">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <span>检测中...</span>
               </template>
               <template v-else-if="gitInstalled">
-                <v-icon color="success">mdi-check-circle</v-icon>
+                <CheckCircleOutlined style="color: #52c41a" />
                 <span>已安装</span>
               </template>
               <template v-else-if="gitInstalling">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <div class="installing-info">
                   <span>安装中 ({{ gitProgress }}%)</span>
                   <div v-if="networkSpeed.downloadSpeedFormatted !== '0 B/s'" class="network-speed">
                     <div class="speed-item">
-                      <v-icon size="14" color="primary">mdi-download</v-icon>
+                      <DownloadOutlined style="font-size: 14px; color: #1890ff" />
                       <span>{{ networkSpeed.downloadSpeedFormatted }}</span>
-                    </div>
-                    <div class="speed-item">
-                      <v-icon size="14" color="success">mdi-upload</v-icon>
-                      <span>{{ networkSpeed.uploadSpeedFormatted }}</span>
                     </div>
                     <div v-if="networkSpeed.interfaceName" class="interface-name">
                       <span>{{ networkSpeed.interfaceName }}</span>
@@ -141,13 +119,13 @@
                 </div>
               </template>
               <template v-else>
-                <v-icon color="error">mdi-close-circle</v-icon>
+                <CloseCircleOutlined style="color: #ff4d4f" />
                 <span>未安装</span>
-                <v-btn size="small" variant="outlined" color="primary" @click="openGitWebsite"
-                  >前往官网</v-btn
+                <a-button size="small" type="default" class="blk-btn" @click="openGitWebsite"
+                  >前往官网安装</a-button
                 >
-                <v-btn size="small" color="primary" @click="installSinglePackage('git')"
-                  >一键安装</v-btn
+                <a-button size="small" type="primary" @click="installSinglePackage('git')"
+                  >一键安装</a-button
                 >
               </template>
             </div>
@@ -166,25 +144,21 @@
             </div>
             <div class="env-card-status">
               <template v-if="pandocInstalled === null">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <span>检测中...</span>
               </template>
               <template v-else-if="pandocInstalled">
-                <v-icon color="success">mdi-check-circle</v-icon>
+                <CheckCircleOutlined style="color: #52c41a" />
                 <span>已安装</span>
               </template>
               <template v-else-if="pandocInstalling">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <div class="installing-info">
                   <span>安装中 ({{ pandocProgress }}%)</span>
                   <div v-if="networkSpeed.downloadSpeedFormatted !== '0 B/s'" class="network-speed">
                     <div class="speed-item">
-                      <v-icon size="14" color="primary">mdi-download</v-icon>
+                      <DownloadOutlined style="font-size: 14px; color: #1890ff" />
                       <span>{{ networkSpeed.downloadSpeedFormatted }}</span>
-                    </div>
-                    <div class="speed-item">
-                      <v-icon size="14" color="success">mdi-upload</v-icon>
-                      <span>{{ networkSpeed.uploadSpeedFormatted }}</span>
                     </div>
                     <div v-if="networkSpeed.interfaceName" class="interface-name">
                       <span>{{ networkSpeed.interfaceName }}</span>
@@ -193,13 +167,13 @@
                 </div>
               </template>
               <template v-else>
-                <v-icon color="error">mdi-close-circle</v-icon>
+                <CloseCircleOutlined style="color: #ff4d4f" />
                 <span>未安装</span>
-                <v-btn size="small" variant="outlined" color="primary" @click="openPandocWebsite"
-                  >前往官网</v-btn
+                <a-button size="small" type="default" class="blk-btn" @click="openPandocWebsite"
+                  >前往官网安装</a-button
                 >
-                <v-btn size="small" color="primary" @click="installSinglePackage('pandoc')"
-                  >一键安装</v-btn
+                <a-button size="small" type="primary" @click="installSinglePackage('pandoc')"
+                  >一键安装</a-button
                 >
               </template>
             </div>
@@ -220,17 +194,19 @@
             </div>
             <div class="env-card-status">
               <template v-if="brewInstalled === null">
-                <v-progress-circular indeterminate size="20"></v-progress-circular>
+                <a-spin size="small" />
                 <span>检测中...</span>
               </template>
               <template v-else-if="brewInstalled">
-                <v-icon color="success">mdi-check-circle</v-icon>
+                <CheckCircleOutlined style="color: #52c41a" />
                 <span>已安装</span>
               </template>
               <template v-else>
-                <v-icon color="error">mdi-close-circle</v-icon>
+                <CloseCircleOutlined style="color: #ff4d4f" />
                 <span>未安装</span>
-                <v-btn size="small" color="primary" @click="openHomeBrewWebsite">前往官网</v-btn>
+                <a-button size="small" type="primary" class="blk-btn" @click="openHomeBrewWebsite"
+                  >前往官网安装</a-button
+                >
               </template>
             </div>
           </div>
@@ -238,35 +214,79 @@
 
         <!-- 一键安装按钮 -->
         <div v-if="needsInstallCount > 0" class="install-section">
-          <v-alert type="warning" class="mb-4">
+          <a-alert type="warning" show-icon class="mb-4">
             <div class="d-flex align-center">
               <div class="install-info">
                 <span>检测到 {{ needsInstallCount }} 个依赖未安装</span>
-                <div v-if="isInstallingDeps && networkSpeed.downloadSpeedFormatted !== '0 B/s'" class="network-speed mt-2">
+                <div
+                  v-if="isInstallingDeps && networkSpeed.downloadSpeedFormatted !== '0 B/s'"
+                  class="network-speed mt-2"
+                >
                   <div class="speed-item">
-                    <v-icon size="14" color="primary">mdi-download</v-icon>
+                    <DownloadOutlined style="font-size: 14px; color: #1890ff" />
                     <span>{{ networkSpeed.downloadSpeedFormatted }}</span>
-                  </div>
-                  <div class="speed-item">
-                    <v-icon size="14" color="success">mdi-upload</v-icon>
-                    <span>{{ networkSpeed.uploadSpeedFormatted }}</span>
                   </div>
                   <div v-if="networkSpeed.interfaceName" class="interface-name">
                     <span>{{ networkSpeed.interfaceName }}</span>
                   </div>
                 </div>
               </div>
-              <v-spacer></v-spacer>
-              <v-btn
-                color="primary"
+              <div style="flex: 1"></div>
+              <a-button
+                type="primary"
                 :loading="isInstallingDeps"
                 :disabled="isInstallingDeps || (!isMacOS && !brewInstalled)"
                 @click="installRequiredPackages"
               >
                 一键安装所有依赖
-              </v-btn>
+              </a-button>
             </div>
-          </v-alert>
+          </a-alert>
+        </div>
+
+        <!-- 安装日志显示区域 -->
+        <div v-if="installLogs.length > 0" class="install-logs-section mt-4">
+          <a-card class="install-logs-card">
+            <template #title>
+              <div class="d-flex align-center">
+                <FileTextOutlined class="mr-2" style="color: #1890ff" />
+                安装日志
+                <div style="flex: 1"></div>
+                <a-button size="small" type="text" @click="installLogs = []">
+                  <template #icon><DeleteOutlined /></template>
+                  清空
+                </a-button>
+              </div>
+            </template>
+            <div class="install-logs-content">
+              <div class="logs-container">
+                <div
+                  v-for="log in installLogs"
+                  :key="log.id"
+                  class="log-entry"
+                  :class="{
+                    'log-info': log.type === 'info',
+                    'log-error': log.type === 'error',
+                    'log-success': log.type === 'success'
+                  }"
+                >
+                  <div class="log-timestamp">{{ log.timestamp }}</div>
+                  <div class="log-type">
+                    <ExclamationCircleOutlined
+                      v-if="log.type === 'error'"
+                      style="font-size: 14px; color: #ff4d4f"
+                    />
+                    <CheckCircleOutlined
+                      v-else-if="log.type === 'success'"
+                      style="font-size: 14px; color: #52c41a"
+                    />
+                    <InfoCircleOutlined v-else style="font-size: 14px; color: #1890ff" />
+                  </div>
+                  <div class="log-message">{{ log.message }}</div>
+                </div>
+              </div>
+            </div>
+          </a-card>
         </div>
       </div>
 
@@ -274,7 +294,6 @@
       <div v-if="currentStep === 3" class="step-content">
         <div class="step-header">
           <h2>核心服务检查</h2>
-          <p>检查并启动GitHave核心服务</p>
         </div>
 
         <div class="service-check-container">
@@ -289,41 +308,70 @@
 
             <div class="service-status">
               <div v-if="coreServiceStatus === null" class="status-checking">
-                <v-progress-circular
-                  indeterminate
-                  size="20"
-                  width="2"
-                  color="primary"
-                ></v-progress-circular>
+                <a-spin size="small" />
                 <span class="status-text">检测中...</span>
               </div>
               <div v-else-if="coreServiceStatus === true" class="status-success">
-                <v-icon color="success">mdi-check-circle</v-icon>
+                <CheckCircleOutlined style="color: #52c41a" />
                 <span class="status-text">已启动</span>
               </div>
               <div v-else-if="coreServiceStarting" class="status-checking">
-                <v-progress-circular
-                  indeterminate
-                  size="20"
-                  width="2"
-                  color="primary"
-                ></v-progress-circular>
+                <a-spin size="small" />
                 <span class="status-text">启动中...</span>
               </div>
               <div v-else class="status-error">
-                <v-btn
-                  color="primary"
-                  variant="elevated"
-                  size="small"
-                  class="start-btn"
-                  @click="startCoreService"
-                >
-                  <v-icon left>mdi-play</v-icon>
+                <a-button type="primary" size="small" class="start-btn" @click="startCoreService">
+                  <template #icon><PlayCircleOutlined /></template>
                   启动
-                </v-btn>
+                </a-button>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 服务日志显示 -->
+        <div
+          v-if="showServiceLogs && (coreServiceStarting || serviceLogListening)"
+          class="service-logs-container"
+        >
+          <a-card class="service-logs-card">
+            <template #title>
+              <div class="service-logs-header">
+                <CodeOutlined class="logs-icon" />
+                <span class="logs-title">服务启动日志</span>
+                <div style="flex: 1"></div>
+                <a-tag :color="serviceLogListening ? 'success' : 'default'" size="small">
+                  <template #icon>
+                    <PlayCircleOutlined v-if="serviceLogListening" />
+                    <StopOutlined v-else />
+                  </template>
+                  {{ serviceLogListening ? '监听中' : '已停止' }}
+                </a-tag>
+              </div>
+            </template>
+            <div class="service-logs-content">
+              <div class="logs-list">
+                <div
+                  v-for="log in serviceLogs"
+                  :key="log.id"
+                  class="log-entry"
+                  :class="`log-${log.type}`"
+                >
+                  <div class="log-time">{{ log.timestamp }}</div>
+                  <div class="log-icon">
+                    <ExclamationCircleOutlined v-if="log.type === 'error'" style="color: #ff4d4f" />
+                    <CheckCircleOutlined
+                      v-else-if="log.type === 'success'"
+                      style="color: #52c41a"
+                    />
+                    <WarningOutlined v-else-if="log.type === 'warning'" style="color: #faad14" />
+                    <InfoCircleOutlined v-else style="color: #1890ff" />
+                  </div>
+                  <div class="log-message">{{ log.message }}</div>
+                </div>
+              </div>
+            </div>
+          </a-card>
         </div>
       </div>
 
@@ -331,7 +379,6 @@
       <div v-if="currentStep === 4" class="step-content">
         <div class="step-header">
           <h2>索引服务检查</h2>
-          <p>检查并启动代码索引服务</p>
           <div v-if="indexServiceFirstTime" class="first-time-notice">
             <div class="notice-icon">⚠️</div>
             <div class="notice-text">
@@ -345,10 +392,10 @@
         <div class="service-check-container">
           <div class="service-item">
             <div class="service-info">
-              <v-icon class="service-icon">mdi-database-search</v-icon>
+              <DatabaseOutlined class="service-icon" />
               <div class="service-details">
                 <div class="service-name">索引服务</div>
-                <div class="service-description">负责文档索引和向量搜索功能</div>
+                <div class="service-description">负责代码索引和向量搜索功能</div>
               </div>
             </div>
             <div class="service-status">
@@ -356,19 +403,14 @@
                 v-if="indexServiceStatus === null || faissServiceStatus === null"
                 class="status-checking"
               >
-                <v-progress-circular
-                  indeterminate
-                  size="20"
-                  width="2"
-                  color="primary"
-                ></v-progress-circular>
+                <a-spin size="small" />
                 <span class="status-text">检测中...</span>
               </div>
               <div
                 v-else-if="indexServiceStatus === true && faissServiceStatus === true"
                 class="status-success"
               >
-                <v-icon color="success">mdi-check-circle</v-icon>
+                <CheckCircleOutlined style="color: #52c41a" />
                 <span class="status-text">已启动</span>
               </div>
               <div v-else-if="indexServiceStarting || faissServiceStarting" class="status-starting">
@@ -376,30 +418,19 @@
                   <div class="pulse-ring"></div>
                   <div class="pulse-ring delay-1"></div>
                   <div class="pulse-ring delay-2"></div>
-                  <v-icon class="starting-icon">mdi-download</v-icon>
+                  <DownloadOutlined class="starting-icon" />
                 </div>
                 <div class="starting-content">
                   <div class="starting-text">正在安装基础包...</div>
                   <div class="progress-container">
-                    <v-progress-linear
-                      :model-value="faissServiceProgress"
-                      height="6"
-                      rounded
-                      color="primary"
-                      bg-color="grey-lighten-3"
-                      class="progress-bar"
-                    ></v-progress-linear>
-                    <div class="progress-text">{{ faissServiceProgressText }}</div>
-                    <div class="progress-percentage">{{ Math.round(faissServiceProgress) }}%</div>
                     <!-- 网络速度显示 -->
-                    <div v-if="networkSpeed.downloadSpeedFormatted !== '0 B/s'" class="network-speed">
+                    <div
+                      v-if="networkSpeed.downloadSpeedFormatted !== '0 B/s'"
+                      class="network-speed"
+                    >
                       <div class="speed-item">
-                        <v-icon size="small" color="success">mdi-download</v-icon>
+                        <DownloadOutlined style="font-size: 14px; color: #52c41a" />
                         <span>{{ networkSpeed.downloadSpeedFormatted }}</span>
-                      </div>
-                      <div class="speed-item">
-                        <v-icon size="small" color="info">mdi-upload</v-icon>
-                        <span>{{ networkSpeed.uploadSpeedFormatted }}</span>
                       </div>
                       <div class="interface-name">{{ networkSpeed.interfaceName }}</div>
                     </div>
@@ -407,19 +438,75 @@
                 </div>
               </div>
               <div v-else class="status-error">
-                <v-btn
-                  color="primary"
-                  variant="elevated"
-                  size="small"
-                  class="start-btn"
-                  @click="startIndexService"
-                >
-                  <v-icon left>mdi-play</v-icon>
+                <a-button type="primary" size="small" class="start-btn" @click="startIndexService">
+                  <template #icon><PlayCircleOutlined /></template>
                   启动
-                </v-btn>
+                </a-button>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 服务日志显示 -->
+        <div
+          v-if="
+            showServiceLogs && (indexServiceStarting || faissServiceStarting || serviceLogListening)
+          "
+          class="service-logs-container"
+        >
+          <a-card class="service-logs-card">
+            <template #title>
+              <div class="service-logs-header">
+                <CodeOutlined class="logs-icon" />
+                <span class="logs-title">服务启动日志</span>
+                <div style="flex: 1"></div>
+                <a-tag :color="serviceLogListening ? 'success' : 'default'" size="small">
+                  <template #icon>
+                    <PlayCircleOutlined v-if="serviceLogListening" />
+                    <StopOutlined v-else />
+                  </template>
+                  {{ serviceLogListening ? '监听中' : '已停止' }}
+                </a-tag>
+              </div>
+            </template>
+            <div class="service-logs-content">
+              <div class="logs-list">
+                <div
+                  v-for="log in serviceLogs"
+                  :key="log.id"
+                  class="log-entry"
+                  :class="`log-${log.type}`"
+                >
+                  <div class="log-time">{{ log.timestamp }}</div>
+                  <div class="log-icon">
+                    <v-icon
+                      size="small"
+                      :color="
+                        log.type === 'error'
+                          ? 'error'
+                          : log.type === 'success'
+                            ? 'success'
+                            : log.type === 'warning'
+                              ? 'warning'
+                              : 'info'
+                      "
+                    >
+                      {{
+                        log.type === 'error'
+                          ? 'mdi-alert-circle'
+                          : log.type === 'success'
+                            ? 'mdi-check-circle'
+                            : log.type === 'warning'
+                              ? 'mdi-alert'
+                              : 'mdi-information'
+                      }}
+                    </v-icon>
+                  </div>
+                  <div class="log-message">{{ log.message }}</div>
+                </div>
+              </div>
+            </div>
+          </a-card>
         </div>
 
         <div v-if="indexServiceStarting && indexServiceFirstTime" class="installation-progress">
@@ -434,26 +521,21 @@
             <!-- 网络速度显示 -->
             <div v-if="networkSpeed.downloadSpeedFormatted !== '0 B/s'" class="network-speed">
               <div class="speed-item">
-                <v-icon size="small" color="success">mdi-download</v-icon>
+                <DownloadOutlined style="font-size: 14px; color: #52c41a" />
                 <span>{{ networkSpeed.downloadSpeedFormatted }}</span>
-              </div>
-              <div class="speed-item">
-                <v-icon size="small" color="info">mdi-upload</v-icon>
-                <span>{{ networkSpeed.uploadSpeedFormatted }}</span>
               </div>
               <div class="interface-name">{{ networkSpeed.interfaceName }}</div>
             </div>
           </div>
           <div class="progress-bar">
             <div class="progress-container">
-              <v-progress-linear
-                :model-value="faissServiceProgress"
-                height="6"
-                rounded
-                color="success"
-                bg-color="grey-lighten-3"
+              <a-progress
+                :percent="faissServiceProgress"
+                stroke-color="#52c41a"
+                trail-color="#f0f0f0"
+                :show-info="false"
                 class="progress-bar"
-              ></v-progress-linear>
+              />
             </div>
           </div>
         </div>
@@ -462,30 +544,101 @@
       <!-- 步骤5: 模型选择 -->
       <div v-if="currentStep === 5" class="step-content model-select-step">
         <h2 class="step-title">
-          <v-icon class="mr-2" color="primary">mdi-brain</v-icon>
+          <BulbOutlined class="mr-2" style="color: #1890ff" />
           选择 AI 模型
         </h2>
         <p class="step-description">选择您偏好的 AI 模型类型，稍后可以在设置中更改</p>
 
         <div class="model-options">
+          <!-- GitHave AI 订阅选项 -->
+          <div
+            class="model-option githave-option"
+            :class="{ 'model-option-selected': selectedModelType === 'githave' }"
+            @click="selectedModelType = 'githave'"
+          >
+            <div class="model-option-header">
+              <div class="githave-icon">
+                <img :src="bannerSvg" alt="GitHave" style="width: 40px; height: 40px" />
+              </div>
+              <h3>GitHave AI</h3>
+              <a-tag color="gold" size="small" class="ml-2">推荐</a-tag>
+            </div>
+            <div class="model-option-content">
+              <p>GitHave 官方 AI 服务，专为代码分析优化</p>
+              <ul>
+                <li>登录即赠送十万tokens</li>
+                <li>专业代码分析能力</li>
+                <li>无需配置，一键使用</li>
+              </ul>
+              <div class="githave-status">
+                <template v-if="!isLoggedIn">
+                  <div class="login-section">
+                    <a-button type="primary" @click="loginToGithave">
+                      <template #icon><LoginOutlined /></template>
+                      登录GitHave
+                    </a-button>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="logged-in-section">
+                    <div class="user-info">
+                      <CheckCircleOutlined style="color: #52c41a" />
+                      <span>{{ githaveUser.username || '已登录' }}</span>
+                      <v-btn
+                        color="success"
+                        variant="outlined"
+                        size="small"
+                        class="ml-2"
+                        @click="openGithaveConsole"
+                      >
+                        <v-icon small class="mr-1">mdi-console-line</v-icon>
+                        访问控制台
+                      </v-btn>
+                      <v-btn
+                        color="error"
+                        variant="text"
+                        size="small"
+                        class="ml-2"
+                        @click.stop="logoutGithave"
+                        >退出登录</v-btn
+                      >
+                    </div>
+                    <div class="model-selection">
+                      <span class="selection-label">选择模型：</span>
+                      <a-select
+                        v-model:value="selectedGithaveModel"
+                        size="small"
+                        style="width: 240px"
+                      >
+                        <a-select-option value="auto">GitHave-auto</a-select-option>
+                        <a-select-option value="openai">GitHave-o1</a-select-option>
+                        <a-select-option value="qwen">GitHave-q1</a-select-option>
+                      </a-select>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
           <div
             class="model-option"
             :class="{ 'model-option-selected': selectedModelType === 'cloud' }"
             @click="selectedModelType = 'cloud'"
           >
             <div class="model-option-header">
-              <v-icon size="40" color="info">mdi-cloud</v-icon>
-              <h3>云端模型</h3>
+              <CloudOutlined style="font-size: 40px; color: #1890ff" />
+              <h3>其他云端模型</h3>
             </div>
             <div class="model-option-content">
-              <p>使用在线 AI 服务，无需本地部署</p>
+              <p>使用第三方 AI 服务，需要自行配置</p>
               <ul>
-                <li>快速开始，无需等待</li>
-                <li>支持最新的 AI 模型</li>
-                <li>需要网络连接</li>
+                <li>支持多种AI供应商</li>
+                <li>需要API密钥配置</li>
+                <li>灵活性更高</li>
               </ul>
               <div class="model-status">
-                <v-icon color="info">mdi-information-outline</v-icon>
+                <InfoCircleOutlined style="color: #1890ff" />
                 <span>已配置的云端模型API：{{ cloudApiCount }}</span>
               </div>
             </div>
@@ -497,7 +650,7 @@
             @click="selectedModelType = 'local'"
           >
             <div class="model-option-header">
-              <v-icon size="40" color="primary">mdi-harddisk</v-icon>
+              <HddOutlined style="font-size: 40px; color: #1890ff" />
               <h3>本地模型</h3>
             </div>
             <div class="model-option-content">
@@ -509,22 +662,24 @@
               </ul>
               <div class="model-status">
                 <template v-if="ollamaInstalled === null || ollamaRunning === null">
-                  <v-progress-circular size="16" indeterminate></v-progress-circular>
+                  <a-spin size="small" />
                   <span>检测中...</span>
                 </template>
                 <template v-else-if="ollamaInstalled && ollamaRunning">
-                  <v-icon color="success">mdi-check-circle</v-icon>
+                  <CheckCircleOutlined style="color: #52c41a" />
                   <span>Ollama 运行中</span>
                 </template>
                 <template v-else-if="ollamaInstalled && !ollamaRunning">
-                  <v-icon color="warning">mdi-alert-circle</v-icon>
+                  <ExclamationCircleOutlined style="color: #faad14" />
                   <span>Ollama 已安装但未运行</span>
-                  <v-btn size="small" @click="retryOllama">启动</v-btn>
+                  <a-button type="primary" size="small" @click="retryOllama">启动</a-button>
                 </template>
                 <template v-else>
-                  <v-icon color="error">mdi-close-circle</v-icon>
+                  <CloseCircleOutlined style="color: #ff4d4f" />
                   <span>Ollama 未安装</span>
-                  <v-btn size="small" @click="openOllamaWebsite">前往官网</v-btn>
+                  <a-button type="primary" size="small" class="blk-btn" @click="openOllamaWebsite"
+                    >前往官网安装</a-button
+                  >
                 </template>
               </div>
             </div>
@@ -535,137 +690,189 @@
       <!-- 步骤6: 完成设置 -->
       <div v-if="currentStep === 6" class="step-content complete-step">
         <div class="complete-icon">
-          <v-icon size="80" color="success">mdi-check-circle</v-icon>
+          <CheckCircleOutlined style="font-size: 80px; color: #52c41a" />
         </div>
         <h2 class="complete-title">设置完成！</h2>
         <p class="complete-description">您的 GitHave 基础环境已经准备就绪</p>
-
-        <div class="setup-summary">
-          <div class="summary-item">
-            <v-icon color="success">mdi-check</v-icon>
-            <span>基础环境检测完成</span>
-          </div>
-          <div class="summary-item">
-            <v-icon color="success">mdi-check</v-icon>
-            <span>核心服务已启动</span>
-          </div>
-          <div class="summary-item">
-            <v-icon color="success">mdi-check</v-icon>
-            <span>索引服务已启动</span>
-          </div>
-          <div class="summary-item">
-            <v-icon color="success">mdi-check</v-icon>
-            <span
-              >AI 模型类型已选择：{{
-                selectedModelType === 'cloud' ? '云端模型' : '本地模型'
-              }}</span
-            >
-          </div>
-          <div class="summary-item">
-            <v-icon color="success">mdi-check</v-icon>
-            <span>配置已保存</span>
-          </div>
-        </div>
       </div>
     </div>
 
     <!-- 底部导航 -->
     <div class="navigation-footer">
-      <v-btn v-if="currentStep > 1" variant="outlined" @click="previousStep"> 上一步 </v-btn>
-      <v-spacer></v-spacer>
-      <v-btn
+      <a-button v-if="currentStep > 1" type="default" ghost @click="previousStep">
+        上一步
+      </a-button>
+      <div style="flex: 1"></div>
+      <a-button
         v-if="currentStep < totalSteps"
-        color="primary"
+        type="primary"
         :disabled="!canProceed"
         :loading="currentStep === 5 && isApplyingModelConfig"
         @click="nextStep"
       >
         {{ currentStep === 5 && isApplyingModelConfig ? '应用配置中...' : '下一步' }}
-      </v-btn>
-      <v-btn v-else color="success" @click="completeOnboarding"> 开始使用 </v-btn>
+      </a-button>
+      <a-button v-else type="primary" @click="completeOnboarding"> 开始使用 </a-button>
     </div>
 
     <!-- 模型切换确认对话框 -->
-    <v-dialog v-model="showSwitchConfirmDialog" persistent max-width="600">
-      <v-card>
-        <v-card-title class="d-flex align-center">
-          <v-icon color="warning" class="mr-2">mdi-alert-circle</v-icon>
+    <a-modal
+      v-model:open="showSwitchConfirmDialog"
+      title="切换模型使用模式确认"
+      :closable="false"
+      width="600px"
+    >
+      <template #title>
+        <div class="d-flex align-center">
+          <ExclamationCircleOutlined style="color: #faad14" class="mr-2" />
           切换模型使用模式确认
-        </v-card-title>
-        <v-card-text>
-          <v-alert type="warning" variant="outlined" class="mb-4">
-            <div class="font-weight-bold mb-2">⚠️ 重要提醒</div>
-            <div class="mb-2">
-              切换模型使用模式将会重启所有核心服务，这可能会影响以下正在运行的功能：
-            </div>
-            <ul class="ml-4">
-              <li>代码分析和搜索任务</li>
-              <li>AI对话和问答服务</li>
-              <li>文档生成和处理</li>
-              <li>其他依赖AI模型的功能</li>
-            </ul>
-          </v-alert>
+        </div>
+      </template>
 
-          <div class="mb-3">
-            <span class="font-weight-bold">即将切换到：</span>
-            <v-chip :color="pendingSwitchValue ? 'info' : 'primary'" class="ml-2" label>
-              {{ pendingSwitchValue ? '云端模型' : '本地模型' }}
-            </v-chip>
+      <a-alert type="warning" show-icon class="mb-4">
+        <template #message>
+          <div class="font-weight-bold mb-2">⚠️ 重要提醒</div>
+          <div class="mb-2">
+            切换模型使用模式将会重启所有核心服务，这可能会影响以下正在运行的功能：
           </div>
+          <ul class="ml-4">
+            <li>代码分析和搜索任务</li>
+            <li>AI对话和问答服务</li>
+            <li>文档生成和处理</li>
+            <li>其他依赖AI模型的功能</li>
+          </ul>
+        </template>
+      </a-alert>
 
-          <div class="text-body-2 text-grey-darken-1">
-            请确保当前没有重要任务正在进行，然后点击确认继续。
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn text @click="cancelSwitch"> 取消 </v-btn>
-          <v-btn color="primary" variant="elevated" @click="confirmSwitch"> 确认切换 </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+      <div class="mb-3">
+        <span class="font-weight-bold">即将切换到：</span>
+        <a-tag :color="pendingSwitchValue ? 'blue' : 'green'" class="ml-2">
+          {{ pendingSwitchValue ? '云端模型' : '本地模型' }}
+        </a-tag>
+      </div>
 
-    <!-- 重启服务进度对话框 -->
-    <v-dialog v-model="showRestartDialog" persistent max-width="500">
-      <v-card>
-        <v-card-title class="d-flex align-center">
-          <v-icon color="primary" class="mr-2">mdi-restart</v-icon>
+      <div class="text-body-2 text-grey-darken-1">
+        请确保当前没有重要任务正在进行，然后点击确认继续。
+      </div>
+
+      <template #footer>
+        <div style="text-align: right">
+          <a-button variant="outlined" style="color: #000" @click="cancelSwitch"> 取消 </a-button>
+          <a-button type="primary" style="margin-left: 8px" @click="confirmSwitch">
+            确认切换
+          </a-button>
+        </div>
+      </template>
+    </a-modal>
+
+    <!-- 重启服务进度对话框（Ant Design） -->
+    <a-modal
+      v-model:open="showRestartDialog"
+      :closable="false"
+      :mask-closable="false"
+      :footer="null"
+      width="560px"
+    >
+      <template #title>
+        <div class="d-flex align-center">
+          <SyncOutlined style="color: #1677ff" class="mr-2" />
           重启服务中
-        </v-card-title>
-        <v-card-text>
-          <div class="mb-4">正在重启核心服务和索引服务，请稍候...</div>
-          <v-list>
-            <v-list-item v-for="step in restartProgress" :key="step.step" class="px-0">
-              <template #prepend>
-                <v-icon v-if="step.status === 'pending'" color="grey" size="small">
-                  mdi-circle-outline
-                </v-icon>
-                <v-progress-circular
-                  v-else-if="step.status === 'running'"
-                  indeterminate
-                  color="primary"
-                  size="20"
-                  width="2"
-                ></v-progress-circular>
-                <v-icon v-else-if="step.status === 'completed'" color="success" size="small">
-                  mdi-check-circle
-                </v-icon>
-                <v-icon v-else-if="step.status === 'error'" color="error" size="small">
-                  mdi-close-circle
-                </v-icon>
-              </template>
-              <v-list-item-title>{{ step.text }}</v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-card-text>
-      </v-card>
-    </v-dialog>
-  </div>
+        </div>
+      </template>
+
+      <a-alert type="info" show-icon class="mb-3" message="正在重启核心服务和索引服务，请稍候..." />
+
+      <a-steps direction="vertical" size="small">
+        <a-step
+          v-for="step in restartProgress"
+          :key="step.step"
+          :title="`${step.step}. ${step.text}`"
+          :status="antStepStatusMap[step.status]"
+        >
+          <template #icon>
+            <LoadingOutlined v-if="step.status === 'running'" />
+            <CheckCircleTwoTone v-else-if="step.status === 'completed'" two-tone-color="#52c41a" />
+            <CloseCircleTwoTone v-else-if="step.status === 'error'" two-tone-color="#ff4d4f" />
+            <span
+              v-else
+              style="
+                display: inline-block;
+                width: 14px;
+                height: 14px;
+                border: 1px solid #d9d9d9;
+                border-radius: 50%;
+              "
+            ></span>
+          </template>
+        </a-step>
+      </a-steps>
+
+      <div class="mt-3">
+        <a-progress
+          :percent="restartPercent"
+          :status="restartHasError ? 'exception' : isRestarting ? 'active' : 'normal'"
+        />
+      </div>
+
+      <div v-if="!isRestarting" style="text-align: right; margin-top: 8px">
+        <a-button type="link" @click="showRestartDialog = false">关闭</a-button>
+      </div>
+  </a-modal>
+  <!-- 登录信息弹窗：展示账户信息（Ant Design） -->
+  <a-modal v-model:open="showLoginInfoModal" :footer="null" width="520px">
+    <template #title>
+      <div class="d-flex align-center">
+        <CheckCircleOutlined style="color:#52c41a" class="mr-2" /> 登录成功
+      </div>
+    </template>
+    <a-descriptions size="small" :column="1">
+      <a-descriptions-item label="用户名">{{ githaveUser.username || '—' }}</a-descriptions-item>
+      <a-descriptions-item label="邮箱">{{ githaveUser.email || '—' }}</a-descriptions-item>
+      <a-descriptions-item label="登录时间">{{ formattedLoginTime }}</a-descriptions-item>
+      <a-descriptions-item label="过期时间">{{ formattedExpireTime }}</a-descriptions-item>
+      <a-descriptions-item label="API Key">
+        <span style="word-break: break-all">{{ maskedToken }}</span>
+        <a-button size="small" type="link" @click="modalShowToken = !modalShowToken">{{ modalShowToken ? '隐藏' : '显示' }}</a-button>
+        <a-button size="small" type="link" @click="copyToClipboard(githaveUser.token)">复制</a-button>
+      </a-descriptions-item>
+    </a-descriptions>
+    <div style="text-align:right; margin-top: 8px">
+      <a-button type="primary" @click="showLoginInfoModal = false">知道了</a-button>
+    </div>
+  </a-modal>
+</div>
 </template>
 
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useStore } from 'vuex'
+import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ExclamationCircleOutlined,
+  InfoCircleOutlined,
+  WarningOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+  CodeOutlined,
+  DownloadOutlined,
+  BulbOutlined,
+  CloudOutlined,
+  HddOutlined,
+  DatabaseOutlined,
+  SafetyCertificateOutlined,
+  FastForwardOutlined,
+  FileTextOutlined,
+  DeleteOutlined,
+  SyncOutlined,
+  LoadingOutlined,
+  CheckCircleTwoTone,
+  CloseCircleTwoTone,
+  LoginOutlined
+} from '@ant-design/icons-vue'
+import bannerSvg from '../assets/banner_v3_low.png'
+import titleSvg from '../assets/title.svg'
 import {
   appHealthCheck,
   fmHealthCheck,
@@ -678,8 +885,33 @@ import {
 
 export default {
   name: 'OnboardingGuide',
+  components: {
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+    ExclamationCircleOutlined,
+    InfoCircleOutlined,
+    WarningOutlined,
+    PlayCircleOutlined,
+    StopOutlined,
+    CodeOutlined,
+    DownloadOutlined,
+    BulbOutlined,
+    CloudOutlined,
+    HddOutlined,
+    DatabaseOutlined,
+    SafetyCertificateOutlined,
+    FastForwardOutlined,
+    FileTextOutlined,
+    DeleteOutlined,
+    LoginOutlined,
+    SyncOutlined,
+    LoadingOutlined,
+    CheckCircleTwoTone,
+    CloseCircleTwoTone
+  },
   setup() {
     const router = useRouter()
+    const store = useStore()
 
     // 步骤管理
     const currentStep = ref(1)
@@ -719,10 +951,24 @@ export default {
     let progressInterval = null
 
     // 模型选择
-    const selectedModelType = ref('cloud')
+    const selectedModelType = ref('githave')
     const cloudApiCount = ref(0)
     // eslint-disable-next-line no-unused-vars
     const cloudVendors = ref([])
+
+    // GitHave AI 相关状态
+    const isLoggedIn = ref(false)
+    const selectedGithaveModel = ref('auto')
+    const githaveUser = ref({
+      user_id: '',
+      username: '',
+      email: '',
+      token: '',
+      expires: 0,
+      loginTime: 0,
+      verified: false
+    })
+    const isSubscribing = ref(false)
 
     // 模型切换确认对话框
     const showSwitchConfirmDialog = ref(false)
@@ -740,9 +986,52 @@ export default {
       { step: 6, text: '完成', status: 'pending' }
     ])
 
-    // 配置数据
-    const config = ref({})
-    const fmConfig = ref({})
+    // Ant Design Steps 状态映射与进度条
+    const antStepStatusMap = {
+      pending: 'wait',
+      running: 'process',
+      completed: 'finish',
+      error: 'error'
+    }
+  const restartHasError = computed(() => restartProgress.value.some((s) => s.status === 'error'))
+  const restartPercent = computed(() => {
+      const total = restartProgress.value.length || 1
+      const done = restartProgress.value.filter((s) => s.status === 'completed').length
+      const running = restartProgress.value.some((s) => s.status === 'running')
+      let pct = Math.round((done / total) * 100)
+      if (running && pct < 95) pct += 5
+      return Math.min(pct, 100)
+  })
+
+  // 配置数据
+  const config = ref({})
+  const fmConfig = ref({})
+
+  // 登录信息弹窗（Ant Design）
+  const showLoginInfoModal = ref(false)
+  const modalShowToken = ref(false)
+  const formattedLoginTime = computed(() =>
+    githaveUser.value.loginTime ? new Date(githaveUser.value.loginTime).toLocaleString() : '—'
+  )
+  const formattedExpireTime = computed(() =>
+    githaveUser.value.expires ? new Date(githaveUser.value.expires).toLocaleString() : '—'
+  )
+  const maskedToken = computed(() => {
+    const t = githaveUser.value.token || ''
+    if (!t) return '—'
+    if (modalShowToken.value) return t
+    return t.length > 8 ? `${t.slice(0, 4)}••••${t.slice(-4)}` : '••••'
+  })
+  const copyToClipboard = async (text) => {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      store.dispatch('snackbar/showSnackbar', { message: '已复制到剪贴板', color: 'success' })
+    } catch (e) {
+      console.error('复制失败:', e)
+      store.dispatch('snackbar/showSnackbar', { message: '复制失败，请重试', color: 'error' })
+    }
+  }
 
     // 模型切换状态
     const isApplyingModelConfig = ref(false)
@@ -756,9 +1045,108 @@ export default {
       interfaceName: ''
     })
 
+    // 安装日志相关数据
+    const installLogs = ref([])
+    const maxLogEntries = 100 // 最大日志条数
+
+    // 添加日志条目
+    const addLogEntry = (type, message) => {
+      const timestamp = new Date().toLocaleTimeString()
+      const logEntry = {
+        id: Date.now() + Math.random(),
+        type, // 'info', 'error', 'success'
+        message,
+        timestamp
+      }
+
+      installLogs.value.unshift(logEntry)
+
+      // 限制日志条数
+      if (installLogs.value.length > maxLogEntries) {
+        installLogs.value = installLogs.value.slice(0, maxLogEntries)
+      }
+    }
+
+    // 实时服务日志相关数据
+    const serviceLogs = ref([])
+    const maxServiceLogEntries = 50 // 最大服务日志条数
+    const showServiceLogs = ref(false) // 是否显示服务日志
+    const serviceLogListening = ref(false) // 是否正在监听服务日志
+
+    // 添加服务日志条目
+    const addServiceLogEntry = (type, message) => {
+      const timestamp = new Date().toLocaleTimeString()
+      const logEntry = {
+        id: Date.now() + Math.random(),
+        type, // 'info', 'error', 'success', 'warning'
+        message,
+        timestamp
+      }
+
+      serviceLogs.value.unshift(logEntry)
+
+      // 限制日志条数
+      if (serviceLogs.value.length > maxServiceLogEntries) {
+        serviceLogs.value = serviceLogs.value.slice(0, maxServiceLogEntries)
+      }
+    }
+
+    // 服务日志监听器引用
+    let serviceLogListener = null
+
+    // 开始监听服务日志
+    const startServiceLogListening = () => {
+      if (serviceLogListening.value) {
+        console.log('服务日志监听已在运行中，跳过重复启动')
+        return
+      }
+
+      serviceLogListening.value = true
+      showServiceLogs.value = true
+      serviceLogs.value = [] // 清空之前的日志
+
+      // 清理之前的监听器
+      if (serviceLogListener) {
+        serviceLogListener()
+        serviceLogListener = null
+      }
+
+      // 启用服务日志监听
+      window.electron.startServiceLog()
+
+      // 监听服务日志事件
+      serviceLogListener = window.electron.onServiceLog((logData) => {
+        addServiceLogEntry(logData.type, logData.message)
+      })
+
+      addServiceLogEntry('info', '开始监听服务日志...')
+    }
+
+    // 停止监听服务日志
+    const stopServiceLogListening = () => {
+      if (!serviceLogListening.value) return
+
+      serviceLogListening.value = false
+
+      // 清理监听器
+      if (serviceLogListener) {
+        serviceLogListener()
+        serviceLogListener = null
+      }
+
+      // 停用服务日志监听
+      window.electron.stopServiceLog()
+
+      addServiceLogEntry('info', '停止监听服务日志')
+    }
+
     // 系统检测
     const isMacOS = computed(() => {
       return navigator.platform.toUpperCase().indexOf('MAC') >= 0
+    })
+
+    const isWindows = computed(() => {
+      return navigator.platform.indexOf('Win') > -1
     })
 
     // 进度计算
@@ -792,6 +1180,16 @@ export default {
       }
       if (currentStep.value === 5) {
         // 模型选择步骤：必须选择一种模型类型且不在应用配置、重启服务或显示确认对话框中
+        if (selectedModelType.value === 'githave') {
+          // GitHave AI选项：必须已登录且选择了模型
+          return (
+            isLoggedIn.value &&
+            selectedGithaveModel.value &&
+            !isApplyingModelConfig.value &&
+            !isRestarting.value &&
+            !showSwitchConfirmDialog.value
+          )
+        }
         return (
           selectedModelType.value !== null &&
           !isApplyingModelConfig.value &&
@@ -923,7 +1321,7 @@ export default {
     const startNetworkMonitoring = async () => {
       try {
         await window.electron.startNetworkMonitor()
-        
+
         // 监听网络速度更新事件
         window.electron.onNetworkSpeedUpdate((data) => {
           networkSpeed.value = {
@@ -972,7 +1370,7 @@ export default {
         isInstallingDeps.value = true
         // 启动网络监控
         await startNetworkMonitoring()
-        
+
         const result = await window.electron.installRequiredPackages()
         console.log('安装结果:', result)
 
@@ -996,11 +1394,6 @@ export default {
     }
 
     const installSinglePackage = async (packageName) => {
-      if (!isMacOS.value) {
-        alert('Windows 系统暂不支持一键安装，请手动安装所需依赖。')
-        return
-      }
-
       // 先检查 Homebrew 是否安装
       const hasHomebrew = await checkBrewInstalled()
       if (!hasHomebrew) {
@@ -1037,7 +1430,7 @@ export default {
         if (packageName === 'python') pythonInstalling.value = false
         else if (packageName === 'pandoc') pandocInstalling.value = false
         else if (packageName === 'git') gitInstalling.value = false
-        
+
         // 停止网络监控
         await stopNetworkMonitoring()
       }
@@ -1337,6 +1730,10 @@ export default {
 
       try {
         coreServiceStarting.value = true
+
+        // 开始监听服务日志
+        startServiceLogListening()
+
         const sysConfigResp = await window.electron.sysConfig()
         const result = await window.electron.startApp(sysConfigResp.configPath)
 
@@ -1352,6 +1749,10 @@ export default {
         alert(`启动核心服务失败: ${error.message || '未知错误'}`)
       } finally {
         coreServiceStarting.value = false
+        // 延迟停止日志监听，让用户看到完整的启动过程
+        setTimeout(() => {
+          stopServiceLogListening()
+        }, 500)
       }
     }
 
@@ -1361,6 +1762,9 @@ export default {
       try {
         indexServiceStarting.value = true
         faissServiceStarting.value = true
+
+        // 开始监听服务日志
+        startServiceLogListening()
 
         // 启动网络监控
         startNetworkMonitoring()
@@ -1382,7 +1786,7 @@ export default {
 
           // 持续检查直到服务完全启动
           let retryCount = 0
-          const maxRetries = isFirstTime ? 20 : 10
+          const maxRetries = isFirstTime ? 200 : 20
 
           while (retryCount < maxRetries) {
             await checkIndexService()
@@ -1419,6 +1823,10 @@ export default {
         clearInterval(progressInterval)
         // 停止网络监控
         stopNetworkMonitoring()
+        // 延迟停止日志监听，让用户看到完整的启动过程
+        setTimeout(() => {
+          stopServiceLogListening()
+        }, 5000)
       }
     }
 
@@ -1483,9 +1891,14 @@ export default {
     // 导航方法
     const nextStep = async () => {
       if (currentStep.value < totalSteps) {
-        // 如果是从模型选择步骤进入下一步，弹出确认对话框
+        // 如果是从模型选择步骤进入下一步，处理不同的模型类型
         if (currentStep.value === 5) {
-          if (selectedModelType.value) {
+          if (selectedModelType.value === 'githave') {
+            // GitHave AI选项：直接执行订阅配置
+            await subscribeGithaveAI()
+            return // subscribeGithaveAI内部会处理重启和进入下一步
+          } else if (selectedModelType.value) {
+            // 其他选项：弹出确认对话框
             pendingSwitchValue.value = selectedModelType.value === 'cloud'
             showSwitchConfirmDialog.value = true
             return // 不立即进入下一步，等待用户确认
@@ -1518,7 +1931,6 @@ export default {
         currentStep.value--
       }
     }
-
     const completeOnboarding = () => {
       // 标记引导完成
       localStorage.setItem('onboarding_completed', 'true')
@@ -1526,6 +1938,21 @@ export default {
       // 保存模型选择配置
       localStorage.setItem('preferred_model_type', selectedModelType.value)
 
+      // 异步启动服务
+      Promise.all([
+        (async () => {
+          await checkCoreService()
+          if (coreServiceStatus.value === false) {
+            startCoreService()
+          }
+        })(),
+        (async () => {
+          await checkIndexService()
+          if (indexServiceStatus.value === false) {
+            startIndexService()
+          }
+        })()
+      ]).catch(() => {}) // 忽略任何错误
       // 跳转到主页面
       router.push('/start')
     }
@@ -1533,6 +1960,243 @@ export default {
     const skipOnboarding = () => {
       // 直接调用完成引导函数
       completeOnboarding()
+    }
+
+    // GitHave AI 相关方法
+    const checkGithaveLoginStatus = async () => {
+      try {
+        const loginData = localStorage.getItem('githave_login_data')
+        if (loginData) {
+          const userData = JSON.parse(loginData)
+          if (userData.token && userData.expires > Date.now()) {
+            isLoggedIn.value = true
+            Object.assign(githaveUser.value, {
+              user_id: userData.user_id || '',
+              username: userData.username || '',
+              email: userData.email || '',
+              token: userData.token || '',
+              expires: userData.expires || 0,
+              loginTime: userData.loginTime || 0,
+              verified: userData.verified || false
+            })
+            return true
+          } else if (userData.expires <= Date.now()) {
+            localStorage.removeItem('githave_login_data')
+            isLoggedIn.value = false
+          }
+        }
+        return false
+      } catch (error) {
+        console.error('检查GitHave登录状态失败:', error)
+        localStorage.removeItem('githave_login_data')
+        isLoggedIn.value = false
+        return false
+      }
+    }
+
+    const loginToGithave = async () => {
+      try {
+        const base = (fmConfig.value.auth_base_url || '').replace(/\/$/, '') || 'http://localhost:3000'
+        const authUrl = `${base}/app/auth?callback=githave-desktop`
+
+        if (window.electron && window.electron.shell && window.electron.shell.openExternal) {
+          await window.electron.shell.openExternal(authUrl)
+        } else {
+          window.open(authUrl, '_blank')
+        }
+      } catch (error) {
+        console.error('打开外部浏览器失败:', error)
+      }
+    }
+
+    const openGithaveConsole = async () => {
+      try {
+        const base = (fmConfig.value.auth_base_url || '').replace(/\/$/, '') || 'http://localhost:3000'
+        const consoleUrl = `${base}/dashboard`
+
+        if (window.electron && window.electron.shell && window.electron.shell.openExternal) {
+          await window.electron.shell.openExternal(consoleUrl)
+        } else {
+          window.open(consoleUrl, '_blank')
+        }
+      } catch (error) {
+        console.error('打开GitHave控制台失败:', error)
+      }
+    }
+
+    const subscribeGithaveAI = async () => {
+      if (!isLoggedIn.value || !selectedGithaveModel.value) {
+        return
+      }
+
+      isSubscribing.value = true
+
+      try {
+        const loginDataStr = localStorage.getItem('githave_login_data')
+        const loginData = loginDataStr ? JSON.parse(loginDataStr) : null
+        const token = loginData?.token || ''
+        if (!token) {
+          throw new Error('未获取到登录凭证，请重新登录')
+        }
+
+        // 配置GitHave AI模型
+        if (fmConfig.value.default_cloud_model) {
+          fmConfig.value.default_cloud_model.api = token
+          fmConfig.value.default_cloud_model.url = 'https://api.githave.com/v1/'
+          fmConfig.value.default_cloud_model.type = 'githave'
+          fmConfig.value.default_cloud_model.model = selectedGithaveModel.value
+          fmConfig.value.default_cloud_model.enabled = true
+        }
+
+        if (fmConfig.value.embedding_cloud_model) {
+          fmConfig.value.embedding_cloud_model.api = token
+          fmConfig.value.embedding_cloud_model.url = 'https://api.githave.com/v1/'
+          fmConfig.value.embedding_cloud_model.type = 'githave'
+          fmConfig.value.embedding_cloud_model.model = 'BAAI/bge-large-zh-v1.5'
+          fmConfig.value.embedding_cloud_model.enabled = true
+        }
+
+        // 配置索引弹性策略的云端模型（遍历 model_configs）
+        if (Array.isArray(fmConfig.value.model_configs)) {
+          fmConfig.value.model_configs.forEach((mc) => {
+            if (!mc) return
+            if (!mc.cloud_model) mc.cloud_model = {}
+            mc.cloud_model.api = token
+            mc.cloud_model.url = 'https://api.githave.com/v1/'
+            mc.cloud_model.type = 'githave'
+            mc.cloud_model.model = selectedGithaveModel.value
+            mc.cloud_model.enabled = true
+            mc.cloud_model.max_prompts = 30000
+            if (typeof mc.cloud_model.temperature !== 'number') {
+              mc.cloud_model.temperature = 0.1
+            }
+          })
+        }
+
+        // 配置常规助手
+        const roles = ['coder', 'chatter', 'officer']
+        roles.forEach((role) => {
+          if (!config.value.custom[role]) config.value.custom[role] = {}
+          const cc = config.value.custom[role]
+          cc.api = token
+          cc.url = 'https://api.githave.com/v1/'
+          cc.type = 'githave'
+          cc.model = selectedGithaveModel.value
+          cc.enabled = true
+          if (typeof cc.max_prompts !== 'number') cc.max_prompts = 30000
+          if (typeof cc.max_file_num !== 'number') {
+            cc.max_file_num = role === 'coder' ? 4 : 0
+          }
+        })
+
+        await Promise.all([updateConfig(config.value), updateFmConfig(fmConfig.value)])
+        await executeModelSwitch(true)
+        // 重启完成后跳转到下一步
+        currentStep.value++
+      } catch (error) {
+        console.error('GitHave AI订阅失败:', error)
+      } finally {
+        isSubscribing.value = false
+      }
+    }
+
+    // 处理协议回调
+    const handleProtocolCallback = (data) => {
+      console.log('收到GitHave协议回调:', data)
+
+      // 根据协议文档，回调格式为: githave://auth-success?route=auth&repo=success&token={token}&user_id={user_id}&username={username}&email={email}&timestamp={timestamp}&verified={verified}
+      if (data.route === 'auth-success' || (data.route === 'auth' && data.repo === 'success')) {
+        const { token, user_id, username, email, timestamp, verified } = data
+        const isVerified = verified === 'true'
+
+        if (token) {
+          // 验证时间戳防止重放攻击（可选）
+          if (timestamp) {
+            const callbackTime = parseInt(timestamp)
+            const currentTime = Date.now()
+            const timeDiff = Math.abs(currentTime - callbackTime)
+
+            // 如果时间差超过5分钟，拒绝回调
+            if (timeDiff > 5 * 60 * 1000) {
+              console.warn('协议回调时间戳过期，拒绝登录')
+              store.dispatch('snackbar/showSnackbar', {
+                message: '登录回调已过期，请重新登录',
+                color: 'warning'
+              })
+              return
+            }
+          }
+
+          // 保存完整的用户信息到localStorage
+          const loginData = {
+            token: token,
+            user_id: user_id,
+            username: username,
+            email: email,
+            expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30天过期
+            loginTime: Date.now(),
+            callbackTime: timestamp,
+            verified: isVerified
+          }
+          localStorage.setItem('githave_login_data', JSON.stringify(loginData))
+          Object.assign(githaveUser.value, {
+            user_id,
+            username,
+            email,
+            token,
+            expires: loginData.expires,
+            loginTime: loginData.loginTime,
+            verified: isVerified
+          })
+
+          // 更新登录状态
+          isLoggedIn.value = true
+
+      // 显示登录成功消息，包含用户信息
+      const welcomeMessage = username ? `欢迎回来，${username}！` : 'GitHave登录成功！'
+      store.dispatch('snackbar/showSnackbar', {
+        message: welcomeMessage,
+        color: 'success'
+      })
+
+      // 弹出账户信息
+      showLoginInfoModal.value = true
+
+          console.log('GitHave登录成功，用户信息:', { user_id, username, email })
+        } else {
+          console.error('协议回调缺少token参数')
+          store.dispatch('snackbar/showSnackbar', {
+            message: '登录回调数据不完整，请重新登录',
+            color: 'error'
+          })
+        }
+      } else {
+        console.log('收到其他协议回调:', data)
+      }
+    }
+
+    // 退出 GitHave 登录
+    const logoutGithave = () => {
+      try {
+        localStorage.removeItem('githave_login_data')
+        isLoggedIn.value = false
+        Object.assign(githaveUser.value, {
+          user_id: '',
+          username: '',
+          email: '',
+          token: '',
+          expires: 0,
+          loginTime: 0,
+          verified: false
+        })
+        store.dispatch('snackbar/showSnackbar', {
+          message: '已退出 GitHave 登录',
+          color: 'success'
+        })
+      } catch (e) {
+        console.error('退出登录失败:', e)
+        store.dispatch('snackbar/showSnackbar', { message: '退出登录失败，请重试', color: 'error' })
+      }
     }
 
     // 生命周期
@@ -1544,8 +2208,23 @@ export default {
         checkPandoc(),
         checkBrewInstalled(),
         checkOllama(),
-        checkDependenciesStatus()
+        checkDependenciesStatus(),
+        checkGithaveLoginStatus(),
+        fetchConfig()
       ])
+
+      // 监听协议回调（兼容两种事件名）
+      if (window.electron && window.electron.onProtocolCallback) {
+        window.electron.onProtocolCallback(handleProtocolCallback)
+      }
+      if (window.electron && window.electron.onProtocolUrl) {
+        window.electron.onProtocolUrl(handleProtocolCallback)
+      }
+
+      // 监听安装日志事件
+      const removeLogListener = window.electron.onInstallLog((logData) => {
+        addLogEntry(logData.type, logData.message)
+      })
 
       // 设置定时检查依赖安装进度
       const checkStatusInterval = setInterval(async () => {
@@ -1556,13 +2235,25 @@ export default {
         }
       }, 2000) // 每两秒检查一次
 
-      // 组件卸载时清除定时器
+      // 组件卸载时清除定时器和监听器
       onBeforeUnmount(() => {
         clearInterval(checkStatusInterval)
+        if (removeLogListener) {
+          removeLogListener()
+        }
+        // 清理服务日志监听器
+        if (serviceLogListener) {
+          serviceLogListener()
+          serviceLogListener = null
+        }
       })
     })
 
     return {
+      // SVG资源
+      bannerSvg,
+      titleSvg,
+
       // 步骤管理
       currentStep,
       totalSteps,
@@ -1590,6 +2281,18 @@ export default {
       // 网络速度监控
       networkSpeed,
 
+      // 安装日志
+      installLogs,
+      addLogEntry,
+
+      // 服务日志
+      serviceLogs,
+      showServiceLogs,
+      serviceLogListening,
+      addServiceLogEntry,
+      startServiceLogListening,
+      stopServiceLogListening,
+
       // 服务状态
       coreServiceStatus,
       indexServiceStatus,
@@ -1607,8 +2310,21 @@ export default {
       cloudApiCount,
       isApplyingModelConfig,
 
+      // GitHave AI 相关
+      isLoggedIn,
+      selectedGithaveModel,
+      githaveUser,
+      isSubscribing,
+      showLoginInfoModal,
+      modalShowToken,
+      formattedLoginTime,
+      formattedExpireTime,
+      maskedToken,
+      copyToClipboard,
+
       // 计算属性
       isMacOS,
+      isWindows,
       needsInstallCount,
       canProceed,
 
@@ -1634,12 +2350,23 @@ export default {
       fetchConfig,
       applyModelConfig,
 
+      // GitHave AI 方法
+      checkGithaveLoginStatus,
+      loginToGithave,
+      openGithaveConsole,
+      subscribeGithaveAI,
+      handleProtocolCallback,
+      logoutGithave,
+
       // 模型切换对话框
       showSwitchConfirmDialog,
       pendingSwitchValue,
       showRestartDialog,
       isRestarting,
       restartProgress,
+      antStepStatusMap,
+      restartHasError,
+      restartPercent,
       cancelSwitch,
       confirmSwitch,
       executeModelSwitch
@@ -1649,11 +2376,31 @@ export default {
 </script>
 
 <style scoped>
+button,
+[type='button'],
+[type='reset'],
+[type='submit'],
+[role='button'] {
+  color: #fff;
+}
 .onboarding-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%);
   display: flex;
   flex-direction: column;
+}
+
+/* Electron 窗口拖拽样式 */
+.drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  cursor: move;
+  user-select: none;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .progress-header {
@@ -1719,9 +2466,11 @@ export default {
 .step-content {
   background: white;
   border-radius: 16px;
-  padding: 40px;
+  padding: 24px;
   max-width: 800px;
   width: 100%;
+  max-height: 70vh;
+  overflow-y: auto;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
@@ -1733,6 +2482,23 @@ export default {
 
 .welcome-icon {
   margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-items: center;
+  gap: 10px;
+}
+
+.logo-banner {
+  width: 80px;
+  height: 80px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+}
+
+.logo-title {
+  height: 40px;
+  width: auto;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1));
 }
 
 .welcome-title {
@@ -1781,7 +2547,7 @@ export default {
 .step-description {
   font-size: 1.1rem;
   color: #666;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .env-cards {
@@ -1964,15 +2730,15 @@ h3 {
   color: #333;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin: 24px 0;
+  gap: 12px;
+  margin: 16px 0;
 }
 
 .service-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px;
+  padding: 16px;
   border: 2px solid #e0e0e0;
   border-radius: 12px;
   background: #fafafa;
@@ -2004,7 +2770,7 @@ h3 {
 
 .service-details h3 {
   margin: 0 0 4px 0;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
   color: #333;
 }
@@ -2012,7 +2778,7 @@ h3 {
 .service-details p {
   margin: 0;
   color: #666;
-  font-size: 14px;
+  font-size: 10px;
 }
 
 .service-status {
@@ -2089,18 +2855,18 @@ h3 {
 /* 步骤标题样式 */
 .step-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .step-header h2 {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   font-weight: bold;
   color: #333;
   margin-bottom: 10px;
 }
 
 .step-header p {
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   color: #666;
 }
 
@@ -2123,7 +2889,8 @@ h3 {
 
 .notice-text {
   flex: 1;
-  font-size: 14px;
+  font-size: 10px;
+  color: #292929;
   line-height: 1.5;
 }
 
@@ -2133,8 +2900,8 @@ h3 {
 
 /* 安装进度 */
 .installation-progress {
-  margin-top: 24px;
-  padding: 20px;
+  margin-top: 16px;
+  padding: 16px;
   background: #f8f9fa;
   border-radius: 12px;
   border: 1px solid #dee2e6;
@@ -2216,7 +2983,7 @@ h3 {
   }
 
   .step-content {
-    padding: 20px;
+    padding: 16px;
   }
 
   .env-cards {
@@ -2444,7 +3211,186 @@ h3 {
   font-size: 11px;
   color: rgb(var(--v-theme-primary));
   font-weight: 600;
-  text-align: right;
+}
+
+/* 安装日志样式 */
+.install-logs-section {
+  margin-top: 16px;
+}
+
+.install-logs-card {
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
+  border-radius: 8px;
+}
+
+.install-logs-content {
+  padding: 0 !important;
+}
+
+.logs-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-timestamp {
+  color: #888;
+  font-size: 11px;
+  min-width: 60px;
+  flex-shrink: 0;
+}
+
+.log-type {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.log-message {
+  flex: 1;
+  word-break: break-word;
+}
+
+.log-info .log-message {
+  color: #585858;
+}
+
+.log-error .log-message {
+  color: #ff6b6b;
+}
+
+.log-success .log-message {
+  color: #51cf66;
+}
+
+/* 服务日志样式 */
+.service-logs-container {
+  margin-top: 16px;
+}
+
+.service-logs-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  max-height: 300px;
+}
+
+.service-logs-header {
+  padding: 16px 20px 12px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 12px 12px 0 0;
+}
+
+.logs-icon {
+  margin-right: 8px;
+  color: rgb(var(--v-theme-primary));
+}
+
+.logs-title {
+  font-weight: 600;
+  color: rgb(var(--v-theme-primary));
+  font-size: 16px;
+}
+
+.service-logs-content {
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.logs-list {
+  padding: 12px;
+}
+
+.log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.02);
+  border-left: 3px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.log-entry:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.log-entry.log-info {
+  border-left-color: #2196f3;
+}
+
+.log-entry.log-success {
+  border-left-color: #4caf50;
+}
+
+.log-entry.log-warning {
+  border-left-color: #ff9800;
+}
+
+.log-entry.log-error {
+  border-left-color: #f44336;
+}
+
+.log-time {
+  font-size: 11px;
+  color: #666;
+  min-width: 60px;
+  font-family: 'Courier New', monospace;
+}
+
+.log-icon {
+  margin-top: 1px;
+}
+
+.log-message {
+  flex: 1;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #333;
+  word-break: break-word;
+}
+
+/* 滚动条样式 */
+.logs-container::-webkit-scrollbar,
+.service-logs-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-container::-webkit-scrollbar-track,
+.service-logs-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.logs-container::-webkit-scrollbar-thumb,
+.service-logs-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.logs-container::-webkit-scrollbar-thumb:hover,
+.service-logs-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* 响应式调整 */
@@ -2464,5 +3410,69 @@ h3 {
     width: 32px;
     height: 32px;
   }
+}
+
+/* GitHave AI 选项样式 */
+.githave-option {
+  border: 2px solid #ffd700 !important;
+  background: linear-gradient(135deg, #fff9e6 0%, #ffffff 100%) !important;
+}
+
+.githave-option.model-option-selected {
+  border-color: #ffa500 !important;
+  background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%) !important;
+  box-shadow: 0 4px 20px rgba(255, 165, 0, 0.3) !important;
+}
+
+.githave-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.githave-status {
+  margin-top: 12px;
+}
+
+.login-section {
+  display: flex;
+  justify-content: center;
+}
+
+.logged-in-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.model-selection {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selection-label {
+  font-size: 12px;
+  color: #666;
+}
+
+/* a-button 自定义样式 */
+.blk-btn {
+  color: #3f3f3f !important;
+}
+.wt-btn {
+  color: #fff !important;
 }
 </style>

@@ -16,24 +16,70 @@
           仓库的代码
         </h2>
         <div
-          v-tooltip="'有异常？点我重置索引'"
+          v-tooltip="'查询有异常？点我重置'"
           class="reset-index-icon-container"
           @click="handleResetIndex"
         >
-          <v-icon color="grey" icon="mdi-backspace-outline" class="reset-index-icon"></v-icon>
+          <v-icon color="grey" icon="mdi-refresh" class="reset-index-icon"></v-icon>
         </div>
         <div v-if="dropdownOpen" class="repo-dropdown">
-          <div
-            v-for="(repo, index) in repositories"
-            :key="index"
-            class="repo-item"
-            :class="{ active: repo.show === selectedRepo.show }"
-            @click="selectRepo(repo)"
-          >
-            <span :style="{ color: repo.color }" class="text-h7">
-              {{ repo.tag_label }}
-            </span>
-            {{ repo.show }}
+          <!-- 搜索和排序控制区 -->
+          <div class="repo-controls">
+            <div class="repo-search-wrapper">
+              <v-icon size="small" class="search-icon">mdi-magnify</v-icon>
+              <input
+                v-model="repoSearchQuery"
+                class="repo-search-input"
+                placeholder="搜索仓库..."
+                @click.stop
+              />
+              <v-icon
+                v-if="repoSearchQuery"
+                size="small"
+                class="clear-search-icon"
+                @click.stop="clearRepoSearch"
+              >
+                mdi-close-circle
+              </v-icon>
+            </div>
+            <div class="repo-sort-wrapper">
+              <v-btn
+                size="x-small"
+                variant="text"
+                :color="sortBy === 'default' ? 'primary' : 'grey'"
+                @click.stop="setSortBy('default')"
+              >
+                <v-icon size="small">mdi-sort-numeric-descending</v-icon>
+              </v-btn>
+              <v-btn
+                size="x-small"
+                variant="text"
+                :color="sortBy === 'name' ? 'primary' : 'grey'"
+                @click.stop="setSortBy('name')"
+              >
+                <v-icon size="small">mdi-sort-alphabetical-ascending</v-icon>
+              </v-btn>
+            </div>
+          </div>
+          
+          <!-- 仓库列表 -->
+          <div class="repo-list">
+            <div
+              v-for="(repo, index) in filteredAndSortedRepositories"
+              :key="index"
+              class="repo-item"
+              :class="{ active: repo.show === selectedRepo.show }"
+              @click="selectRepo(repo)"
+            >
+              <span :style="{ color: repo.color }" class="text-h7">
+                {{ repo.tag_label }}
+              </span>
+              {{ repo.show }}
+            </div>
+            <div v-if="filteredAndSortedRepositories.length === 0" class="no-repos">
+              <v-icon size="small" color="grey">mdi-database-search</v-icon>
+              <span class="text-grey">未找到匹配的仓库</span>
+            </div>
           </div>
         </div>
       </div>
@@ -142,21 +188,57 @@
         </v-chip>
       </div>
 
+      <div v-if="searchResults.length" class="filter-container">
+        <button
+          v-for="option in filterOptions"
+          :key="option.value"
+          :class="['filter-button', { active: resultTypeFilter === option.value }]"
+          @click="resultTypeFilter = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
       <!-- 搜索结果展示区域 -->
-      <div v-if="searchResults.length" class="search-results-container">
+      <div v-if="filteredResults.length" class="search-results-container">
         <div
-          v-for="(result, index) in searchResults"
+          v-for="(result, index) in filteredResults"
           :key="index"
           class="search-result-item"
           :style="{ animationDelay: index * 0.1 + 's' }"
           @click="openDialog(result)"
         >
           <div class="result-header">
-            <h3 class="result-name">{{ result.name }} - {{ result.shortFilePath }}</h3>
-            <span class="result-score">{{ (result.score * 100).toFixed(1) }}%</span>
+            <!-- 模块信息（文件或目录）的显示方式 -->
+            <div v-if="result.isModule" class="d-flex align-center">
+              <v-icon class="mr-2" :color="result.type === 'directory' ? 'amber' : 'primary'">
+                {{ result.type === 'directory' ? 'mdi-folder' : 'mdi-file-document' }}
+              </v-icon>
+              <h3 class="result-name">
+                {{ result.name }}
+                <span class="text-caption text-grey">
+                  {{ result.type === 'directory' ? '目录' : '文件' }}
+                </span>
+              </h3>
+              <v-spacer></v-spacer>
+              <span class="result-score">{{ (result.score * 100).toFixed(1) }}%</span>
+            </div>
+            <!-- 函数信息的显示方式 -->
+            <div v-else class="d-flex align-center">
+              <v-icon class="mr-2" color="success">mdi-function</v-icon>
+              <h3 class="result-name">{{ result.name }} - {{ result.shortFilePath }}</h3>
+              <v-spacer></v-spacer>
+              <span class="result-score">{{ (result.score * 100).toFixed(1) }}%</span>
+            </div>
           </div>
-          <p class="result-file text-grey">{{ result.package }}</p>
-          <p class="result-description">{{ result.parsedDescription }}</p>
+          <!-- 模块信息的路径显示 -->
+          <p v-if="result.isModule" class="result-file text-grey">
+            <span v-if="result.path">路径: {{ result.path }}</span>
+            <span v-if="result.parent_path" class="ml-2">父路径: {{ result.parent_path }}</span>
+          </p>
+          <!-- 函数信息的包名显示 -->
+          <p v-else class="result-file text-grey">{{ result.package }}</p>
+          <p class="result-description">{{ omitDesc(result.parsedDescription, 250) }}</p>
         </div>
       </div>
 
@@ -168,14 +250,41 @@
         overlay-color="rgba(0, 0, 0, 0.5)"
       >
         <v-card class="pa-4 pt-2 pb-2 pl-2 pr-2" :style="{ 'min-height': '80vh' }">
-          <v-card-title class="headline">
-            <v-btn icon color="primary" variant="text" @click="viewFileDetails">
-              <v-icon right>mdi-open-in-new</v-icon>
-            </v-btn>
-            {{ selectedResult.name }} —
-            <span style="white-space: nowrap; overflow: visible; text-overflow: clip">
-              {{ selectedResult.file }}
-            </span>
+          <v-card-title class="headline" style="max-width: 1100px">
+            <!-- 模块信息（文件或目录）的标题 -->
+            <template v-if="selectedResult.isModule">
+              <v-icon
+                class="mr-2"
+                :color="selectedResult.type === 'directory' ? 'amber' : 'primary'"
+              >
+                {{ selectedResult.type === 'directory' ? 'mdi-folder' : 'mdi-file-document' }}
+              </v-icon>
+              {{ selectedResult.name }}
+              <span class="text-caption text-grey ml-2">
+                {{ selectedResult.type === 'directory' ? '目录' : '文件' }}
+              </span>
+              <span
+                style="white-space: nowrap; overflow: visible; text-overflow: clip"
+                class="ml-2"
+              >
+                {{ selectedResult.path }}
+              </span>
+              <v-btn icon color="primary" variant="text" @click="viewFileDetails">
+                <v-icon right>{{
+                  selectedResult.type === 'directory' ? 'mdi-folder-open' : 'mdi-open-in-new'
+                }}</v-icon>
+              </v-btn>
+            </template>
+            <!-- 函数信息的标题 -->
+            <template v-else>
+              {{ selectedResult.name }} —
+              <span style="white-space: nowrap; overflow: visible; text-overflow: clip">
+                {{ selectedResult.file }}
+              </span>
+              <v-btn icon color="primary" variant="text" @click="viewFileDetails">
+                <v-icon right>mdi-open-in-new</v-icon>
+              </v-btn>
+            </template>
             <!-- Header -->
             <div style="position: absolute; top: 12px; right: 16px; z-index: 10">
               <v-btn size="small" class="text-gray-500 hover:text-gray-800" @click="dialog = false">
@@ -184,39 +293,106 @@
             </div>
           </v-card-title>
           <v-card-text>
-            <div v-if="selectedResult.isJsonDesc" class="detail-section">
-              <h3>总体功能</h3>
-              <p>{{ selectedResult.descSummary }}</p>
+            <!-- 模块信息（文件或目录）的详情内容 -->
+            <div v-if="selectedResult.isModule" class="detail-section">
+              <!-- 模块基本信息 -->
+              <v-card flat class="mb-4 pa-3" color="grey-lighten-5">
+                <div class="d-flex align-center mb-2">
+                  <v-icon
+                    size="large"
+                    class="mr-2"
+                    :color="selectedResult.type === 'directory' ? 'amber' : 'primary'"
+                  >
+                    {{ selectedResult.type === 'directory' ? 'mdi-folder' : 'mdi-file-document' }}
+                  </v-icon>
+                  <h3>{{ selectedResult.type === 'directory' ? '目录信息' : '文件信息' }}</h3>
+                </div>
 
-              <h3>执行流程</h3>
-              <ol class="process-list">
-                <li v-for="(step, idx) in selectedResult.processList" :key="idx">
-                  {{ step }}
-                </li>
-              </ol>
+                <div class="ml-2">
+                  <p><strong>名称：</strong> {{ selectedResult.name }}</p>
+                  <p><strong>路径：</strong> {{ selectedResult.path }}</p>
+                  <p v-if="selectedResult.parent_path">
+                    <strong>父路径：</strong> {{ selectedResult.parent_path }}
+                  </p>
+                  <p><strong>相关度：</strong> {{ (selectedResult.score * 100).toFixed(1) }}%</p>
+                </div>
+              </v-card>
+
+              <!-- 模块描述（使用Markdown渲染） -->
+              <h3>模块描述</h3>
+              <div
+                class="markdown-content"
+                v-html="renderMarkdown(selectedResult.fullDescription)"
+              ></div>
+
+              <!-- 代码片段（如果是文件类型才显示） -->
+              <div
+                v-if="selectedResult.type === 'file' && selectedResult.code_snippet"
+                class="detail-section"
+              >
+                <h3>代码片段</h3>
+                <pre>
+                  <code
+                    :class="`hljs ${path.extname(selectedResult.path).slice(1)}`"
+                    v-html="highlightCode(selectedResult.code_snippet, path.extname(selectedResult.path))"></code>
+                </pre>
+              </div>
             </div>
 
-            <div v-else class="detail-section">
-              <h3>描述</h3>
-              <p>{{ selectedResult.fullDescription }}</p>
-            </div>
+            <!-- 函数信息的详情内容 -->
+            <div v-else>
+              <!-- 结构化描述 -->
+              <div v-if="selectedResult.isJsonDesc" class="detail-section">
+                <h3>总体功能</h3>
+                <p>{{ selectedResult.descSummary }}</p>
 
-            <div v-if="selectedResult.code_snippet" class="detail-section">
-              <h3>代码片段</h3>
-              <pre>
+                <h3>执行流程</h3>
+                <ol class="process-list">
+                  <li v-for="(step, idx) in selectedResult.processList" :key="idx">
+                    {{ step }}
+                  </li>
+                </ol>
+              </div>
+
+              <!-- 普通描述 -->
+              <div v-else class="detail-section">
+                <h3>描述</h3>
+                <div
+                  class="markdown-content"
+                  v-html="renderMarkdown(selectedResult.fullDescription)"
+                ></div>
+              </div>
+
+              <!-- 代码片段 -->
+              <div v-if="selectedResult.code_snippet" class="detail-section">
+                <h3>代码片段</h3>
+                <pre>
                   <code
                     :class="`hljs ${path.extname(selectedResult.file).slice(1)}`"
                     v-html="highlightCode(selectedResult.code_snippet, path.extname(selectedResult.file))"></code>
                 </pre>
+              </div>
             </div>
           </v-card-text>
           <v-card-actions>
             <v-spacer />
             <v-btn text @click="dialog = false">关闭</v-btn>
-            <v-btn color="primary" variant="outlined" size="small" @click="viewFileDetails">
-              <v-icon left>mdi-file-document</v-icon>
-              查看代码文件详情
-            </v-btn>
+            <!-- 模块信息的操作按钮 -->
+            <template v-if="selectedResult.isModule">
+              <v-btn color="primary" variant="outlined" size="small" @click="viewFileDetails">
+                <v-icon left>{{
+                  selectedResult.type === 'directory' ? 'mdi-folder-open' : 'mdi-file-document'
+                }}</v-icon>
+                {{ selectedResult.type === 'directory' ? '打开目录' : '查看文件' }}
+              </v-btn>
+            </template>
+            <!-- 函数信息的操作按钮 -->
+            <template v-else>
+              <v-btn color="primary" variant="outlined" size="small" @click="viewFileDetails">
+                <v-icon left>mdi-file-document</v-icon>
+                查看代码文件详情
+              </v-btn>
+            </template>
           </v-card-actions>
         </v-card>
       </v-dialog>
@@ -298,13 +474,14 @@
 
 <script>
 import SVG from '../assets/search.svg'
-import { listRepos, searchCode, resetIndexApi } from '../service/api'
+import { listRepos, searchCode, refreshIndexApi } from '../service/api'
 import { omit } from '../service/str'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/mono-blue.css'
-import path from 'path-browserify'
+// 使用 window.electron.path 替代 path-browserify
 import router from '../router'
 import { onBeforeRouteLeave } from 'vue-router'
+import MarkdownIt from 'markdown-it'
 
 export default {
   name: 'DeepSearch',
@@ -324,6 +501,13 @@ export default {
       searchType: 'hybrid',
       strictMode: false,
       tags: [],
+      resultTypeFilter: 'all',
+      filterOptions: [
+        { value: 'all', label: '全部' },
+        { value: 'function', label: '函数' },
+        { value: 'file', label: '文件' },
+        { value: 'directory', label: '目录' }
+      ],
       helpDialog: false,
       inactivityTimer: null,
       lastActivityTime: Date.now(),
@@ -358,12 +542,15 @@ export default {
           query: '文件上传下载和批量处理的功能模块',
           icon: 'mdi-file-multiple'
         }
-      ]
+      ],
+      // 仓库搜索和排序相关
+      repoSearchQuery: '',
+      sortBy: 'default' // 'default' 或 'name'
     }
   },
   computed: {
     path() {
-      return path
+      return window.electron.path
     },
     placeholderText() {
       switch (this.searchType) {
@@ -374,12 +561,50 @@ export default {
         default:
           return '基于向量检索的自然语义相似度搜索'
       }
+    },
+    filteredResults() {
+      switch (this.resultTypeFilter) {
+        case 'function':
+          return this.searchResults.filter((r) => !r.isModule)
+        case 'file':
+          return this.searchResults.filter((r) => r.isModule && r.type === 'file')
+        case 'directory':
+          return this.searchResults.filter((r) => r.isModule && r.type === 'directory')
+        default:
+          return this.searchResults
+      }
+    },
+    // 过滤和排序后的仓库列表
+    filteredAndSortedRepositories() {
+      let filtered = this.repositories
+      
+      // 搜索过滤
+      if (this.repoSearchQuery.trim()) {
+        const query = this.repoSearchQuery.toLowerCase()
+        filtered = filtered.filter(repo => 
+          repo.name.toLowerCase().includes(query) ||
+          repo.show.toLowerCase().includes(query) ||
+          (repo.desc && repo.desc.toLowerCase().includes(query))
+        )
+      }
+      
+      // 排序
+      if (this.sortBy === 'name') {
+        return filtered.sort((a, b) => a.name.localeCompare(b.name))
+      } else {
+        // 默认排序：按id降序
+        return filtered.sort((a, b) => b.id - a.id)
+      }
     }
   },
   watch: {
     // 监听严格模式变化，自动保存到localStorage
-    strictMode(newValue) {
+    strictMode() {
       this.saveStrictModePreference()
+    },
+    // 监听排序方式变化，自动保存到localStorage
+    sortBy() {
+      this.saveSortByPreference()
     }
   },
   mounted() {
@@ -396,6 +621,8 @@ export default {
     this.initActivityTracking()
     // 从localStorage读取严格模式设置
     this.loadStrictModePreference()
+    // 从localStorage读取排序方式设置
+    this.loadSortByPreference()
   },
   activated() {
     // keep-alive组件被激活时重新添加监听器
@@ -431,6 +658,9 @@ export default {
     })
   },
   methods: {
+    omitDesc(str, limit) {
+      return omit(str, limit)
+    },
     // 从localStorage加载严格模式偏好
     loadStrictModePreference() {
       try {
@@ -452,6 +682,36 @@ export default {
       } catch (error) {
         console.warn('保存严格模式偏好失败:', error)
       }
+    },
+    // 从localStorage加载排序方式偏好
+    loadSortByPreference() {
+      try {
+        const savedSortBy = localStorage.getItem('deepSearchSortBy')
+        if (savedSortBy !== null) {
+          this.sortBy = savedSortBy
+          console.log('已加载排序方式偏好:', this.sortBy)
+        }
+      } catch (error) {
+        console.warn('加载排序方式偏好失败:', error)
+        this.sortBy = 'default'
+      }
+    },
+    // 保存排序方式偏好到localStorage
+    saveSortByPreference() {
+      try {
+        localStorage.setItem('deepSearchSortBy', this.sortBy)
+        console.log('已保存排序方式偏好:', this.sortBy)
+      } catch (error) {
+        console.warn('保存排序方式偏好失败:', error)
+      }
+    },
+    // 清除仓库搜索
+    clearRepoSearch() {
+      this.repoSearchQuery = ''
+    },
+    // 设置排序方式
+    setSortBy(sortType) {
+      this.sortBy = sortType
     },
     listRepos() {
       listRepos().then(async (res) => {
@@ -496,19 +756,71 @@ export default {
       })
     },
     viewFileDetails() {
-      console.log('viewFileDetails', this.selectedRepo.local_path, this.selectedResult.file)
-      const url = path.join(this.selectedRepo.local_path, this.selectedResult.file)
-      console.log('跳转到文件浏览器页面，文件路径：', url)
-      router.push({
-        name: 'finder',
-        params: { localPath: url, rootPath: this.selectedRepo.local_path }
-      })
+      // 处理模块信息（文件或目录）的跳转逻辑
+      if (this.selectedResult.isModule) {
+        console.log('viewFileDetails (模块)', this.selectedResult.type, this.selectedResult.path)
+
+        // 如果path是绝对路径，直接使用；否则，拼接仓库路径
+        const isAbsolutePath = this.selectedResult.path.startsWith('/')
+        const url = isAbsolutePath
+          ? this.selectedResult.path
+          : this.path.join(this.selectedRepo.local_path, this.selectedResult.path)
+
+        console.log('跳转到文件浏览器页面，路径：', url)
+        router.push({
+          name: 'finder',
+          params: {
+            localPath: url,
+            rootPath: this.selectedRepo.local_path
+          }
+        })
+      }
+      // 处理函数信息的跳转逻辑（保持原有逻辑）
+      else {
+        console.log(
+          'viewFileDetails (函数)',
+          this.selectedRepo.local_path,
+          this.selectedResult.file
+        )
+        const url = this.path.join(this.selectedRepo.local_path, this.selectedResult.file)
+        console.log('跳转到文件浏览器页面，文件路径：', url)
+        router.push({
+          name: 'finder',
+          params: {
+            localPath: url,
+            rootPath: this.selectedRepo.local_path
+          }
+        })
+      }
+
       this.dialog = false
     },
     highlightCode(code, ext) {
-      const language = ext.slice(1)
-      const validLang = hljs.getLanguage(language) ? language : 'plaintext'
-      return hljs.highlight(code, { language: validLang }).value
+      let language = ext.slice(1) || 'javascript'
+      if (language === 'vue') language = 'javascript'
+      try {
+        return hljs.highlight(code, { language }).value
+      } catch (e) {
+        console.error('高亮失败:', e)
+        return code
+      }
+    },
+
+    // Markdown渲染方法
+    renderMarkdown(content) {
+      if (!content) return ''
+      try {
+        const md = new MarkdownIt({
+          html: false, // 禁用HTML标签
+          linkify: true, // 自动识别URL
+          typographer: true, // 启用一些语言中立的替换和引号美化
+          breaks: true // 转换\n为<br>
+        })
+        return md.render(content)
+      } catch (e) {
+        console.error('Markdown渲染失败:', e)
+        return content
+      }
     },
     onKeydown(event) {
       // Cmd + 1/2/3 切换搜索类型
@@ -544,6 +856,7 @@ export default {
       this.dialog = true
     },
     async handleSearch() {
+      if (this.isSearching) return
       if (!this.searchQuery.trim()) return
 
       this.isSearching = true
@@ -583,10 +896,10 @@ export default {
                   // 如果是数组直接使用，如果是对象则包装成数组
                   processList = Array.isArray(obj.process) ? obj.process : [obj.process]
                 }
-              } catch (e) {
-                console.log('解析 JSON 失败:', e)
-                /* empty */
-              }
+              } catch (error) {
+                 console.log('解析 JSON 失败:', error)
+                 /* empty */
+               }
 
               // 处理文件路径，如果过长则省略中间部分
               const filePath = item.file
@@ -610,11 +923,16 @@ export default {
                 code_snippet: item.code_snippet || '',
                 isJsonDesc: isJson,
                 descSummary,
-                processList
+                processList,
+                // 新增模块信息字段
+                type: item.type || '', // 文件类型：file或directory
+                path: item.path || item.file, // 模块路径
+                parent_path: item.parent_path || '', // 父路径
+                isModule: !!item.type // 是否为模块信息（文件或目录）
               }
             })
           }
-        } catch (e) {
+        } catch {
           this.isSearching = false
         }
       } else {
@@ -651,6 +969,7 @@ export default {
     handleKeydown(event) {
       // Enter键触发搜索
       if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
+        if (this.isSearching) return
         event.preventDefault()
         this.handleSearch()
         return
@@ -730,15 +1049,15 @@ export default {
       ) {
         try {
           this.isSearching = true
-          const res = await resetIndexApi(this.selectedRepo.local_path)
+          const res = await refreshIndexApi(this.selectedRepo.local_path)
           this.isSearching = false
 
           if (res.status === 200) {
-            window.alert('索引重置成功。')
+            window.alert('索引刷新成功。')
             // 刷新仓库状态
             this.listRepos()
           } else {
-            window.alert('索引重置失败，请稍后再试。')
+            window.alert('索引刷新失败，请稍后再试。')
           }
         } catch (error) {
           this.isSearching = false
@@ -818,6 +1137,169 @@ export default {
   animation: fadeIn 0.6s ease-out;
 }
 
+/* Markdown内容样式 */
+.markdown-content {
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3),
+.markdown-content :deep(h4),
+.markdown-content :deep(h5),
+.markdown-content :deep(h6) {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.markdown-content :deep(p) {
+  margin-bottom: 12px;
+}
+
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+
+.markdown-content :deep(code) {
+  background-color: #eee;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.markdown-content :deep(pre) {
+  background-color: #f0f0f0;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.markdown-content :deep(blockquote) {
+  border-left: 4px solid #ddd;
+  padding-left: 16px;
+  color: #666;
+  margin: 12px 0;
+}
+
+.markdown-content :deep(a) {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.markdown-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-content :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.markdown-content :deep(th),
+.markdown-content :deep(td) {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.markdown-content :deep(th) {
+  background-color: #f2f2f2;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 模块基本信息卡片夜间模式 */
+  .detail-section .v-card.mb-4.pa-3 {
+    background-color: #23272e !important;
+    color: #e6e6e6 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    border: 1px solid #2d333b;
+  }
+  .detail-section .v-card.mb-4.pa-3 h3 {
+    color: #fff !important;
+  }
+  .detail-section .v-card.mb-4.pa-3 p,
+  .detail-section .v-card.mb-4.pa-3 strong {
+    color: #e6e6e6 !important;
+  }
+  .detail-section .v-card.mb-4.pa-3 .v-icon {
+    filter: brightness(1.1);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .markdown-content {
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(h1),
+  .markdown-content :deep(h2),
+  .markdown-content :deep(h3),
+  .markdown-content :deep(h4),
+  .markdown-content :deep(h5),
+  .markdown-content :deep(h6) {
+    color: #fff;
+  }
+
+  .markdown-content :deep(p) {
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(ul),
+  .markdown-content :deep(ol) {
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(code) {
+    background-color: #2d333b;
+    color: #ffea70;
+  }
+
+  .markdown-content :deep(pre) {
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(blockquote) {
+    border-left: 4px solid #444c56;
+    color: #b3bac5;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .markdown-content :deep(a) {
+    color: #58a6ff;
+  }
+
+  .markdown-content :deep(a:hover) {
+    color: #91caff;
+  }
+
+  .markdown-content :deep(table) {
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(th),
+  .markdown-content :deep(td) {
+    border: 1px solid #444c56;
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(th) {
+    background-color: #2d333b;
+    color: #fff;
+  }
+}
+
 .search-header {
   display: flex;
   align-items: center;
@@ -855,18 +1337,97 @@ export default {
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  width: 450px;
-  max-height: 500px;
-  overflow-y: auto;
+  width: 500px;
+  max-height: 600px;
   margin-top: 8px;
   background: rgba(var(--v-theme-surface-rgb), 0.95);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
   z-index: 100;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.3s ease-out;
+  overflow: hidden;
+}
+
+.repo-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
+  background: rgba(var(--v-theme-surface-rgb), 0.8);
+}
+
+.repo-search-wrapper {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(var(--v-theme-surface-rgb), 0.6);
+  border-radius: 20px;
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.1);
+  transition: all 0.2s ease;
+}
+
+.repo-search-wrapper:focus-within {
+  border-color: rgba(var(--v-theme-primary-rgb), 0.5);
+  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary-rgb), 0.1);
+}
+
+.search-icon {
+  margin-left: 12px;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+}
+
+.repo-search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.9rem;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
+}
+
+.repo-search-input::placeholder {
+  color: rgba(var(--v-theme-on-surface-rgb), 0.5);
+}
+
+.clear-search-icon {
+  margin-right: 8px;
+  cursor: pointer;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+  transition: color 0.2s ease;
+}
+
+.clear-search-icon:hover {
+  color: rgba(var(--v-theme-error-rgb), 0.8);
+}
+
+.repo-sort-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(var(--v-theme-surface-rgb), 0.6);
+  border-radius: 16px;
+  padding: 2px;
+}
+
+.repo-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.no-repos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.6);
+  font-size: 0.9rem;
 }
 
 .repo-item {
@@ -1432,6 +1993,49 @@ export default {
   background: rgba(var(--v-theme-primary-rgb), 0.2);
 }
 
+.v-theme--dark .repo-controls {
+  background: rgba(40, 40, 40, 0.8);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.v-theme--dark .repo-search-wrapper {
+  background: rgba(50, 50, 50, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.v-theme--dark .repo-search-wrapper:focus-within {
+  border-color: rgba(var(--v-theme-primary-rgb), 0.6);
+  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary-rgb), 0.2);
+}
+
+.v-theme--dark .repo-search-input {
+  color: rgba(255, 255, 255, 0.87);
+}
+
+.v-theme--dark .repo-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.v-theme--dark .search-icon {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.v-theme--dark .clear-search-icon {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.v-theme--dark .clear-search-icon:hover {
+  color: rgba(var(--v-theme-error-rgb), 0.9);
+}
+
+.v-theme--dark .repo-sort-wrapper {
+  background: rgba(50, 50, 50, 0.6);
+}
+
+.v-theme--dark .no-repos {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 /* 搜索结果样式 */
 .search-results-container {
   margin-top: 32px;
@@ -1683,5 +2287,57 @@ export default {
 }
 :deep(.v-card-title) {
   text-overflow: clip;
+}
+/* 结果类型过滤器样式 */
+.filter-container {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0;
+  justify-content: center;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.filter-button {
+  padding: 6px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.1);
+  background: rgba(var(--v-theme-surface-rgb), 0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: rgba(var(--v-theme-on-surface-rgb), 0.8);
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 0.85rem;
+}
+
+.filter-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.filter-button.active {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--v-theme-primary-rgb), 0.22) 10%,
+    rgba(var(--v-theme-primary-rgb), 0.38) 90%
+  );
+  border-color: rgba(var(--v-theme-primary-rgb), 0.85);
+  box-shadow:
+    0 2px 12px rgba(var(--v-theme-primary-rgb), 0.25),
+    0 0 0 2px rgba(var(--v-theme-primary-rgb), 0.18);
+  transform: scale(1.07);
+  font-weight: bold;
+  z-index: 1;
+}
+
+.v-theme--dark .filter-button {
+  background: rgba(40, 40, 40, 0.6);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.v-theme--dark .filter-button.active {
+  background: rgba(var(--v-theme-primary-rgb), 0.25);
+  border-color: rgba(var(--v-theme-primary-rgb), 0.6);
 }
 </style>

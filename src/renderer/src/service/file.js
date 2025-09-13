@@ -1,4 +1,4 @@
-import path from 'path-browserify'
+// 使用 window.electron.path 替代 path-browserify
 
 /**
  * Checks if a given path is a file path (not a directory)
@@ -13,9 +13,10 @@ export async function isFilePath(filePath, checkIfTextFile = null, allowedFileNa
   // If tree data and find function are provided, try to find node in tree first
   if (findNodeByPath && treeData) {
     const node = findNodeByPath(treeData, filePath)
+    console.log('isFilePath node', node)
     if (node) {
       if (node.isDirectory) return false
-      const fileName = path.basename(node.name)
+      const fileName = window.electron.path.basename(node.name)
       if (checkIfTextFile) {
         const isTextFile = await checkIfTextFile(node.path || filePath)
         return isTextFile || (fileName && allowedFileName.includes(fileName))
@@ -25,7 +26,7 @@ export async function isFilePath(filePath, checkIfTextFile = null, allowedFileNa
   }
   
   // Fallback to path-based check
-  const fileName = path.basename(filePath)
+  const fileName = window.electron.path.basename(filePath)
   
   if (checkIfTextFile) {
     try {
@@ -38,7 +39,7 @@ export async function isFilePath(filePath, checkIfTextFile = null, allowedFileNa
   }
   
   // If no check function provided, just check if it has an extension
-  const ext = path.extname(filePath).toLowerCase()
+  const ext = window.electron.path.extname(filePath).toLowerCase()
   return ext !== ''
 }
 
@@ -48,7 +49,7 @@ export async function isFilePath(filePath, checkIfTextFile = null, allowedFileNa
  * @returns {string} - File extension with dot (e.g., '.js')
  */
 export function getFileExtension(filePath) {
-  return path.extname(filePath).toLowerCase()
+  return window.electron.path.extname(filePath).toLowerCase()
 }
 
 /**
@@ -57,7 +58,7 @@ export function getFileExtension(filePath) {
  * @returns {string} - Filename without extension
  */
 export function getFileName(filePath) {
-  const basename = path.basename(filePath)
-  const extname = path.extname(basename)
+  const basename = window.electron.path.basename(filePath)
+  const extname = window.electron.path.extname(basename)
   return extname ? basename.slice(0, -extname.length) : basename
 }

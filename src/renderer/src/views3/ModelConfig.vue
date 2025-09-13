@@ -39,7 +39,7 @@
         <v-card class="pa-2 mb-4 env-card-compact" outlined>
           <v-card-title class="d-flex align-center">
             <v-icon color="primary" small class="mr-2">mdi-briefcase</v-icon>
-            <span class="font-weight-bold">1. 必要基础环境是否具备</span>
+            <span class="font-weight-bold">1. 基础环境</span>
           </v-card-title>
           <v-card-text class="text-compact">
             <!-- 一键安装功能区 -->
@@ -88,6 +88,49 @@
               </div>
             </v-alert>
 
+            <!-- 安装日志显示区域 -->
+            <v-card v-if="installLogs.length > 0" class="mt-3 mb-3 install-log-section" outlined>
+              <v-card-title class="d-flex align-center pa-2">
+                <v-icon color="info" small class="mr-2">mdi-console</v-icon>
+                <span class="font-weight-bold">安装日志</span>
+                <v-spacer></v-spacer>
+                <v-btn size="x-small" variant="outlined" color="grey" @click="clearInstallLogs">
+                  <v-icon small>mdi-delete</v-icon>
+                  清空
+                </v-btn>
+              </v-card-title>
+              <v-card-text class="pa-2">
+                <div class="install-log-content">
+                  <div class="install-logs-container">
+                    <div
+                      v-for="(log, index) in installLogs"
+                      :key="index"
+                      class="install-log-entry"
+                      :class="`log-${log.type}`"
+                    >
+                      <span class="log-timestamp">{{ log.timestamp }}</span>
+                      <v-icon
+                        small
+                        :color="
+                          log.type === 'error' ? 'red' : log.type === 'success' ? 'green' : 'blue'
+                        "
+                        class="log-icon"
+                      >
+                        {{
+                          log.type === 'error'
+                            ? 'mdi-alert-circle'
+                            : log.type === 'success'
+                              ? 'mdi-check-circle'
+                              : 'mdi-information'
+                        }}
+                      </v-icon>
+                      <span class="log-message">{{ log.message }}</span>
+                    </div>
+                  </div>
+                </div>
+              </v-card-text>
+            </v-card>
+
             <v-row class="mt-3">
               <!-- Python 状态 -->
               <v-col cols="12" md="6" class="d-flex align-center">
@@ -122,7 +165,7 @@
                     variant="outlined"
                     color="success"
                     @click="installSinglePackage('python')"
-                    >一键安装</v-btn
+                    >{{ isWindows ? '打开微软商店' : '一键安装' }}</v-btn
                   >
                 </template>
               </v-col>
@@ -250,7 +293,7 @@
             "
           >
             <v-icon color="primary" class="mr-2">mdi-alert-decagram</v-icon>
-            2. 模型是否配置（二选一）
+            2. 模型配置
           </v-card-title>
           <v-card-text
             class="d-flex flex-wrap justify-space-between align-center"
@@ -283,6 +326,173 @@
               </v-alert>
             </v-row>
             <v-row class="w-100 dark-text-force" align="center" justify="center">
+              <!-- GitHave AI订阅卡片 -->
+              <v-col cols="12">
+                <v-card
+                  outlined
+                  class="elevation-4 pa-4 mt-4 githave-subscription-card"
+                  :class="isLoggedIn ? 'logged-in' : 'logged-out'"
+                  :style="
+                    isLoggedIn
+                      ? {
+                          border: '2px solid #3CB371',
+                          background: 'linear-gradient(90deg, #fff 10%, #E6FFED 100%)'
+                        }
+                      : {
+                          border: '2px solid #FFD700',
+                          background: 'linear-gradient(90deg, #FFFACD 60%, #fff 100%)'
+                        }
+                  "
+                >
+                  <v-card-title class="d-flex align-center githave-subscription-title">
+                    <v-icon v-if="!isLoggedIn" color="primary" class="mr-2" size="28"
+                      >mdi-star-circle</v-icon
+                    >
+                    <v-icon v-else color="success" class="mr-2" size="28">mdi-check-circle</v-icon>
+                    <span v-if="!isLoggedIn" class="font-weight-bold title-text"
+                      >订阅 GitHave AI</span
+                    >
+                    <span v-else class="font-weight-bold title-text">已登录 GitHave AI</span>
+                    <v-spacer></v-spacer>
+                    <v-chip v-if="isLoggedIn" color="success" class="ml-2" label>
+                      <v-icon small class="mr-1">mdi-check-circle</v-icon>
+                      访问
+                      <a :href="fmConfig.auth_base_url + '/dashboard'" target="_blank">
+                        GitHave AI 控制台
+                      </a>
+                      查看账户信息
+                    </v-chip>
+                    <v-btn
+                      v-if="isLoggedIn"
+                      variant="text"
+                      class="ml-2"
+                      color="error"
+                      @click="logoutGithave"
+                      >退出登录</v-btn
+                    >
+                  </v-card-title>
+
+                  <v-card-text>
+                    <div v-if="!isLoggedIn" class="mb-3">
+                      <div class="d-flex align-center mb-2">
+                        <v-icon color="success" class="mr-2">mdi-gift</v-icon>
+                        <span class="font-weight-bold">登录即赠送十万tokens</span>
+                      </div>
+                      <div class="d-flex align-center mb-2">
+                        <v-icon color="info" class="mr-2">mdi-database-import</v-icon>
+                        <span class="font-weight-bold">无需消耗算力，自动导入社区优质代码索引</span>
+                      </div>
+                      <div class="d-flex align-center mb-3">
+                        <v-icon color="purple" class="mr-2">mdi-cpu-64-bit</v-icon>
+                        <span class="font-weight-bold">免费试用全部AI功能</span>
+                      </div>
+                    </div>
+
+                    <!-- 登录状态相关内容 -->
+                    <div v-if="isLoggedIn" class="mb-3">
+                      <v-divider class="mb-3"></v-divider>
+                      <v-alert
+                        v-if="!githaveUser.email || !githaveUser.verified"
+                        type="error"
+                        variant="tonal"
+                        border="start"
+                        class="mb-3"
+                        density="comfortable"
+                      >
+                        <div class="d-flex align-center flex-wrap">
+                          <v-icon color="error" class="mr-2">mdi-email-alert</v-icon>
+                          <span class="font-weight-bold">该账号未激活</span>
+                          <span class="ml-2">请前往</span>
+                          <a
+                            :href="fmConfig.auth_base_url + '/dashboard'"
+                            target="_blank"
+                            class="ml-1"
+                          >
+                            GitHave AI 控制台
+                          </a>
+                          <span class="ml-1">激活邮箱后，并重新登录，即可正常使用AI功能。</span>
+                          <v-spacer></v-spacer>
+                        </div>
+                      </v-alert>
+                      <!-- 账户信息（Ant Design Tag 标签化平铺展示） -->
+                      <div class="mb-2 githave-account-inline">
+                        <div class="account-row">
+                          <a-tag color="blue">用户名</a-tag>
+                          <span>{{ githaveUser.username || '—' }}</span>
+                        </div>
+                        <div class="account-row">
+                          <a-tag color="geekblue">邮箱</a-tag>
+                          <span>{{ githaveUser.email || '—' }}</span>
+                        </div>
+                        <div class="account-row">
+                          <a-tag color="purple">登录时间</a-tag>
+                          <span>{{ formattedLoginTime }}</span>
+                        </div>
+                        <div class="account-row">
+                          <a-tag color="gold">APIKey</a-tag>
+                          <span class="token">{{ maskedToken }}</span>
+                          <div v-if="showToken">
+                            <a-tag color="error">过期时间: {{ formattedExpireTime }}</a-tag>
+                          </div>
+                          <a-button size="small" type="link" @click="showToken = !showToken">{{
+                            showToken ? '隐藏' : '显示'
+                          }}</a-button>
+                          <a-button
+                            size="small"
+                            type="link"
+                            @click="copyToClipboard(githaveUser.token)"
+                            >复制</a-button
+                          >
+                        </div>
+                      </div>
+                      <div class="mb-3">
+                        <span class="font-weight-bold" style="color: #2c3e50">选择大模型：</span>
+                        <v-chip-group v-model="selectedGithaveModel" mandatory class="mt-2">
+                          <v-chip value="auto" color="primary" variant="outlined"
+                            >GitHave-auto</v-chip
+                          >
+                          <v-chip value="openai" color="primary" variant="outlined"
+                            >GitHave-o1</v-chip
+                          >
+                          <v-chip value="qwen" color="primary" variant="outlined"
+                            >GitHave-q1</v-chip
+                          >
+                        </v-chip-group>
+                      </div>
+                      <v-btn
+                        color="primary"
+                        size="large"
+                        class="mt-2"
+                        :loading="isSubscribing"
+                        @click="subscribeGithaveAI"
+                      >
+                        一键使用
+                      </v-btn>
+                    </div>
+
+                    <div v-else>
+                      <v-alert
+                        v-if="loginExpired"
+                        type="error"
+                        variant="tonal"
+                        border="start"
+                        class="mb-2"
+                      >
+                        当前登录信息已失效，请重新登录。 过期时间：<span class="expired-time">{{
+                          formattedExpireTime
+                        }}</span>
+                      </v-alert>
+                      <v-btn color="primary" size="large" class="mt-2" @click="loginToGithave">
+                        <v-icon class="mr-2">mdi-login</v-icon>
+                        登录GitHave
+                      </v-btn>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </v-col>
+            </v-row>
+
+            <v-row class="w-100 dark-text-force mt-4" align="center" justify="center">
               <!-- 云端模型卡片 -->
               <v-col cols="12" md="5">
                 <v-card
@@ -299,7 +509,7 @@
                     <v-chip color="info" class="ml-2" label>快速体验</v-chip>
                   </v-card-title>
                   <v-card-text class="dark-text-force">
-                    <div class="mb-4 dark-text-force">无需本地部署，随时体验最新AI能力。</div>
+                    <!-- <div class="mb-4 dark-text-force">无需消耗本地算力，随时体验最新AI能力。</div> -->
                     <!-- 新增：云端模型配置检测信息 -->
                     <div class="mb-2">
                       <v-alert type="info" variant="outlined" colored-border class="pa-2 mb-2">
@@ -315,8 +525,19 @@
                             >已配置的云端模型API：</span
                           >
                           <span class="text-primary">{{ cloudApiCount }}</span>
-                          <span class="ml-3 font-weight-bold dark-text-force">涉及提供商：</span>
-                          <span class="text-info">{{ cloudVendors.join('，') || '无' }}</span>
+                          <template v-if="uniqueProviders.length > 0">
+                            <span class="ml-2 dark-text-force">供应商：</span>
+                            <v-chip
+                              v-for="provider in uniqueProviders"
+                              :key="provider"
+                              size="small"
+                              color="info"
+                              variant="outlined"
+                              class="ml-1"
+                            >
+                              {{ provider }}
+                            </v-chip>
+                          </template>
                         </div>
                       </v-alert>
                     </div>
@@ -347,7 +568,7 @@
                     <v-chip color="primary" class="ml-2" label>安全可控</v-chip>
                   </v-card-title>
                   <v-card-text class="dark-text-force">
-                    <div class="mb-2 dark-text-force">无需联网，数据本地安全，适合隐私场景。</div>
+                    <!-- <div class="mb-2 dark-text-force">无需联网，数据本地安全，适合隐私场景。</div> -->
                   </v-card-text>
                   <v-tooltip location="top" :open-delay="200" :close-delay="100" max-width="600">
                     <template #activator="{ props }">
@@ -435,10 +656,10 @@
                           <v-col cols="12" md="6" class="d-flex align-center">
                             <div>
                               <div class="font-weight-medium dark-text-force">
-                                nomic-embed-text/bge-large-zh/text2vec-large
+                                bge-large-zh-v1.5
                               </div>
                               <div class="text--secondary text-caption dark-text-force">
-                                <span class="text-grey">(大约需要1.1GB)</span
+                                <span class="text-grey">(大约需要651MB)</span
                                 >构建代码知识库与智能AI索引
                               </div>
                             </div>
@@ -590,9 +811,9 @@
               <!-- nomic-embed-text -->
               <v-col cols="12" md="6" class="d-flex align-center">
                 <div>
-                  <div class="font-weight-medium">nomic-embed-text/bge-large-zh/text2vec-large</div>
+                  <div class="font-weight-medium">bge-large-zh-v1.5</div>
                   <div class="text--secondary text-caption">
-                    <span class="text-grey">(大约需要1.1GB)</span>构建代码知识库与智能AI索引
+                    <span class="text-grey">(大约需要651MB)</span>构建代码知识库与智能AI索引
                   </div>
                 </div>
                 <template v-if="nomicInstalled === null">
@@ -933,47 +1154,247 @@
           <v-card-title class="headline">☁️ 云端模型</v-card-title>
           <!-- 新增：统一云端模型配置展示区 -->
           <v-card-text>
-            <v-alert type="info" variant="outlined" colored-border class="mb-4">
-              <span style="color: #9c1a1c; border: 10px">一键订阅</span>
-              功能正在有序开发中，敬请期待，你可以先在这里手动配置云端模型的API。
-            </v-alert>
-            <v-btn color="primary" variant="tonal" class="mr-2 mt-2" @click="applyToAllCloudConfigs"
-              >一键设置（以第一个为准）</v-btn
-            >
-            <v-btn color="success" variant="tonal" class="mt-2" @click="saveAllCloudConfigs"
+            <v-btn color="success" variant="tonal" class="mr-2 mt-2" @click="saveAllCloudConfigs"
               >一键保存</v-btn
             >
-            <v-row>
-              <v-col
-                v-for="(item, idx) in allCloudConfigs"
-                :key="item.label + idx"
-                cols="12"
-                md="6"
-              >
-                <v-card outlined>
-                  <v-card-title>{{ item.label }}</v-card-title>
-                  <v-card-text>
-                    <v-text-field v-model="item.ref.api" label="API Key" />
-                    <v-text-field v-model="item.ref.url" label="API URL" />
-                    <v-text-field v-model="item.ref.model" label="模型名称" />
-                    <v-text-field v-model="item.ref.type" label="供应商" />
-                    <v-switch v-model="item.ref.enabled" label="启用" />
-                    <v-text-field
-                      v-model.number="item.ref.max_prompts"
-                      label="最大提示词数量"
-                      type="number"
-                    />
-                  </v-card-text>
-                </v-card>
-              </v-col>
-            </v-row>
-          </v-card-text>
-          <!-- 自定义模型配置 -->
-          <v-card-text>
-            <v-form ref="form" v-model="valid">
-              <v-expansion-panels v-model="expandedPanels" multiple variant="popout">
-              </v-expansion-panels>
-            </v-form>
+            <v-btn color="primary" variant="tonal" class="mt-2" @click="refreshModelList"
+              >刷新模型列表</v-btn
+            >
+            <!-- 常规云端模型配置区域 -->
+            <v-card class="mb-4" outlined>
+              <v-card-title class="text-h6 pa-3">
+                <v-icon class="mr-2" color="primary">mdi-cloud</v-icon>
+                大模型
+              </v-card-title>
+              <v-card-text class="pa-4">
+                <v-row>
+                  <v-col
+                    v-for="(item, idx) in allCloudConfigs"
+                    :key="item.label + idx"
+                    cols="12"
+                    md="6"
+                  >
+                    <v-card outlined class="cloud-config-card">
+                      <v-card-title class="text-h6 pa-3">
+                        <v-icon class="mr-2" color="primary">mdi-cloud</v-icon>
+                        {{ item.label }}
+                      </v-card-title>
+                      <v-divider></v-divider>
+                      <v-card-text class="pa-4">
+                        <!-- API Key输入 -->
+                        <v-text-field
+                          v-model="item.ref.api"
+                          label="API Key"
+                          :type="item.showApiKey ? 'text' : 'password'"
+                          prepend-inner-icon="mdi-key"
+                          :append-inner-icon="item.showApiKey ? 'mdi-eye-off' : 'mdi-eye'"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          hint="请输入您的API密钥"
+                          persistent-hint
+                          @click:append-inner="item.showApiKey = !item.showApiKey"
+                        />
+
+                        <!-- 供应商选择 -->
+                        <v-select
+                          v-model="item.selectedProvider"
+                          :items="getProviderOptions()"
+                          label="选择供应商"
+                          prepend-inner-icon="mdi-domain"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          @update:model-value="(val) => onProviderChange(item.ref, val)"
+                        >
+                          <template #item="{ props }">
+                            <v-list-item v-bind="props">
+                              <template #prepend>
+                                <v-avatar size="24" class="mr-2">
+                                  <v-icon size="16">mdi-cloud-outline</v-icon>
+                                </v-avatar>
+                              </template>
+                            </v-list-item>
+                          </template>
+                        </v-select>
+
+                        <!-- 模型选择（支持自定义输入） -->
+                        <v-combobox
+                          v-model="item.ref.model"
+                          :items="getModelOptions(item.selectedProvider)"
+                          item-title="title"
+                          item-value="value"
+                          label="选择或输入模型名称"
+                          prepend-inner-icon="mdi-robot"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          :disabled="!item.selectedProvider"
+                          :hint="
+                            item.selectedProvider
+                              ? '可选择预设模型或手动输入自定义模型名称'
+                              : '请先选择供应商'
+                          "
+                          persistent-hint
+                          clearable
+                        >
+                          <template #item="{ props }">
+                            <v-list-item v-bind="props">
+                              <template #prepend>
+                                <v-icon class="mr-2" size="16">mdi-brain</v-icon>
+                              </template>
+                            </v-list-item>
+                          </template>
+                        </v-combobox>
+
+                        <!-- API URL和供应商类型已隐藏，通过选择供应商自动设置 -->
+
+                        <!-- 启用开关和最大提示词数量 -->
+                        <div class="d-flex align-center mb-3">
+                          <v-switch
+                            v-model="item.ref.enabled"
+                            label="启用此模型"
+                            color="success"
+                            hide-details
+                            class="mr-4"
+                          />
+                          <v-text-field
+                            v-model.number="item.ref.max_prompts"
+                            label="最大上下文限制"
+                            type="number"
+                            prepend-inner-icon="mdi-counter"
+                            variant="outlined"
+                            density="compact"
+                            style="max-width: 200px"
+                            hide-details
+                          />
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+            <!-- 嵌入模型配置区域 -->
+            <v-card class="mb-4" outlined style="border: 2px solid #ff9800; background: #fff3e0">
+              <v-card-title class="text-h6 pa-3" style="background: #ff9800; color: white">
+                <v-icon class="mr-2" color="white">mdi-vector-triangle</v-icon>
+                小模型
+              </v-card-title>
+              <v-card-text class="pa-4">
+                <v-row>
+                  <v-col v-for="(item, idx) in embeddingConfigs" :key="item.label + idx" cols="12">
+                    <v-card
+                      outlined
+                      class="embedding-config-card"
+                      style="border: 1px solid #ff9800"
+                    >
+                      <v-card-title class="text-h6 pa-3">
+                        <v-icon class="mr-2" color="orange">mdi-vector-triangle</v-icon>
+                        {{ item.label }}
+                      </v-card-title>
+                      <v-divider></v-divider>
+                      <v-card-text class="pa-4">
+                        <!-- API Key输入 -->
+                        <v-text-field
+                          v-model="item.ref.api"
+                          label="API Key"
+                          :type="item.showApiKey ? 'text' : 'password'"
+                          prepend-inner-icon="mdi-key"
+                          :append-inner-icon="item.showApiKey ? 'mdi-eye-off' : 'mdi-eye'"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          hint="请输入您的API密钥"
+                          persistent-hint
+                          @click:append-inner="item.showApiKey = !item.showApiKey"
+                        />
+
+                        <!-- 供应商选择 -->
+                        <v-select
+                          v-model="item.selectedProvider"
+                          :items="getEmbeddingProviderOptions()"
+                          label="选择嵌入模型供应商"
+                          prepend-inner-icon="mdi-domain"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          @update:model-value="(val) => onEmbeddingProviderChange(item.ref, val)"
+                        >
+                          <template #item="{ props }">
+                            <v-list-item v-bind="props">
+                              <template #prepend>
+                                <v-avatar size="24" class="mr-2">
+                                  <v-icon size="16">mdi-vector-triangle</v-icon>
+                                </v-avatar>
+                              </template>
+                            </v-list-item>
+                          </template>
+                        </v-select>
+
+                        <!-- 模型选择（支持自定义输入） -->
+                        <v-combobox
+                          v-model="item.ref.model"
+                          :items="getEmbeddingModelOptions(item.selectedProvider)"
+                          item-title="title"
+                          item-value="value"
+                          label="选择或输入嵌入模型名称"
+                          prepend-inner-icon="mdi-vector-triangle"
+                          variant="outlined"
+                          density="compact"
+                          class="mb-3"
+                          :disabled="!item.selectedProvider"
+                          :hint="
+                            item.selectedProvider
+                              ? '可选择预设嵌入模型或手动输入自定义模型名称'
+                              : '请先选择供应商'
+                          "
+                          persistent-hint
+                          clearable
+                        >
+                          <template #item="{ props }">
+                            <v-list-item v-bind="props">
+                              <template #prepend>
+                                <v-icon class="mr-2" size="16">mdi-vector-triangle</v-icon>
+                              </template>
+                            </v-list-item>
+                          </template>
+                        </v-combobox>
+
+                        <!-- 启用开关和最大提示词数量 -->
+                        <div class="d-flex align-center mb-3">
+                          <v-switch
+                            v-model="item.ref.enabled"
+                            label="启用此嵌入模型"
+                            color="orange"
+                            hide-details
+                            class="mr-4"
+                          />
+                          <v-text-field
+                            v-model.number="item.ref.max_prompts"
+                            label="最大上下文限制"
+                            type="number"
+                            prepend-inner-icon="mdi-counter"
+                            variant="outlined"
+                            density="compact"
+                            style="max-width: 200px"
+                            hide-details
+                          />
+                        </div>
+                      </v-card-text>
+                    </v-card>
+                  </v-col>
+                </v-row>
+              </v-card-text>
+            </v-card>
+
+            <!-- 自定义模型配置 -->
+            <v-card-text>
+              <v-form ref="form" v-model="valid">
+                <v-expansion-panels v-model="expandedPanels" multiple variant="popout">
+                </v-expansion-panels>
+              </v-form>
+            </v-card-text>
           </v-card-text>
         </v-card>
       </v-container>
@@ -1656,99 +2077,120 @@
     </v-snackbar>
 
     <!-- 模型切换确认对话框 -->
-    <v-dialog v-model="showSwitchConfirmDialog" persistent max-width="600">
-      <v-card>
-        <v-card-title class="d-flex align-center">
-          <v-icon color="warning" class="mr-2">mdi-alert-circle</v-icon>
+    <a-modal
+      v-model:open="showSwitchConfirmDialog"
+      title="切换模型使用模式确认"
+      :closable="false"
+      width="600px"
+    >
+      <template #title>
+        <div class="d-flex align-center">
+          <ExclamationCircleOutlined style="color: #faad14" class="mr-2" />
           切换模型使用模式确认
-        </v-card-title>
-        <v-card-text>
-          <v-alert type="warning" variant="outlined" class="mb-4">
-            <div class="font-weight-bold mb-2">⚠️ 重要提醒</div>
-            <div class="mb-2">
-              切换模型使用模式将会重启所有核心服务，这可能会影响以下正在运行的功能：
-            </div>
-            <ul class="ml-4">
-              <li>代码分析和搜索任务</li>
-              <li>AI对话和问答服务</li>
-              <li>文档生成和处理</li>
-              <li>其他依赖AI模型的功能</li>
-            </ul>
-          </v-alert>
+        </div>
+      </template>
 
-          <div class="mb-3">
-            <span class="font-weight-bold">即将切换到：</span>
-            <v-chip :color="pendingSwitchValue ? 'info' : 'primary'" class="ml-2" label>
-              {{ pendingSwitchValue ? '云端模型' : '本地模型' }}
-            </v-chip>
+      <a-alert type="warning" show-icon class="mb-4">
+        <template #message>
+          <div class="font-weight-bold mb-2">⚠️ 重要提醒</div>
+          <div class="mb-2">
+            切换模型使用模式将会重启所有核心服务，这可能会影响以下正在运行的功能：
           </div>
+          <ul class="ml-4">
+            <li>代码分析和搜索任务</li>
+            <li>AI对话和问答服务</li>
+            <li>文档生成和处理</li>
+            <li>其他依赖AI模型的功能</li>
+          </ul>
+        </template>
+      </a-alert>
 
-          <div class="text-body-2 text-grey-darken-1">
-            请确保当前没有重要任务正在进行，然后点击确认继续。
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn text @click="cancelSwitch"> 取消 </v-btn>
-          <v-btn color="primary" variant="elevated" @click="confirmSwitch"> 确认切换 </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+      <div class="mb-3">
+        <span class="font-weight-bold">即将切换到：</span>
+        <a-tag :color="pendingSwitchValue ? 'blue' : 'green'" class="ml-2">
+          {{ pendingSwitchValue ? '云端模型' : '本地模型' }}
+        </a-tag>
+      </div>
 
-    <!-- 重启服务进度对话框 -->
-    <v-dialog v-model="showRestartDialog" persistent max-width="500">
-      <v-card>
-        <v-card-title class="d-flex align-center">
-          <v-icon color="primary" class="mr-2">mdi-restart</v-icon>
+      <div class="text-body-2 text-grey-darken-1">
+        请确保当前没有重要任务正在进行，然后点击确认继续。
+      </div>
+
+      <template #footer>
+        <div style="text-align: right">
+          <a-button variant="outlined" style="color: #000" @click="cancelSwitch"> 取消 </a-button>
+          <a-button type="primary" style="margin-left: 8px; color: #fff" @click="confirmSwitch">
+            确认切换
+          </a-button>
+        </div>
+      </template>
+    </a-modal>
+    <!-- 重启服务进度对话框（Ant Design） -->
+    <a-modal
+      v-model:open="showRestartDialog"
+      :closable="false"
+      :mask-closable="false"
+      :footer="null"
+      width="560px"
+    >
+      <template #title>
+        <div class="d-flex align-center">
+          <SyncOutlined style="color: #1677ff" class="mr-2" />
           重启服务中
-        </v-card-title>
-        <v-card-text>
-          <div class="mb-4">正在重启核心服务和索引服务，请稍候...</div>
-          <v-list>
-            <v-list-item v-for="step in restartProgress" :key="step.step" class="px-0">
-              <template #prepend>
-                <v-icon v-if="step.status === 'pending'" color="grey" size="small">
-                  mdi-circle-outline
-                </v-icon>
-                <v-progress-circular
-                  v-else-if="step.status === 'running'"
-                  indeterminate
-                  color="primary"
-                  size="20"
-                  width="2"
-                ></v-progress-circular>
-                <v-icon v-else-if="step.status === 'completed'" color="success" size="small">
-                  mdi-check-circle
-                </v-icon>
-                <v-icon v-else-if="step.status === 'error'" color="error" size="small">
-                  mdi-close-circle
-                </v-icon>
-              </template>
-              <v-list-item-title
-                :class="{
-                  'text-grey': step.status === 'pending',
-                  'text-primary': step.status === 'running',
-                  'text-success': step.status === 'completed',
-                  'text-error': step.status === 'error'
-                }"
-              >
-                {{ step.step }}. {{ step.text }}
-              </v-list-item-title>
-            </v-list-item>
-          </v-list>
-        </v-card-text>
-        <v-card-actions v-if="!isRestarting">
-          <v-spacer></v-spacer>
-          <v-btn color="primary" variant="text" @click="showRestartDialog = false"> 关闭 </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+        </div>
+      </template>
+
+      <a-alert type="info" show-icon class="mb-3" message="正在重启核心服务和索引服务，请稍候..." />
+
+      <a-steps direction="vertical" size="small">
+        <a-step
+          v-for="step in restartProgress"
+          :key="step.step"
+          :title="`${step.step}. ${step.text}`"
+          :status="antStepStatusMap[step.status]"
+        >
+          <template #icon>
+            <LoadingOutlined v-if="step.status === 'running'" />
+            <CheckCircleTwoTone v-else-if="step.status === 'completed'" two-tone-color="#52c41a" />
+            <CloseCircleTwoTone v-else-if="step.status === 'error'" two-tone-color="#ff4d4f" />
+            <span
+              v-else
+              style="
+                display: inline-block;
+                width: 14px;
+                height: 14px;
+                border: 1px solid #d9d9d9;
+                border-radius: 50%;
+              "
+            ></span>
+          </template>
+        </a-step>
+      </a-steps>
+
+      <div class="mt-3">
+        <a-progress
+          :percent="restartPercent"
+          :status="restartHasError ? 'exception' : isRestarting ? 'active' : 'normal'"
+        />
+      </div>
+
+      <div v-if="!isRestarting" style="text-align: right; margin-top: 8px">
+        <a-button type="link" @click="showRestartDialog = false">关闭</a-button>
+      </div>
+    </a-modal>
   </v-container>
 </template>
 
 <script setup>
 import { useStore } from 'vuex'
-import { ref, reactive, onMounted, watch, computed, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, watch, computed, onBeforeUnmount, nextTick } from 'vue'
+import {
+  ExclamationCircleOutlined,
+  SyncOutlined,
+  LoadingOutlined,
+  CheckCircleTwoTone,
+  CloseCircleTwoTone
+} from '@ant-design/icons-vue'
 import { getConfig, updateConfig, getFmConfig, updateFmConfig } from '../service/api.js'
 import draggable from 'vuedraggable'
 import TipBanner from '../components/TipBanner.vue'
@@ -1770,6 +2212,7 @@ const fmConfig = reactive({
   api_base_url: '',
   completion_api: '',
   embedding_api: '',
+  auth_base_url: 'http://localhost:3000',
   default_model: '',
   default_format: '',
   default_temp: 0.1,
@@ -1835,6 +2278,32 @@ const networkSpeed = ref({
   isMonitoring: false
 })
 
+// —— 安装日志 ——
+const installLogs = ref([])
+
+// 添加安装日志条目
+const addLogEntry = (type, message) => {
+  const timestamp = new Date().toLocaleTimeString()
+  installLogs.value.push({
+    type, // 'info', 'error', 'success'
+    message,
+    timestamp
+  })
+
+  // 自动滚动到底部
+  nextTick(() => {
+    const container = document.querySelector('.install-logs-container')
+    if (container) {
+      container.scrollTop = container.scrollHeight
+    }
+  })
+}
+
+// 清空安装日志
+const clearInstallLogs = () => {
+  installLogs.value = []
+}
+
 // —— 计算属性：需要安装的依赖数量 ——
 const needsInstallCount = computed(() => {
   let count = 0
@@ -1848,6 +2317,11 @@ const needsInstallCount = computed(() => {
     count++
   }
   return count
+})
+
+// —— Windows系统检测 ——
+const isWindows = computed(() => {
+  return navigator.platform.indexOf('Win') > -1
 })
 
 // —— 拖拽分配 ——
@@ -1931,14 +2405,427 @@ const customLabels = {
   enabled: { label: '启用云端模型', isModel: false }
 }
 
-const messages = ref([
-  {
-    date: '立刻订阅',
-    message:
-      '本地部署嫌麻烦，反应速度太慢？订阅我们的一站式模型服务，无须下载任何模型，即可体验所有AI能力',
-    href: 'https://your.link/3'
+const messages = ref([])
+
+// GitHave AI 订阅相关状态
+const isLoggedIn = ref(false)
+const selectedGithaveModel = ref('auto')
+const isSubscribing = ref(false)
+const loginExpired = ref(false)
+// 登录用户信息与展示控制
+const githaveUser = reactive({
+  user_id: '',
+  username: '',
+  email: '',
+  token: '',
+  expires: 0,
+  loginTime: 0,
+  verified: false
+})
+const showToken = ref(false)
+const formattedLoginTime = computed(() =>
+  githaveUser.loginTime ? new Date(githaveUser.loginTime).toLocaleString() : '—'
+)
+const formattedExpireTime = computed(() =>
+  githaveUser.expires ? new Date(githaveUser.expires).toLocaleString() : '—'
+)
+const maskedToken = computed(() => {
+  const t = githaveUser.token || ''
+  if (!t) return '—'
+  if (showToken.value) return t
+  return t.length > 8 ? `${t.slice(0, 4)}••••${t.slice(-4)}` : '••••'
+})
+
+const copyToClipboard = async (text) => {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    store.dispatch('snackbar/showSnackbar', { message: '已复制到剪贴板', color: 'success' })
+  } catch (e) {
+    console.error('复制失败:', e)
+    store.dispatch('snackbar/showSnackbar', { message: '复制失败，请重试', color: 'error' })
   }
-])
+}
+
+// GitHave AI 相关方法
+const checkGithaveLoginStatus = async () => {
+  try {
+    // 检查Electron缓存中的登录状态
+    const loginData = localStorage.getItem('githave_login_data')
+    if (loginData) {
+      const userData = JSON.parse(loginData)
+      if (userData.token && userData.expires > Date.now()) {
+        isLoggedIn.value = true
+        loginExpired.value = false
+        Object.assign(githaveUser, {
+          user_id: userData.user_id || '',
+          username: userData.username || '',
+          email: userData.email || '',
+          token: userData.token || '',
+          expires: userData.expires || 0,
+          loginTime: userData.loginTime || 0,
+          verified: userData.verified || false
+        })
+        console.log('GitHave用户已登录:', {
+          user_id: userData.user_id,
+          username: userData.username,
+          email: userData.email,
+          loginTime: new Date(userData.loginTime).toLocaleString(),
+          verified: userData.verified
+        })
+        return true
+      } else if (userData.expires <= Date.now()) {
+        // 登录已过期：提示过期，并清理本地存储
+        localStorage.removeItem('githave_login_data')
+        loginExpired.value = true
+        isLoggedIn.value = false
+        Object.assign(githaveUser, {
+          user_id: userData.user_id || '',
+          username: userData.username || '',
+          email: userData.email || '',
+          token: userData.token || '',
+          expires: userData.expires || 0,
+          loginTime: userData.loginTime || 0,
+          verified: userData.verified || false
+        })
+        console.log('GitHave登录已过期，已清除缓存')
+      }
+    }
+    if (!isLoggedIn.value && !loginExpired.value) {
+      Object.assign(githaveUser, {
+        user_id: '',
+        username: '',
+        email: '',
+        token: '',
+        expires: 0,
+        loginTime: 0,
+        verified: false
+      })
+    }
+    return false
+  } catch (error) {
+    console.error('检查GitHave登录状态失败:', error)
+    // 如果数据格式错误，清除缓存
+    localStorage.removeItem('githave_login_data')
+    isLoggedIn.value = false
+    loginExpired.value = false
+    Object.assign(githaveUser, {
+      user_id: '',
+      username: '',
+      email: '',
+      token: '',
+      expires: 0,
+      loginTime: 0,
+      verified: false
+    })
+    return false
+  }
+}
+
+const loginToGithave = async () => {
+  try {
+    // 根据配置构造 GitHave 登录页面URL
+    const base = (fmConfig.auth_base_url || '').replace(/\/$/, '') || 'http://localhost:3000'
+    const authUrl = `${base}/app/auth?callback=githave-desktop`
+
+    // 通过外部浏览器打开GitHave登录页面
+    if (window.electron && window.electron.shell && window.electron.shell.openExternal) {
+      await window.electron.shell.openExternal(authUrl)
+
+      // 显示等待登录的提示
+      store.dispatch('snackbar/showSnackbar', {
+        message: '正在打开浏览器登录页面，请完成登录后返回...',
+        color: 'info'
+      })
+    } else {
+      // 备用方案：使用window.open
+      window.open(authUrl, '_blank')
+
+      store.dispatch('snackbar/showSnackbar', {
+        message: '正在打开浏览器登录页面，请完成登录后返回...',
+        color: 'info'
+      })
+    }
+  } catch (error) {
+    console.error('打开外部浏览器失败:', error)
+    const base = (fmConfig.auth_base_url || '').replace(/\/$/, '') || 'http://localhost:3000'
+    store.dispatch('snackbar/showSnackbar', {
+      message: `打开浏览器失败，请手动访问 ${base}/app/auth`,
+      color: 'error'
+    })
+  }
+}
+
+const subscribeGithaveAI = async () => {
+  const confirmResult = await window.electron.showMessageBox({
+    type: 'question',
+    buttons: ['继续', '取消'],
+    defaultId: 0,
+    cancelId: 1,
+    title: '确认订阅 GitHave AI',
+    message: '将使用 GitHave 云端模型，并写入当前配置。是否继续？',
+    detail:
+      '操作将：\n1) 为索引相关的大小模型写入 GitHave 提供商与凭证\n2) 为三个AI助手写入 GitHave 提供商与凭证\n3) 保存配置并进入统一切换与重启流程\n（注意：此操作会覆盖现有的云端模型配置，请及时保存）',
+    noLink: true
+  })
+  if (!confirmResult || confirmResult.response !== 0) {
+    return
+  }
+
+  if (!isLoggedIn.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先登录GitHave账户',
+      color: 'error'
+    })
+    return
+  }
+
+  if (!selectedGithaveModel.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请选择大模型',
+      color: 'error'
+    })
+    return
+  }
+
+  isSubscribing.value = true
+
+  try {
+    // 读取登录信息中的 token
+    const loginDataStr = localStorage.getItem('githave_login_data')
+    const loginData = loginDataStr ? JSON.parse(loginDataStr) : null
+    const token = loginData?.token || ''
+    if (!token) {
+      throw new Error('未获取到登录凭证，请重新登录')
+    }
+
+    // 1. 配置云端模型为GitHave AI
+    const githaveProvider = cloudProviders['githave']
+    if (!githaveProvider) {
+      throw new Error('GitHave AI供应商配置未找到')
+    }
+
+    // 2. 配置大模型（默认云模型）
+    if (fmConfig.default_cloud_model) {
+      fmConfig.default_cloud_model.api = token
+      fmConfig.default_cloud_model.url = githaveProvider.apiUrl
+      fmConfig.default_cloud_model.type = githaveProvider.type
+      fmConfig.default_cloud_model.model = selectedGithaveModel.value
+      fmConfig.default_cloud_model.enabled = true
+    }
+
+    // 3. 配置小模型（嵌入模型）
+    const githaveEmbedProvider = embeddingProviders['githave']
+    if (fmConfig.embedding_cloud_model && githaveEmbedProvider) {
+      fmConfig.embedding_cloud_model.api = token
+      fmConfig.embedding_cloud_model.url = githaveEmbedProvider.apiUrl
+      fmConfig.embedding_cloud_model.type = githaveEmbedProvider.type || 'githave'
+      fmConfig.embedding_cloud_model.model = 'BAAI/bge-large-zh-v1.5'
+      fmConfig.embedding_cloud_model.enabled = true
+    }
+
+    // 4. 配置索引弹性策略的云端模型（遍历 model_configs）
+    if (Array.isArray(fmConfig.model_configs)) {
+      fmConfig.model_configs.forEach((mc) => {
+        if (!mc) return
+        if (!mc.cloud_model) mc.cloud_model = {}
+        mc.cloud_model.api = token
+        mc.cloud_model.url = githaveProvider.apiUrl
+        mc.cloud_model.type = githaveProvider.type || 'githave'
+        // 使用当前选择的大模型作为云端模型标识
+        mc.cloud_model.model = selectedGithaveModel.value
+        mc.cloud_model.enabled = true
+        mc.cloud_model.max_prompts = 30000
+        // 若已有自定义温度则保留，否则按订阅默认值设置
+        if (typeof mc.cloud_model.temperature !== 'number') {
+          mc.cloud_model.temperature = 0.1
+        }
+      })
+    }
+
+    // 5. 同步常规助手 config.custom 为 GitHave AI
+    const roles = ['coder', 'chatter', 'officer']
+    roles.forEach((role) => {
+      if (!config.custom[role]) config.custom[role] = {}
+      const cc = config.custom[role]
+      cc.api = token
+      cc.url = githaveProvider.apiUrl
+      cc.type = githaveProvider.type || 'githave'
+      cc.model = selectedGithaveModel.value
+      cc.enabled = true
+      // 默认值：与示例一致；已存在则保留
+      if (typeof cc.max_prompts !== 'number') cc.max_prompts = 30000
+      if (typeof cc.max_file_num !== 'number') {
+        cc.max_file_num = role === 'coder' ? 4 : 0
+      }
+    })
+
+    console.log(fmConfig, config.custom)
+
+    // 6. 保存配置（同时保存 config 与 fmConfig）
+    await Promise.all([updateConfig(config), updateFmConfig(fmConfig)])
+
+    // 7. 触发一次统一的切换确认与重启流程（已改为直接执行重启）
+    await executeModelSwitch(true)
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: 'GitHave AI订阅配置成功！正在重启服务…',
+      color: 'success'
+    })
+  } catch (error) {
+    console.error('GitHave AI订阅失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '订阅失败: ' + error.message,
+      color: 'error'
+    })
+  } finally {
+    isSubscribing.value = false
+  }
+}
+
+// 退出 GitHave 登录：清理本地缓存并更新状态
+const logoutGithave = async () => {
+  const confirmResult = await window.electron.showMessageBox({
+    type: 'question',
+    buttons: ['确认', '取消'],
+    defaultId: 0,
+    cancelId: 1,
+    title: '确认退出 GitHave 登录',
+    message: '确认退出 GitHave 登录？',
+    detail:
+      '操作将：\n1) 清除本地缓存中的 GitHave 登录凭证\n2) 更新本地配置，禁用已配置的 GitHave 云端模型\n3) 触发一次配置保存与重启流程\n（注意：此操作会清除当前的 GitHave 登录状态，且会影响已配置的索引与助手模型）',
+    noLink: true
+  })
+  if (!confirmResult || confirmResult.response !== 0) {
+    return
+  }
+  try {
+    localStorage.removeItem('githave_login_data')
+    isLoggedIn.value = false
+    showToken.value = false
+    Object.assign(githaveUser, {
+      user_id: '',
+      username: '',
+      email: '',
+      token: '',
+      expires: 0,
+      loginTime: 0,
+      verified: false
+    })
+
+    // 清除 GitHave 相关 API 配置
+    if (fmConfig && fmConfig.default_cloud_model) {
+      fmConfig.default_cloud_model.api = ''
+    }
+    if (fmConfig && fmConfig.embedding_cloud_model) {
+      fmConfig.embedding_cloud_model.api = ''
+    }
+    if (Array.isArray(fmConfig?.model_configs)) {
+      fmConfig.model_configs.forEach((mc) => {
+        if (mc && mc.cloud_model) {
+          mc.cloud_model.api = ''
+        }
+      })
+    }
+    const roles = ['coder', 'chatter', 'officer']
+    if (config && config.custom) {
+      roles.forEach((role) => {
+        if (config.custom[role]) {
+          config.custom[role].api = ''
+        }
+      })
+    }
+
+    // 保存配置
+    await Promise.all([updateConfig(config), updateFmConfig(fmConfig)])
+
+    await executeModelSwitch(true)
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: '已退出 GitHave 登录，并清除了相关 API 配置',
+      color: 'success'
+    })
+  } catch (e) {
+    console.error('退出登录失败:', e)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '退出登录失败，请重试',
+      color: 'error'
+    })
+  }
+}
+
+// 处理协议回调 - 基于GitHave App拉起回调协议
+const handleProtocolCallback = (data) => {
+  console.log('收到GitHave协议回调:', data)
+
+  // 根据协议文档，回调格式为: githave://auth-success?route=auth&repo=success&token={token}&user_id={user_id}&username={username}&email={email}&timestamp={timestamp}&verified={verified}
+  if (data.route === 'auth-success' || (data.route === 'auth' && data.repo === 'success')) {
+    const { token, user_id, username, email, timestamp, verified } = data
+    const isVerified = verified === 'true'
+
+    if (token) {
+      // 验证时间戳防止重放攻击（可选）
+      if (timestamp) {
+        const callbackTime = parseInt(timestamp)
+        const currentTime = Date.now()
+        const timeDiff = Math.abs(currentTime - callbackTime)
+
+        // 如果时间差超过5分钟，拒绝回调
+        if (timeDiff > 5 * 60 * 1000) {
+          console.warn('协议回调时间戳过期，拒绝登录')
+          store.dispatch('snackbar/showSnackbar', {
+            message: '登录回调已过期，请重新登录',
+            color: 'warning'
+          })
+          return
+        }
+      }
+
+      // 保存完整的用户信息到localStorage
+      const loginData = {
+        token: token,
+        user_id: user_id,
+        username: username,
+        email: email,
+        expires: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30天过期
+        loginTime: Date.now(),
+        callbackTime: timestamp,
+        verified: isVerified
+      }
+      localStorage.setItem('githave_login_data', JSON.stringify(loginData))
+      Object.assign(githaveUser, {
+        user_id,
+        username,
+        email,
+        token,
+        expires: loginData.expires,
+        loginTime: loginData.loginTime,
+        verified: isVerified
+      })
+
+      // 更新登录状态
+      isLoggedIn.value = true
+      loginExpired.value = false
+
+      // 显示登录成功消息，包含用户信息
+      const welcomeMessage = username ? `欢迎回来，${username}！` : 'GitHave登录成功！'
+      store.dispatch('snackbar/showSnackbar', {
+        message: welcomeMessage,
+        color: 'success'
+      })
+
+      console.log('GitHave登录成功，用户信息:', { user_id, username, email })
+    } else {
+      console.error('协议回调缺少token参数')
+      store.dispatch('snackbar/showSnackbar', {
+        message: '登录回调数据不完整，请重新登录',
+        color: 'error'
+      })
+    }
+  } else {
+    console.log('收到其他协议回调:', data)
+  }
+}
 
 // —— 拖拽处理 ——
 const isDragging = ref(false)
@@ -2046,13 +2933,13 @@ const openHomeBrewWebsite = () => window.open('https://brew.sh/', '_blank')
 
 const checkNomic = async () => {
   try {
-    const nomic1 = await window.electron.checkModelInstalled('nomic-embed-text:latest')
+    // const nomic1 = await window.electron.checkModelInstalled('nomic-embed-text:latest')
     const nomic2 = await window.electron.checkModelInstalled('quentinz/bge-large-zh-v1.5:latest')
-    const nomic3 = await window.electron.checkModelInstalled(
-      'nn200433/text2vec-bge-large-chinese:latest'
-    )
-    console.log('nomicInstalled', nomic1, nomic2, nomic3)
-    nomicInstalled.value = nomic1 && nomic2 && nomic3
+    // const nomic3 = await window.electron.checkModelInstalled(
+    //  'nn200433/text2vec-bge-large-chinese:latest'
+    // )
+    console.log('nomicInstalled', nomic2)
+    nomicInstalled.value = nomic2
   } catch {
     nomicInstalled.value = false
   }
@@ -2080,9 +2967,9 @@ const retryRwkv = async () => {
 const installNecessaryModels = async () => {
   const toInstall = []
   if (!nomicInstalled.value) {
-    toInstall.push('nomic-embed-text:latest')
+    // toInstall.push('nomic-embed-text:latest')
     toInstall.push('quentinz/bge-large-zh-v1.5:latest')
-    toInstall.push('nn200433/text2vec-bge-large-chinese:latest')
+    // toInstall.push('nn200433/text2vec-bge-large-chinese:latest')
   }
   if (!llmInstalled.value) {
     toInstall.push('qwen2.5-coder:0.5b')
@@ -2243,35 +3130,109 @@ const initExpertSlotsFromConfig = () => {
 }
 
 const saveModelConfig = async () => {
-  // 同步原有 expertSlots 到 config
-  oldExpertKeys.forEach((slot) => {
-    config.ollama[slot] = expertSlots[slot][0]?.name || ''
-  })
-  config.expertSlots = { ...expertSlots }
-
-  // 同步 fmConfig 相关的 expertSlots 到 fmConfig
-  if (expertSlots.default_model[0]) {
-    fmConfig.default_model = expertSlots.default_model[0].name
-  }
-  if (expertSlots.embedding_model[0]) {
-    fmConfig.embedding_model = expertSlots.embedding_model[0].name
-  }
-
-  // 处理 model_configs 数组的前三个元素
-  for (let i = 0; i < 3; i++) {
-    const slotKey = `model_config_${i}`
-    if (expertSlots[slotKey][0] && fmConfig.model_configs[i]) {
-      fmConfig.model_configs[i].name = expertSlots[slotKey][0].name
-    }
-  }
+  // 重置进度状态
+  restartProgress.value.forEach((step) => (step.status = 'pending'))
+  isRestarting.value = true
+  showRestartDialog.value = true
 
   try {
+    // 步骤1: 修改配置
+    restartProgress.value[0].status = 'running'
+
+    // 同步原有 expertSlots 到 config
+    oldExpertKeys.forEach((slot) => {
+      config.ollama[slot] = expertSlots[slot][0]?.name || ''
+    })
+    config.expertSlots = { ...expertSlots }
+
+    // 同步 fmConfig 相关的 expertSlots 到 fmConfig
+    if (expertSlots.default_model[0]) {
+      fmConfig.default_model = expertSlots.default_model[0].name
+    }
+    if (expertSlots.embedding_model[0]) {
+      fmConfig.embedding_model = expertSlots.embedding_model[0].name
+    }
+
+    // 全量同步 model_configs（根据 expertSlots 中的 model_config_i 对应项）
+    if (Array.isArray(fmConfig.model_configs)) {
+      fmConfig.model_configs.forEach((_, i) => {
+        const slotKey = `model_config_${i}`
+        if (expertSlots[slotKey]?.[0]) {
+          fmConfig.model_configs[i].name = expertSlots[slotKey][0].name
+        }
+      })
+    }
+
     // 保存两个配置
     await Promise.all([updateConfig(config), updateFmConfig(fmConfig)])
-    alert('模型配置和FM配置已成功保存')
-  } catch (e) {
-    console.error('保存配置失败:', e)
-    alert('保存配置失败: ' + e.message)
+
+    restartProgress.value[0].status = 'completed'
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // 步骤2: 停止核心服务
+    restartProgress.value[1].status = 'running'
+    try {
+      await window.electron.stopApp()
+      restartProgress.value[1].status = 'completed'
+    } catch (error) {
+      console.warn('停止核心服务失败，可能已经停止:', error)
+      restartProgress.value[1].status = 'completed'
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // 步骤3: 停止索引服务
+    restartProgress.value[2].status = 'running'
+    try {
+      await window.electron.stopFmHttp()
+      restartProgress.value[2].status = 'completed'
+    } catch (error) {
+      console.warn('停止索引服务失败，可能已经停止:', error)
+      restartProgress.value[2].status = 'completed'
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // 步骤4: 启动核心服务
+    restartProgress.value[3].status = 'running'
+    const sysConfigResp = await window.electron.sysConfig()
+    const startAppResult = await window.electron.startApp(sysConfigResp.configPath)
+    if (startAppResult.started) {
+      restartProgress.value[3].status = 'completed'
+    } else {
+      throw new Error('启动核心服务失败')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 步骤5: 启动索引服务
+    restartProgress.value[4].status = 'running'
+    const fmConfigResp = await window.electron.fmConfig()
+    const startFmResult = await window.electron.startFmHttp(fmConfigResp.configPath)
+    if (startFmResult.started) {
+      restartProgress.value[4].status = 'completed'
+    } else {
+      throw new Error('启动索引服务失败')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 步骤6: 完成
+    restartProgress.value[5].status = 'completed'
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: '模型配置和FM配置已成功保存，服务已重启',
+      color: 'success'
+    })
+  } catch (error) {
+    console.error('保存配置失败:', error)
+    // 标记当前步骤为失败
+    const currentStepIndex = restartProgress.value.findIndex((step) => step.status === 'running')
+    if (currentStepIndex !== -1) {
+      restartProgress.value[currentStepIndex].status = 'error'
+    }
+    store.dispatch('snackbar/showSnackbar', {
+      message: '保存配置失败: ' + error.message,
+      color: 'error'
+    })
+  } finally {
+    isRestarting.value = false
   }
 }
 
@@ -2406,12 +3367,84 @@ const fetchFmConfig = async () => {
 
 // 保存FM配置
 const saveFmConfig = async () => {
+  // 重置进度状态
+  restartProgress.value.forEach((step) => (step.status = 'pending'))
+  isRestarting.value = true
+  showRestartDialog.value = true
+
   try {
+    // 步骤1: 修改配置
+    restartProgress.value[0].status = 'running'
+
     await updateFmConfig(fmConfig)
-    alert('FM配置已保存')
-  } catch (e) {
-    console.error('保存FM配置失败:', e)
-    alert('保存失败，请重试')
+
+    restartProgress.value[0].status = 'completed'
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // 步骤2: 停止核心服务
+    restartProgress.value[1].status = 'running'
+    try {
+      await window.electron.stopApp()
+      restartProgress.value[1].status = 'completed'
+    } catch (error) {
+      console.warn('停止核心服务失败，可能已经停止:', error)
+      restartProgress.value[1].status = 'completed'
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // 步骤3: 停止索引服务
+    restartProgress.value[2].status = 'running'
+    try {
+      await window.electron.stopFmHttp()
+      restartProgress.value[2].status = 'completed'
+    } catch (error) {
+      console.warn('停止索引服务失败，可能已经停止:', error)
+      restartProgress.value[2].status = 'completed'
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // 步骤4: 启动核心服务
+    restartProgress.value[3].status = 'running'
+    const sysConfigResp = await window.electron.sysConfig()
+    const startAppResult = await window.electron.startApp(sysConfigResp.configPath)
+    if (startAppResult.started) {
+      restartProgress.value[3].status = 'completed'
+    } else {
+      throw new Error('启动核心服务失败')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 步骤5: 启动索引服务
+    restartProgress.value[4].status = 'running'
+    const fmConfigResp = await window.electron.fmConfig()
+    const startFmResult = await window.electron.startFmHttp(fmConfigResp.configPath)
+    if (startFmResult.started) {
+      restartProgress.value[4].status = 'completed'
+    } else {
+      throw new Error('启动索引服务失败')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 步骤6: 完成
+    restartProgress.value[5].status = 'completed'
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: 'FM配置已保存，服务已重启',
+      color: 'success'
+    })
+  } catch (error) {
+    console.error('保存FM配置失败:', error)
+    // 标记当前步骤为失败
+    const currentStepIndex = restartProgress.value.findIndex((step) => step.status === 'running')
+    if (currentStepIndex !== -1) {
+      restartProgress.value[currentStepIndex].status = 'error'
+    }
+    store.dispatch('snackbar/showSnackbar', {
+      message: '保存失败，请重试: ' + error.message,
+      color: 'error'
+    })
+  } finally {
+    isRestarting.value = false
   }
 }
 
@@ -2463,8 +3496,200 @@ const removeModelConfig = (index) => {
   }
 }
 
+// —— 预设云端模型供应商配置 ——
+const cloudProviders = {
+  githave: {
+    name: 'GitHave AI',
+    apiUrl: 'https://api.githave.com/v1/',
+    type: 'githave',
+    models: ['auto', 'openai', 'qwen']
+  },
+  siliconflow: {
+    name: '硅基流动',
+    apiUrl: 'https://api.siliconflow.cn/v1/',
+    type: 'openai',
+    models: [
+      'BAAI/bge-large-zh-v1.5',
+      'deepseek-ai/DeepSeek-V3',
+      'deepseek-ai/DeepSeek-R1',
+      'Qwen/Qwen2.5-Coder-7B-Instruct',
+      'Qwen/Qwen2.5-Coder-32B-Instruct',
+      'Qwen/Qwen2.5-72B-Instruct',
+      'meta-llama/Llama-3.1-405B-Instruct',
+      'meta-llama/Llama-3.1-70B-Instruct',
+      'meta-llama/Llama-3.1-8B-Instruct',
+      'THUDM/glm-4-9b-chat',
+      'google/gemma-2-9b-it',
+      'mistralai/Mistral-7B-Instruct-v0.3'
+    ]
+  },
+  qwen: {
+    name: '阿里云百炼',
+    apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    type: 'qwen',
+    models: [
+      'qwen-max',
+      'qwen-plus',
+      'qwen-turbo',
+      'qwen-long',
+      'qwen2.5-72b-instruct',
+      'qwen2.5-32b-instruct',
+      'qwen2.5-14b-instruct',
+      'qwen2.5-7b-instruct',
+      'qwen2.5-coder-32b-instruct',
+      'qwen2.5-coder-14b-instruct',
+      'qwen2.5-coder-7b-instruct'
+    ]
+  },
+  openai: {
+    name: 'OpenAI',
+    apiUrl: 'https://api.openai.com/v1/',
+    type: 'openai',
+    models: [
+      'gpt-4o',
+      'gpt-4o-mini',
+      'gpt-4-turbo',
+      'gpt-4',
+      'gpt-3.5-turbo',
+      'o1-preview',
+      'o1-mini'
+    ]
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    apiUrl: 'https://api.deepseek.com/chat/completions',
+    type: 'openai',
+    models: ['deepseek-chat', 'deepseek-reasoner']
+  },
+  doubao: {
+    name: '火山引擎豆包',
+    apiUrl: 'https://ark.cn-beijing.volces.com/api/v3/',
+    type: 'doubao',
+    models: ['doubao-pro-32k', 'doubao-pro-4k', 'doubao-lite-32k', 'doubao-lite-4k']
+  },
+  anthropic: {
+    name: 'Anthropic',
+    apiUrl: 'https://api.anthropic.com/v1/',
+    type: 'anthropic',
+    models: [
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+      'claude-3-opus-20240229',
+      'claude-3-sonnet-20240229',
+      'claude-3-haiku-20240307'
+    ]
+  },
+  moonshot: {
+    name: '月之暗面 Kimi',
+    apiUrl: 'https://api.moonshot.cn/v1/',
+    type: 'openai',
+    models: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k']
+  },
+  zhipu: {
+    name: '智谱AI',
+    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+    type: 'zhipu',
+    models: ['glm-4-plus', 'glm-4-0520', 'glm-4', 'glm-4-air', 'glm-4-airx', 'glm-4-flash']
+  }
+}
+
+// —— 预设嵌入模型供应商配置 ——
+const embeddingProviders = {
+  githave: {
+    name: 'GitHave AI',
+    apiUrl: 'https://api.githave.com/v1/',
+    type: 'githave',
+    models: ['BAAI/bge-large-zh-v1.5', 'text-embedding-3-large', 'text-embedding-3-small']
+  },
+  siliconflow: {
+    name: '硅基流动',
+    apiUrl: 'https://api.siliconflow.cn/v1/',
+    type: 'openai',
+    models: [
+      'BAAI/bge-large-zh-v1.5',
+      'BAAI/bge-m3',
+      'netease-youdao/bce-embedding-base_v1',
+      'jinaai/jina-embeddings-v2-base-zh'
+    ]
+  },
+  qwen: {
+    name: '阿里云百炼',
+    apiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    type: 'qwen',
+    models: [
+      'text-embedding-v1',
+      'text-embedding-v2',
+      'text-embedding-async-v1',
+      'text-embedding-async-v2'
+    ]
+  },
+  openai: {
+    name: 'OpenAI',
+    apiUrl: 'https://api.openai.com/v1/',
+    type: 'openai',
+    models: ['text-embedding-3-large', 'text-embedding-3-small', 'text-embedding-ada-002']
+  },
+  zhipu: {
+    name: '智谱AI',
+    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+    type: 'zhipu',
+    models: ['embedding-2']
+  }
+}
+
+// 获取所有供应商列表
+const getProviderOptions = () => {
+  return Object.entries(cloudProviders).map(([key, provider]) => ({
+    value: key,
+    title: provider.name
+  }))
+}
+
+// 根据选择的供应商获取模型列表
+const getModelOptions = (providerKey) => {
+  if (!providerKey || !cloudProviders[providerKey]) return []
+  return cloudProviders[providerKey].models.map((model) => model)
+}
+
+// 获取嵌入模型供应商列表
+const getEmbeddingProviderOptions = () => {
+  return Object.entries(embeddingProviders).map(([key, provider]) => ({
+    value: key,
+    title: provider.name
+  }))
+}
+
+// 根据选择的供应商获取嵌入模型列表
+const getEmbeddingModelOptions = (providerKey) => {
+  if (!providerKey || !embeddingProviders[providerKey]) return []
+  return embeddingProviders[providerKey].models.map((model) => model)
+}
+
+// 当供应商改变时自动填充URL和type
+const onProviderChange = (configRef, providerKey) => {
+  if (!providerKey || !cloudProviders[providerKey]) return
+  const provider = cloudProviders[providerKey]
+  configRef.url = provider.apiUrl
+  configRef.type = provider.type
+  // 清空模型选择，让用户重新选择
+  configRef.model = ''
+}
+
+// 当嵌入模型供应商改变时自动填充URL和type
+const onEmbeddingProviderChange = (configRef, providerKey) => {
+  if (!providerKey || !embeddingProviders[providerKey]) return
+  const provider = embeddingProviders[providerKey]
+  configRef.url = provider.apiUrl
+  configRef.type = provider.type
+  // 清空模型选择，让用户重新选择
+  configRef.model = ''
+}
+
 // —— 统一云端模型配置 ——
 const allCloudConfigs = ref([])
+// —— 嵌入模型配置 ——
+const embeddingConfigs = ref([])
+
 function collectAllCloudConfigs() {
   const arr = []
   // 1. config.custom
@@ -2473,20 +3698,20 @@ function collectAllCloudConfigs() {
       type: 'custom',
       slot,
       ref: cfg,
-      label: `自定义角色：${slotLabels[slot] || slot}`
+      label: `常规角色：${slotLabels[slot] || slot}`,
+      selectedProvider: getProviderKeyByUrl(cfg.url) || '',
+      showApiKey: false
     })
   })
-  // 2. fmConfig.embedding_cloud_model
-  arr.push({
-    type: 'embedding_cloud_model',
-    ref: fmConfig.embedding_cloud_model,
-    label: '索引嵌入云模型'
-  })
+  // 2. fmConfig.embedding_cloud_model - 移到单独的嵌入模型配置中
+  // 注释掉原来的嵌入模型配置
   // 3. fmConfig.default_cloud_model
   arr.push({
     type: 'default_cloud_model',
     ref: fmConfig.default_cloud_model,
-    label: '索引默认云模型'
+    label: '索引默认云模型',
+    selectedProvider: getProviderKeyByUrl(fmConfig.default_cloud_model.url) || '',
+    showApiKey: false
   })
   // 4. fmConfig.model_configs
   fmConfig.model_configs.forEach((model, idx) => {
@@ -2495,11 +3720,132 @@ function collectAllCloudConfigs() {
         type: 'model_configs',
         index: idx,
         ref: model.cloud_model,
-        label: `索引弹性策略云模型 ${model.size}尺码`
+        label: `索引弹性策略云模型 ${model.size}尺码`,
+        selectedProvider: getProviderKeyByUrl(model.cloud_model.url) || '',
+        showApiKey: false
       })
     }
   })
   allCloudConfigs.value = arr
+}
+
+function collectEmbeddingConfigs() {
+  const arr = []
+  // 嵌入模型配置
+  arr.push({
+    type: 'embedding_cloud_model',
+    ref: fmConfig.embedding_cloud_model,
+    label: '索引嵌入云模型',
+    selectedProvider: getEmbeddingProviderKeyByUrl(fmConfig.embedding_cloud_model.url) || '',
+    showApiKey: false
+  })
+  embeddingConfigs.value = arr
+}
+
+// 新增：统一补全/规范化云端模型字段，避免 undefined 导致切换失败
+function normalizeCloudModels() {
+  // 1) 三个常规助手（custom.coder / custom.chatter / custom.officer）
+  const ensureCustom = (key) => {
+    if (!config.custom[key]) config.custom[key] = {}
+    const t = config.custom[key]
+    t.api = t.api || ''
+    t.url = t.url || ''
+    t.type = t.type || ''
+    t.model = t.model || ''
+    t.enabled = !!t.enabled
+  }
+  ;['coder', 'chatter', 'officer'].forEach(ensureCustom)
+
+  // 2) 索引弹性策略云模型（fmConfig.model_configs[*].cloud_model）
+  if (!Array.isArray(fmConfig.model_configs)) fmConfig.model_configs = []
+  fmConfig.model_configs.forEach((mc) => {
+    if (!mc.cloud_model) mc.cloud_model = {}
+    const t = mc.cloud_model
+    t.api = t.api || ''
+    t.url = t.url || ''
+    t.type = t.type || ''
+    t.model = t.model || ''
+    t.enabled = !!t.enabled
+  })
+
+  // 3) 默认与嵌入云模型兜底
+  if (!fmConfig.default_cloud_model)
+    fmConfig.default_cloud_model = { api: '', url: '', type: '', model: '', enabled: false }
+  if (!fmConfig.embedding_cloud_model)
+    fmConfig.embedding_cloud_model = { api: '', url: '', type: '', model: '', enabled: false }
+}
+
+// 新增：在保存前把统一配置面板中的更改，可靠地写回到 config/fmConfig
+const applyCloudConfigsBeforeSave = () => {
+  // 处理大模型配置（custom/default_cloud_model/model_configs）
+  allCloudConfigs.value.forEach((item) => {
+    const providerKey = item.selectedProvider
+    const applyProviderMeta = (target, key) => {
+      if (key && cloudProviders[key]) {
+        target.url = cloudProviders[key].apiUrl
+        target.type = cloudProviders[key].type
+      }
+    }
+
+    if (item.type === 'custom') {
+      // 确保目标对象存在
+      if (!config.custom[item.slot]) config.custom[item.slot] = {}
+      const target = config.custom[item.slot]
+      // 将表单中的字段合并回去
+      Object.assign(target, item.ref)
+      applyProviderMeta(target, providerKey)
+    } else if (item.type === 'default_cloud_model') {
+      const target = fmConfig.default_cloud_model
+      Object.assign(target, item.ref)
+      applyProviderMeta(target, providerKey)
+    } else if (item.type === 'model_configs') {
+      // 确保数组项与 cloud_model 存在
+      if (!fmConfig.model_configs[item.index]) fmConfig.model_configs[item.index] = {}
+      if (!fmConfig.model_configs[item.index].cloud_model)
+        fmConfig.model_configs[item.index].cloud_model = {}
+      const target = fmConfig.model_configs[item.index].cloud_model
+      Object.assign(target, item.ref)
+      applyProviderMeta(target, providerKey)
+    }
+  })
+
+  // 处理嵌入模型配置
+  embeddingConfigs.value.forEach((item) => {
+    if (item.type !== 'embedding_cloud_model') return
+    const target = fmConfig.embedding_cloud_model
+    Object.assign(target, item.ref)
+    const key = item.selectedProvider
+    if (key && embeddingProviders[key]) {
+      target.url = embeddingProviders[key].apiUrl
+      target.type = embeddingProviders[key].type
+    }
+  })
+}
+
+// 根据URL反推供应商key
+const getProviderKeyByUrl = (url) => {
+  if (!url) return ''
+  for (const [key, provider] of Object.entries(cloudProviders)) {
+    if (
+      url.includes(provider.apiUrl.replace('https://', '').replace('http://', '').split('/')[0])
+    ) {
+      return key
+    }
+  }
+  return ''
+}
+
+// 根据URL反推嵌入模型供应商key
+const getEmbeddingProviderKeyByUrl = (url) => {
+  if (!url) return ''
+  for (const [key, provider] of Object.entries(embeddingProviders)) {
+    if (
+      url.includes(provider.apiUrl.replace('https://', '').replace('http://', '').split('/')[0])
+    ) {
+      return key
+    }
+  }
+  return ''
 }
 
 // tab切换到remote时自动拉取并归纳
@@ -2508,46 +3854,134 @@ watch(selectedTab, async (val) => {
     await fetchConfig()
     await fetchFmConfig()
     collectAllCloudConfigs()
+    collectEmbeddingConfigs()
   }
 })
 
-// 一键设置：以第一个为准
-function applyToAllCloudConfigs() {
-  if (!allCloudConfigs.value.length) return
-  const first = allCloudConfigs.value[0].ref
-  allCloudConfigs.value.forEach((item) => {
-    if (item.type !== 'embedding_cloud_model') {
-      item.ref.api = first.api
-      item.ref.url = first.url
-      item.ref.model = first.model
-      item.ref.type = first.type
-      item.ref.enabled = first.enabled
-      item.ref.max_prompts = first.max_prompts
+// 刷新模型列表
+const refreshModelList = async () => {
+  try {
+    // 重新获取已安装的模型列表
+    const models = await window.electron.listModels()
+    installedModels.value = models.map((model, index) => ({
+      id: model.id || `model-${index}`,
+      name: model.name,
+      size: model.size || 'Unknown',
+      modified: model.modified || 'Unknown'
+    }))
+
+    // 重新初始化专家插槽
+    initExpertSlotsFromConfig()
+
+    // 显示成功提示
+    snackbar.value = {
+      show: true,
+      message: '模型列表已刷新',
+      color: 'success'
     }
-  })
+  } catch (error) {
+    console.error('刷新模型列表失败:', error)
+    snackbar.value = {
+      show: true,
+      message: '刷新模型列表失败',
+      color: 'error'
+    }
+  }
 }
+
+// 保存所有云端配置
+const saveAllCloudConfigs = async () => {
+  // 二次确认
+  const confirmed = confirm('确定要保存所有配置吗？')
+  if (!confirmed) return
+  // 重置进度状态
+  restartProgress.value.forEach((step) => (step.status = 'pending'))
+  isRestarting.value = true
+  showRestartDialog.value = true
+
+  try {
+    // 步骤1: 修改配置
+    restartProgress.value[0].status = 'running'
+
+    // 先将面板变更写回到 config/fmConfig
+    applyCloudConfigsBeforeSave()
+
+    // 保存两个配置
+    await Promise.all([updateConfig(config), updateFmConfig(fmConfig)])
+
+    restartProgress.value[0].status = 'completed'
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // 步骤2: 停止核心服务
+    restartProgress.value[1].status = 'running'
+    try {
+      await window.electron.stopApp()
+      restartProgress.value[1].status = 'completed'
+    } catch (error) {
+      console.warn('停止核心服务失败，可能已经停止:', error)
+      restartProgress.value[1].status = 'completed'
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // 步骤3: 停止索引服务
+    restartProgress.value[2].status = 'running'
+    try {
+      await window.electron.stopFmHttp()
+      restartProgress.value[2].status = 'completed'
+    } catch (error) {
+      console.warn('停止索引服务失败，可能已经停止:', error)
+      restartProgress.value[2].status = 'completed'
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // 步骤4: 启动核心服务
+    restartProgress.value[3].status = 'running'
+    const sysConfigResp = await window.electron.sysConfig()
+    const startAppResult = await window.electron.startApp(sysConfigResp.configPath)
+    if (startAppResult.started) {
+      restartProgress.value[3].status = 'completed'
+    } else {
+      throw new Error('启动核心服务失败')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 步骤5: 启动索引服务
+    restartProgress.value[4].status = 'running'
+    const fmConfigResp = await window.electron.fmConfig()
+    const startFmResult = await window.electron.startFmHttp(fmConfigResp.configPath)
+    if (startFmResult.started) {
+      restartProgress.value[4].status = 'completed'
+    } else {
+      throw new Error('启动索引服务失败')
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    // 步骤6: 完成
+    restartProgress.value[5].status = 'completed'
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: '✅ 所有云端模型配置已成功保存，服务已重启',
+      color: 'success'
+    })
+  } catch (error) {
+    console.error('保存云端配置失败:', error)
+    // 标记当前步骤为失败
+    const currentStepIndex = restartProgress.value.findIndex((step) => step.status === 'running')
+    if (currentStepIndex !== -1) {
+      restartProgress.value[currentStepIndex].status = 'error'
+    }
+    store.dispatch('snackbar/showSnackbar', {
+      message: '❌ 保存配置失败: ' + error.message,
+      color: 'error'
+    })
+  } finally {
+    isRestarting.value = false
+  }
+}
+
 // 获取 Vuex store 实例
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
-
-// 一键保存
-async function saveAllCloudConfigs() {
-  try {
-    await updateFmConfig(fmConfig)
-    await updateConfig(config)
-    // 使用更友好的通知方式，避免阻塞用户操作
-    store.dispatch('snackbar/showSnackbar', {
-      message: `${allCloudModelsEnabled.value ? '启用云端模型' : '启用本地模型'}`,
-      color: 'success'
-    })
-  } catch (e) {
-    console.error('保存云端模型配置失败:', e)
-    store.dispatch('snackbar/showSnackbar', {
-      message: '保存失败，请重试',
-      color: 'error'
-    })
-  }
-}
 
 // —— 打开 Pandoc 官网 ——
 const openPandocWebsite = () => {
@@ -2621,11 +4055,6 @@ const checkDependenciesStatus = async () => {
 
 // 安装所有缺失的依赖
 const installRequiredPackages = async () => {
-  // if (!isMacOS.value) {
-  //   alert('Windows 系统暂不支持一键安装，请手动安装所需依赖。')
-  //   return
-  // }
-
   // 先检查 Homebrew 是否安装
   if (isMacOS.value) {
     const hasHomebrew = await checkBrewInstalled()
@@ -2661,16 +4090,13 @@ const installRequiredPackages = async () => {
 
 // 安装单个依赖包
 const installSinglePackage = async (packageName) => {
-  if (!isMacOS.value) {
-    alert('Windows 系统暂不支持一键安装，请手动安装所需依赖。')
-    return
-  }
-
-  // 先检查 Homebrew 是否安装
-  const hasHomebrew = await checkBrewInstalled()
-  if (!hasHomebrew) {
-    alert('请先安装 Homebrew，然后再尝试安装。\n可访问 https://brew.sh 获取安装指南。')
-    return
+  if (isMacOS.value) {
+    // 先检查 Homebrew 是否安装
+    const hasHomebrew = await checkBrewInstalled()
+    if (!hasHomebrew) {
+      alert('请先安装 Homebrew，然后再尝试安装。\n可访问 https://brew.sh 获取安装指南。')
+      return
+    }
   }
 
   try {
@@ -2765,21 +4191,25 @@ const cloudApiCount = computed(() => {
   })
   return count
 })
-const cloudVendors = computed(() => {
-  // 统计所有云端模型配置中涉及的type/供应商
-  const vendors = new Set()
-  Object.values(config.custom).forEach((cfg) => {
-    if (cfg.type && cfg.type.trim()) vendors.add(cfg.type)
-  })
-  if (fmConfig.embedding_cloud_model.type && fmConfig.embedding_cloud_model.type.trim())
-    vendors.add(fmConfig.embedding_cloud_model.type)
-  if (fmConfig.default_cloud_model.type && fmConfig.default_cloud_model.type.trim())
-    vendors.add(fmConfig.default_cloud_model.type)
+
+// —— 获取所有model_config中去重后的供应商名称 ——
+const uniqueProviders = computed(() => {
+  const providerNames = new Set()
+
+  // 从 fmConfig.model_configs 中收集供应商类型，并转换为供应商名称
   fmConfig.model_configs.forEach((model) => {
-    if (model.cloud_model && model.cloud_model.type && model.cloud_model.type.trim())
-      vendors.add(model.cloud_model.type)
+    if (model.cloud_model && model.cloud_model.type && model.cloud_model.type.trim()) {
+      const type = model.cloud_model.type
+      // 遍历 cloudProviders 找到匹配的供应商
+      Object.values(cloudProviders).forEach((provider) => {
+        if (provider.type === type) {
+          providerNames.add(provider.name)
+        }
+      })
+    }
   })
-  return Array.from(vendors)
+
+  return Array.from(providerNames)
 })
 
 // 云端模型一键开关状态
@@ -2846,6 +4276,23 @@ const restartProgress = ref([
   { step: 6, text: '完成', status: 'pending' }
 ])
 
+// Ant Design Steps 状态映射与进度条
+const antStepStatusMap = {
+  pending: 'wait',
+  running: 'process',
+  completed: 'finish',
+  error: 'error'
+}
+const restartHasError = computed(() => restartProgress.value.some((s) => s.status === 'error'))
+const restartPercent = computed(() => {
+  const total = restartProgress.value.length || 1
+  const done = restartProgress.value.filter((s) => s.status === 'completed').length
+  const running = restartProgress.value.some((s) => s.status === 'running')
+  let pct = Math.round((done / total) * 100)
+  if (running && pct < 95) pct += 5
+  return Math.min(pct, 100)
+})
+
 // 显示切换确认对话框
 const toggleAllCloudModels = async (newValue) => {
   console.log('toggleAllCloudModels', newValue)
@@ -2867,7 +4314,7 @@ const confirmSwitch = async () => {
   await executeModelSwitch(pendingSwitchValue.value)
 }
 
-// 实际执行模型切换的逻辑
+// 实际执行模型切换的逻辑（带兜底回落）
 const executeModelSwitch = async (newValue) => {
   console.log('executeModelSwitch', newValue)
 
@@ -2880,31 +4327,41 @@ const executeModelSwitch = async (newValue) => {
     // 步骤1: 修改配置
     restartProgress.value[0].status = 'running'
 
-    // 1. 更新config.custom中的模型
-    Object.values(config.custom).forEach((cfg) => {
+    // 将当前面板变更写回并统一字段形状，避免 undefined 造成失败
+    applyCloudConfigsBeforeSave()
+    normalizeCloudModels()
+
+    // 默认云模型作为回落来源
+    const def = fmConfig.default_cloud_model || {}
+
+    // 1) custom.* 三个常规助手
+    Object.entries(config.custom).forEach(([cfg]) => {
       if (cfg.api && cfg.api.trim()) {
         cfg.enabled = newValue
       }
     })
 
-    // 2. 更新fmConfig.embedding_cloud_model
-    if (fmConfig.embedding_cloud_model.api && fmConfig.embedding_cloud_model.api.trim()) {
+    // 2) 嵌入云模型
+    if (fmConfig.embedding_cloud_model?.api?.trim()) {
       fmConfig.embedding_cloud_model.enabled = newValue
     }
 
-    // 3. 更新fmConfig.default_cloud_model
-    if (fmConfig.default_cloud_model.api && fmConfig.default_cloud_model.api.trim()) {
+    // 3) 默认云模型
+    if (def.api && def.api.trim()) {
       fmConfig.default_cloud_model.enabled = newValue
     }
 
-    // 4. 更新fmConfig.model_configs中的云端模型
-    fmConfig.model_configs.forEach((model) => {
-      if (model.cloud_model && model.cloud_model.api && model.cloud_model.api.trim()) {
-        model.cloud_model.enabled = newValue
+    // 4) 索引弹性策略云模型
+    if (!Array.isArray(fmConfig.model_configs)) fmConfig.model_configs = []
+    fmConfig.model_configs.forEach((m) => {
+      if (!m.cloud_model) m.cloud_model = {}
+      const t = m.cloud_model
+      if (t.api && t.api.trim()) {
+        t.enabled = newValue
       }
     })
 
-    // 5. 保存配置
+    // 持久化（两个配置都要写）
     await updateFmConfig(fmConfig)
     await updateConfig(config)
 
@@ -2959,24 +4416,21 @@ const executeModelSwitch = async (newValue) => {
     restartProgress.value[5].status = 'completed'
 
     store.dispatch('snackbar/showSnackbar', {
-      message: `${newValue ? '云端模型' : '本地模型'}模式切换完成，服务已重启`,
+      message: `✅ 已切换为${newValue ? '云端' : '本地'}模型并生效`,
       color: 'success'
     })
   } catch (error) {
     console.error('切换模型模式失败:', error)
-    // 标记当前步骤为失败
     const currentStepIndex = restartProgress.value.findIndex((step) => step.status === 'running')
     if (currentStepIndex !== -1) {
       restartProgress.value[currentStepIndex].status = 'error'
     }
-
     store.dispatch('snackbar/showSnackbar', {
-      message: '切换模型模式失败，请检查服务状态',
+      message: '❌ 切换模型模式失败，请检查服务状态',
       color: 'error'
     })
   } finally {
     isRestarting.value = false
-    // 3秒后关闭进度对话框
     setTimeout(() => {
       showRestartDialog.value = false
     }, 3000)
@@ -2997,21 +4451,73 @@ onMounted(async () => {
     checkBrewInstalled(),
     checkDependenciesStatus()
   ])
-  initExpertSlotsFromConfig()
 
-  // 设置定时检查依赖安装进度
-  const checkStatusInterval = setInterval(async () => {
-    if (pythonInstalling.value || pandocInstalling.value || gitInstalling.value) {
-      await checkDependenciesStatus()
+  // 从 fmConfig 初始化 GitHave 选择大模型默认值
+  try {
+    const cfgModel = fmConfig?.default_cloud_model?.model
+    if (typeof cfgModel === 'string' && cfgModel.trim()) {
+      const allowed = ['auto', 'openai', 'qwen']
+      selectedGithaveModel.value = allowed.includes(cfgModel) ? cfgModel : 'auto'
     } else {
-      clearInterval(checkStatusInterval)
+      selectedGithaveModel.value = 'auto'
     }
-  }, 2000) // 每两秒检查一次
+  } catch (e) {
+    console.warn('初始化 GitHave 模型默认值失败:', e)
+    selectedGithaveModel.value = 'auto'
+  }
 
-  // 组件卸载时清除定时器
-  onBeforeUnmount(() => {
+  // 关键：补全形状 + 收集配置（保证 UI 与底层数据一致）
+  normalizeCloudModels()
+  collectAllCloudConfigs()
+  collectEmbeddingConfigs()
+
+  initExpertSlotsFromConfig()
+})
+
+// 设置定时检查依赖安装进度
+const checkStatusInterval = setInterval(async () => {
+  if (pythonInstalling.value || pandocInstalling.value || gitInstalling.value) {
+    await checkDependenciesStatus()
+  } else {
     clearInterval(checkStatusInterval)
+  }
+}, 2000) // 每两秒检查一次
+
+// 注册安装日志监听器
+if (window.electron && window.electron.onInstallLog) {
+  window.electron.onInstallLog((logData) => {
+    addLogEntry(logData.type, logData.message)
   })
+}
+
+// 协议监听器清理函数
+let protocolListenerCleanup = null
+
+// 监听协议回调
+onMounted(() => {
+  // 检查初始登录状态
+  checkGithaveLoginStatus()
+
+  // 监听协议回调 - 使用返回的清理函数
+  if (window.electron && window.electron.onProtocolUrl) {
+    protocolListenerCleanup = window.electron.onProtocolUrl(handleProtocolCallback)
+  }
+})
+
+// 组件卸载时清除定时器
+onBeforeUnmount(() => {
+  clearInterval(checkStatusInterval)
+
+  // 移除安装日志监听器
+  if (window.electron && window.electron.removeInstallLogListener) {
+    window.electron.removeInstallLogListener()
+  }
+
+  // 移除协议监听器 - 只移除当前组件注册的监听器
+  if (protocolListenerCleanup) {
+    protocolListenerCleanup()
+    protocolListenerCleanup = null
+  }
 })
 </script>
 
@@ -3148,5 +4654,210 @@ onMounted(async () => {
   .v-container {
     max-width: 1900px;
   }
+}
+
+/* 云端模型配置卡片样式 */
+.cloud-config-card {
+  transition: all 0.3s ease;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.cloud-config-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+}
+
+.cloud-config-card .v-card-title {
+  background: linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%);
+  color: white !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+.cloud-config-card .v-text-field--outlined {
+  border-radius: 8px;
+}
+
+.cloud-config-card .v-select--outlined {
+  border-radius: 8px;
+}
+
+/* 美化选择框选项 */
+.v-list-item {
+  border-radius: 6px;
+  margin: 2px 4px;
+}
+
+.v-list-item:hover {
+  background-color: rgba(33, 150, 243, 0.08) !important;
+}
+
+/* 美化开关样式 */
+.v-switch .v-selection-control__input {
+  border-radius: 12px;
+}
+
+/* 安装日志样式 */
+.install-log-section {
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+.install-log-content {
+  background-color: #1e1e1e;
+  border-radius: 4px;
+  padding: 8px;
+  font-family: 'Courier New', monospace;
+}
+
+.install-logs-container {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.install-log-entry {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.log-timestamp {
+  color: #888;
+  margin-right: 8px;
+  min-width: 80px;
+  font-size: 11px;
+}
+
+.log-icon {
+  margin-right: 6px;
+  font-size: 14px !important;
+}
+
+.log-message {
+  flex: 1;
+  word-break: break-word;
+}
+
+.log-info .log-message {
+  color: #2196f3;
+}
+
+.log-error .log-message {
+  color: #f44336;
+}
+
+.log-success .log-message {
+  color: #4caf50;
+}
+
+/* 过期时间高亮 */
+.expired-time {
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+/* 账户信息紧凑行样式 */
+.githave-account-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.githave-account-inline .account-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.githave-account-inline .token {
+  word-break: break-all;
+}
+
+/* 自定义滚动条样式 */
+.install-logs-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.install-logs-container::-webkit-scrollbar-track {
+  background: #2a2a2a;
+  border-radius: 3px;
+}
+
+.install-logs-container::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+
+.install-logs-container::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* GitHave AI 订阅卡片样式（主题友好、轻量渐变、去强制色） */
+.githave-subscription-card {
+  border-width: 1.5px;
+  border-style: solid;
+  border-color: color-mix(
+    in srgb,
+    var(--v-theme-primary) 28%,
+    var(--v-theme-surface-variant, #c7c7c7)
+  );
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--v-theme-primary) 6%, var(--v-theme-surface)),
+    color-mix(in srgb, var(--v-theme-primary) 2%, var(--v-theme-surface))
+  );
+  backdrop-filter: saturate(1.05);
+  transition:
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+.githave-subscription-card:hover {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.githave-subscription-title .title-text {
+  font-size: 1.25rem;
+  color: var(--v-theme-on-surface);
+}
+
+.githave-subscription-card .v-chip,
+.githave-subscription-card .v-btn {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0.3px;
+}
+
+.githave-subscription-card .text-primary {
+  color: var(--v-theme-primary);
+}
+
+/* 夜间模式下保持订阅面板为日间配色（字体不随主题变色） */
+.v-theme--dark .githave-subscription-card:not(.logged-in):not(.logged-out) {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%) !important;
+}
+.v-theme--dark .githave-subscription-card,
+.v-theme--dark .githave-subscription-card .v-card-title,
+.v-theme--dark .githave-subscription-card .v-card-text,
+.v-theme--dark .githave-subscription-card .title-text,
+.v-theme--dark .githave-subscription-card .v-icon,
+.v-theme--dark .githave-subscription-card .text-primary,
+.v-theme--dark .githave-subscription-card span,
+.v-theme--dark .githave-subscription-card p {
+  color: #2c3e50 !important;
+}
+
+/* 夜间模式：登录/未登录的卡片配色（仅在暗色主题下启用） */
+.v-theme--dark .githave-subscription-card.logged-in {
+  border: 2px solid #3cb371 !important;
+  background: linear-gradient(90deg, #fff 10%, #e6ffed 100%) !important;
+}
+.v-theme--dark .githave-subscription-card.logged-out {
+  border: 2px solid #ffd700 !important;
+  background: linear-gradient(90deg, #fffacd 60%, #fff 100%) !important;
 }
 </style>

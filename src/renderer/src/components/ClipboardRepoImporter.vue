@@ -20,12 +20,43 @@
         </div>
         <div class="mb-3">
           <p class="text-body-1 mb-2"><strong>仓库名称：</strong>{{ clipboardRepoName }}</p>
-          <p class="text-body-2 text-grey-600">
-            <strong>本地路径：</strong> 你的用户根目录/githave/{{ clipboardRepoName }}
-          </p>
+          
+          <!-- 目录选择选项 -->
+          <div class="mb-3">
+            <v-radio-group v-model="importMode" inline>
+              <v-radio label="快速导入（默认目录）" value="quick"></v-radio>
+              <v-radio label="自定义目录" value="custom"></v-radio>
+            </v-radio-group>
+          </div>
+          
+          <!-- 默认路径显示 -->
+          <div v-if="importMode === 'quick'" class="mb-2">
+            <p class="text-body-2 text-grey-600">
+              <strong>本地路径：</strong> 你的用户根目录/githave/{{ clipboardRepoName }}
+            </p>
+          </div>
+          
+          <!-- 自定义目录选择 -->
+          <div v-if="importMode === 'custom'" class="mb-2">
+            <v-text-field
+              v-model="customPath"
+              label="选择保存目录"
+              readonly
+              variant="outlined"
+              density="compact"
+              append-inner-icon="mdi-folder-open"
+              @click:append-inner="selectDirectory"
+              @click="selectDirectory"
+              placeholder="点击选择目录"
+            ></v-text-field>
+            <p v-if="customPath" class="text-body-2 text-grey-600 mt-1">
+              <strong>完整路径：</strong> {{ customPath }}/{{ clipboardRepoName }}
+            </p>
+          </div>
         </div>
+        
         <v-alert type="info" variant="tonal" density="compact" class="mb-3">
-          是否要导入此仓库？导入后将自动克隆到本地路径。
+          是否要导入此仓库？导入后将自动克隆到{{ importMode === 'quick' ? '默认' : '指定' }}路径。
         </v-alert>
       </v-card-text>
       <v-card-actions>
@@ -81,15 +112,6 @@
                 {{ networkSpeed.downloadSpeedFormatted }}
               </span>
             </div>
-            <div class="d-flex justify-space-between align-center">
-              <span class="text-caption text-grey-darken-1">
-                <v-icon size="small" class="mr-1">mdi-upload</v-icon>
-                上传速度
-              </span>
-              <span class="text-caption font-weight-bold text-secondary">
-                {{ networkSpeed.uploadSpeedFormatted }}
-              </span>
-            </div>
             <div class="text-center mt-1">
               <span class="text-caption text-grey-darken-2">
                 网络接口: {{ networkSpeed.interface }}
@@ -98,6 +120,19 @@
           </div>
         </div>
       </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn
+          color="grey"
+          variant="text"
+          size="small"
+          class="text-caption"
+          @click="hideProgressDialog"
+        >
+          <v-icon left size="small">mdi-eye-off</v-icon>
+          隐藏并后台运行
+        </v-btn>
+      </v-card-actions>
     </v-card>
   </v-dialog>
 
@@ -113,7 +148,7 @@
 <script setup>
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { createRepo, listRepos } from '../service/api'
+import { createRepo } from '../service/api'
 
 /* ───── 路由 ───── */
 const router = useRouter()
@@ -124,6 +159,10 @@ const clipboardRepoUrl = ref('')
 const clipboardRepoName = ref('')
 const lastClipboardContent = ref('')
 let clipboardCheckInterval = null
+
+/* ───── 导入模式和路径选择 ───── */
+const importMode = ref('quick') // 'quick' 或 'custom'
+const customPath = ref('')
 
 // localStorage 键名
 const CANCELLED_URLS_KEY = 'githave_cancelled_clipboard_urls'
@@ -335,6 +374,12 @@ const completeProgress = async (success = true) => {
   }, 1000)
 }
 
+// 隐藏进度对话框（后台继续运行）
+const hideProgressDialog = () => {
+  progressDialog.value = false
+  showSnackbar('导入任务已转入后台运行', 'info')
+}
+
 // 显示提示信息
 const showSnackbar = (text, color = 'success') => {
   snackbar.text = text
@@ -342,9 +387,50 @@ const showSnackbar = (text, color = 'success') => {
   snackbar.show = true
 }
 
+// 选择目录
+const selectDirectory = async () => {
+  try {
+    const result = await window.electron.invoke('dialog:openDirectory', {
+      defaultPath: customPath.value,
+      properties: ['openDirectory']
+    })
+    
+    if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+      const selectedPath = result.filePaths[0]
+      const fs = await window.electron.fs
+      const path = await window.electron.path
+      
+      // 判断选中文件夹是否为空
+      const folderContent = fs.readdirSync(selectedPath)
+      if (folderContent.length === 0) {
+        customPath.value = selectedPath
+        showSnackbar('选中的文件夹为空，直接使用该目录。', 'info')
+      } else {
+        // 文件夹不为空，自动创建子文件夹，去掉名称里的所有点和.git后缀
+        const safeName = clipboardRepoName.value.replace(/\./g, '').replace(/\.git$/, '')
+        const newFolderPath = path.join(selectedPath, safeName)
+        if (!fs.existsSync(newFolderPath)) {
+          fs.mkdirSync(newFolderPath)
+          showSnackbar(`已自动创建 ${newFolderPath} 文件夹`, 'info')
+        }
+        customPath.value = newFolderPath
+      }
+    }
+  } catch (error) {
+    console.error('选择目录失败:', error)
+    showSnackbar('选择目录失败', 'error')
+  }
+}
+
 // 确认从剪切板导入仓库
 const confirmClipboardImport = async () => {
   if (!clipboardRepoUrl.value) return
+
+  // 检查自定义模式下是否选择了目录
+  if (importMode.value === 'custom' && !customPath.value) {
+    showSnackbar('请先选择保存目录', 'warning')
+    return
+  }
 
   // 关闭确认对话框
   clipboardImportDialog.value = false
@@ -353,9 +439,16 @@ const confirmClipboardImport = async () => {
   startProgressSimulation()
 
   try {
-    // 获取用户数据目录
-    const homeDir = await window.electron.homeDir
-    const localPath = window.electron.path.join(homeDir, 'githave', clipboardRepoName.value)
+    // 根据导入模式确定本地路径
+    let localPath
+    if (importMode.value === 'quick') {
+      // 快速导入：使用默认路径
+      const homeDir = await window.electron.homeDir
+      localPath = window.electron.path.join(homeDir, 'githave', clipboardRepoName.value)
+    } else {
+      // 自定义目录：使用用户选择的路径
+      localPath = window.electron.path.join(customPath.value, clipboardRepoName.value)
+    }
 
     await createRepo({
       name: clipboardRepoName.value,
@@ -400,6 +493,9 @@ const cancelClipboardImport = () => {
   clipboardImportDialog.value = false
   clipboardRepoUrl.value = ''
   clipboardRepoName.value = ''
+  // 重置导入模式和自定义路径
+  importMode.value = 'quick'
+  customPath.value = ''
 }
 
 // 组件挂载时启动监听

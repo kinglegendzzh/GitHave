@@ -12,9 +12,9 @@
       <div class="toolbar-container">
         <v-toolbar density="compact" height="48" class="pa-0 pl-1 pr-1">
           <!-- 标题banner -->
-          <div class="toolbar-title ml-4">
+          <!-- <div class="toolbar-title ml-4">
             <span class="text-h8 text-caption">代码视窗</span>
-          </div>
+          </div> -->
 
           <v-spacer></v-spacer>
 
@@ -46,6 +46,7 @@
             <v-menu>
               <template #activator="{ props }">
                 <v-btn
+                  v-if="1 === 2"
                   text
                   size="small"
                   class="pa-1 ma-0 mr-2"
@@ -94,6 +95,17 @@
                 </v-list-item>
               </v-list>
             </v-menu>
+            <v-btn
+              text
+              size="small"
+              class="pa-1 ma-0"
+              title="切换代码高亮主题"
+              v-bind="props"
+              @click="changeHighlightTheme()"
+            >
+              <v-icon size="small">mdi-palette</v-icon>
+              主题
+            </v-btn>
             <v-btn text size="small" class="pa-1 ma-0" title="更新代码" @click="pull()">
               <v-icon size="small">mdi-git</v-icon>
               更新代码
@@ -138,10 +150,24 @@
                 class="mb-2"
                 @input="filterTree"
               />
+
+              <!-- 添加路径导航输入框 -->
+              <!-- <div class="path-navigation mt-2">
+                <v-text-field
+                  v-model="pathInput"
+                  placeholder="输入路径..."
+                  clearable
+                  class="mb-1"
+                  density="compact"
+                  hide-details
+                  append-inner-icon="mdi-crosshairs-gps"
+                  @click:append-inner="expandToInputPath(pathInput)"
+                ></v-text-field>
+              </div> -->
             </div>
             <el-tree
               ref="treeRef"
-              style="height: 100vh; overflow-y: scroll"
+              style="height: 78vh; overflow-y: scroll"
               :data="filteredTreeData"
               :props="{
                 label: 'name',
@@ -176,7 +202,7 @@
         <!-- 右侧文件预览和标签 -->
         <div class="file-content-panel">
           <div class="flex-shrink-0">
-            <div class="tabs-container" style="flex-shrink: 0; overflow: hidden">
+            <div class="tabs-container" style="flex-shrink: 0; overflow: hidden; max-width: 75%">
               <v-tabs
                 v-if="tabs.length"
                 v-model="activeTab"
@@ -234,90 +260,6 @@
                   <!-- 文件操作按钮 -->
                   <!-- 快速代码查找和函数操作按钮 -->
                   <div class="d-flex justify-space-between align-center mb-2">
-                    <!-- 快速代码查找 -->
-                    <div
-                      class="quick-finder d-flex align-center"
-                      style="min-width: 400px; max-width: 60%"
-                    >
-                      <div
-                        v-if="isCodeFile"
-                        class="custom-quick-find-input d-flex align-center mr-2"
-                        style="position: relative; min-width: 400px; width: 400px"
-                      >
-                        <v-icon
-                          size="small"
-                          class="mr-1"
-                          style="
-                            position: absolute;
-                            left: 10px;
-                            top: 50%;
-                            transform: translateY(-50%);
-                            z-index: 1;
-                          "
-                          >mdi-text-search</v-icon
-                        >
-                        <input
-                          v-model="quickFindText"
-                          type="text"
-                          class="quick-find-input"
-                          :placeholder="'查找代码...'"
-                          :style="{
-                            paddingLeft: '32px',
-                            width: '100%',
-                            height: '36px',
-                            border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
-                            borderRadius: '6px',
-                            outline: 'none',
-                            color: isDarkTheme ? '#e2e8f0' : 'inherit'
-                          }"
-                          @keyup.enter="findInCode"
-                        />
-                        <v-icon
-                          v-if="quickFindText"
-                          size="small"
-                          color="grey"
-                          class="quick-find-clear"
-                          style="
-                            position: absolute;
-                            right: 10px;
-                            top: 50%;
-                            transform: translateY(-50%);
-                            cursor: pointer;
-                            z-index: 2;
-                          "
-                          @click="
-                            ((quickFindText = ''), (findResults = []), (findCurrentIndex = 0))
-                          "
-                        >
-                          mdi-close-circle
-                        </v-icon>
-                      </div>
-                      <v-btn
-                        v-if="isCodeFile && quickFindText"
-                        size="small"
-                        icon
-                        variant="text"
-                        class="mr-1"
-                        @click="findInCode"
-                      >
-                        <v-icon>mdi-magnify</v-icon>
-                      </v-btn>
-                      <div v-if="findResults.length > 0" class="text-caption ml-2">
-                        {{ findCurrentIndex + 1 }}/{{ findResults.length }}
-                        <v-btn
-                          size="x-small"
-                          icon
-                          variant="text"
-                          class="ml-1"
-                          @click="findPrevious"
-                        >
-                          <v-icon size="small">mdi-chevron-up</v-icon>
-                        </v-btn>
-                        <v-btn size="x-small" icon variant="text" class="ml-1" @click="findNext">
-                          <v-icon size="small">mdi-chevron-down</v-icon>
-                        </v-btn>
-                      </div>
-                    </div>
                     <!-- 原有的函数操作按钮 -->
                     <div class="d-flex gap-2">
                       <v-btn
@@ -371,26 +313,18 @@
                     v-html="renderMarkdown(fileContent)"
                   ></div>
                   <!-- 代码文件预览 -->
-                  <div v-else-if="isCodeFile" class="code-container">
-                    <table class="code-table">
-                      <tbody>
-                        <tr
-                          v-for="(line, i) in fileContent ? fileContent.split('\n') : []"
-                          :key="i"
-                        >
-                          <td class="line-number">{{ i + 1 }}</td>
-                          <td class="code-line">
-                            <code
-                              :class="`hljs ${path.extname(selectedFileName).slice(1)}`"
-                              v-html="highlightCode(line, path.extname(selectedFileName))"
-                            ></code>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                  <!-- <div v-else-if="isCodeFile" class="monaco-container"> -->
+                  <div v-else class="monaco-container">
+                    <MonacoEditor
+                      v-model:value="fileContent"
+                      :language="getFileLanguage(selectedFileName)"
+                      :theme="currentTheme"
+                      :options="monacoOptions"
+                      @editor-mounted="onEditorMounted"
+                    />
                   </div>
                   <!-- 其他文本文件预览 -->
-                  <pre v-else>{{ fileContent }}</pre>
+                  <!-- <pre v-else>{{ fileContent }}</pre> -->
                 </div>
                 <div v-else style="text-align: center; padding-top: 20%">
                   <img
@@ -432,48 +366,51 @@
               </div>
               <!-- 代码结构搜索框 -->
               <div class="d-flex align-center mb-2" style="position: relative">
-                <v-icon
-                  size="small"
-                  style="
-                    position: absolute;
-                    left: 10px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    z-index: 1;
-                  "
-                  >mdi-magnify</v-icon
-                >
-                <input
-                  v-model="codeStructureSearch"
-                  type="text"
-                  class="custom-search-input"
-                  :placeholder="'搜索函数...'"
-                  :style="{
-                    paddingLeft: '32px',
-                    width: '100%',
-                    height: '36px',
-                    border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
-                    borderRadius: '6px',
-                    outline: 'none',
-                    color: isDarkTheme ? '#e2e8f0' : 'inherit'
-                  }"
-                />
-                <v-icon
-                  v-if="codeStructureSearch"
-                  size="small"
-                  color="grey"
-                  style="
-                    position: absolute;
-                    right: 10px;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    cursor: pointer;
-                    z-index: 2;
-                  "
-                  @click="codeStructureSearch = ''"
-                >
-                  mdi-close-circle
-                </v-icon>
+                <div class="code-search-container" :class="{ 'dark-theme': isDarkTheme }">
+                  <v-icon
+                    size="small"
+                    style="
+                      position: absolute;
+                      left: 22px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      z-index: 1;
+                    "
+                    >mdi-magnify</v-icon
+                  >
+                  <input
+                    v-model="codeStructureSearch"
+                    type="text"
+                    class="custom-search-input"
+                    :placeholder="'搜索函数...'"
+                    :style="{
+                      paddingLeft: '32px',
+                      width: '100%',
+                      height: '36px',
+                      border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
+                      borderRadius: '6px',
+                      outline: 'none',
+                      color: isDarkTheme ? '#e2e8f0' : 'inherit',
+                      background: isDarkTheme ? '#1e1e1e' : 'white'
+                    }"
+                  />
+                  <v-icon
+                    v-if="codeStructureSearch"
+                    size="small"
+                    color="grey"
+                    style="
+                      position: absolute;
+                      right: 24px;
+                      top: 50%;
+                      transform: translateY(-50%);
+                      cursor: pointer;
+                      z-index: 2;
+                    "
+                    @click="codeStructureSearch = ''"
+                  >
+                    mdi-close-circle
+                  </v-icon>
+                </div>
               </div>
               <v-divider class="mb-3"></v-divider>
 
@@ -497,7 +434,6 @@
                     style="cursor: pointer; transition: all 0.2s"
                     @mouseenter="hoveredFunction = functionItem.name"
                     @mouseleave="hoveredFunction = null"
-                    @click="scrollToLine(functionItem.start_line)"
                   >
                     <div class="d-flex align-center mb-1">
                       <v-icon size="small" color="primary" class="mr-2"
@@ -587,20 +523,40 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
+// 1) 导入 worker 构造器（路径视你的依赖版本和打包器语法而定）
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker'
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker.js?worker'
+import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker.js?worker'
+
+// 2) 注入到全局
+window.MonacoEnvironment = {
+  getWorker: (_moduleId, label) => {
+    if (label === 'json') {
+      return new JsonWorker()
+    }
+    if (label === 'typescript' || label === 'javascript') {
+      return new TsWorker()
+    }
+    // 默认就是编辑器本身的 worker
+    return new EditorWorker()
+  }
+}
+import 'highlight.js/styles/default.css'
+import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick, reactive } from 'vue'
 import { useStore } from 'vuex'
-import { isFilePath, getFileExtension, getFileName } from '../service/file.js'
+import { isFilePath, getFileExtension, getFileName } from '../service/file'
 import mammoth from 'mammoth'
 import path from 'path-browserify'
 import { ElTreeV2, ElInput, ElIcon } from 'element-plus'
 import { Folder, Document, Search } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
+import MonacoEditor from 'monaco-editor-vue3'
 
 import * as XLSX from 'xlsx'
 import codeSVG from '../assets/code.svg'
 import { listRepos, pullRepo, checkIndexApi } from '../service/api.js'
-import { omit } from '../service/str.js'
+import { omit } from '../service/str'
 import dynamicLoadingSvg from '../assets/load.svg'
 // router import removed as we're using IPC instead of direct routing
 // Vuex store（假定已配置）
@@ -610,7 +566,135 @@ const snackbar = computed(() => store.state.snackbar)
 
 // 主题检测和高亮样式管理
 const isDarkTheme = ref(false)
-const highlightTheme = ref('mono-blue') // 默认亮色主题
+const highlightTheme = ref('github')
+
+// MonacoEditor 相关配置
+// 读取黑色主题偏好设置
+const highlightThemeDark = ref(localStorage.getItem('fileBrowser.highlightDark') !== 'false')
+const currentTheme = ref(highlightThemeDark.value ? 'vs-dark' : 'vs-light') // Monaco编辑器主题
+
+const monacoOptions = reactive({
+  fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace',
+  readOnly: true,
+  automaticLayout: true,
+  wordWrap: 'on',
+  minimap: { enabled: true },
+  theme: currentTheme.value,
+  fontSize: 14
+})
+
+// Monaco编辑器实例和装饰引用
+let monacoGlobal = null
+let monacoInstance = null
+let highlightDecoration = null
+let searchDecorations = [] // 搜索高亮装饰ID数组
+let monacoReady = false // 标记Monaco编辑器是否完全初始化完成
+let pendingScrollActions = [] // 缓存等待执行的滚动操作
+
+/* NEW ─ onEditorMounted：注册快捷键、补全、装饰 */
+function onEditorMounted(editor) {
+  // 获取Monaco全局对象和编辑器实例
+  monacoGlobal = editor.$monaco
+  monacoInstance = editor
+
+  // 标记编辑器已就绪
+  monacoReady = true
+  console.log('Monaco编辑器初始化完成')
+
+  // 执行之前缓存的滚动操作
+  if (pendingScrollActions.length > 0) {
+    console.log(`执行 ${pendingScrollActions.length} 个缓存的滚动操作`)
+    pendingScrollActions.forEach((action) => action())
+    pendingScrollActions = []
+  }
+
+  // 拿到 Monaco 的全局对象
+  // monacoGlobal = editor.$monaco
+
+  // 1. 强制开启触发字符补全和片段建议
+  editor.updateOptions({
+    suggestOnTriggerCharacters: true,
+    snippetSuggestions: 'inline'
+  })
+
+  // 2. 获取当前模型的语言 ID
+  const model = editor.getModel()
+  const langId = model.getLanguageId()
+
+  // 3. 针对当前语言注册补全 provider
+  monacoGlobal.languages.registerCompletionItemProvider(langId, {
+    triggerCharacters: ['.'],
+    provideCompletionItems: () => {
+      return {
+        suggestions: [
+          {
+            label: 'helloWorld',
+            kind: monacoGlobal.languages.CompletionItemKind.Snippet,
+            insertText: 'console.log("Hello, Monaco!");',
+            // 确保这是以 snippet 形式插入
+            insertTextRules: monacoGlobal.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            documentation: '打印 "Hello, Monaco!" 到控制台'
+          }
+        ]
+      }
+    }
+  })
+
+  // 2. 自定义保存快捷键 Ctrl/Cmd+S → 格式化当前文档
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS, () =>
+    editor.getAction('editor.action.formatDocument').run()
+  )
+
+  // 3. 行高亮装饰示例
+  const deco = editor.deltaDecorations(
+    [],
+    [
+      {
+        range: new monacoGlobal.Range(1, 1, 1, 1),
+        options: { isWholeLine: true, className: 'myLineHighlight' }
+      }
+    ]
+  )
+  editor.onDidDispose(() => editor.deltaDecorations(deco, []))
+}
+
+/**
+ * 通过文件扩展名推断 Monaco 语言
+ */
+const languageMap = {
+  js: 'javascript',
+  ts: 'typescript',
+  vue: 'javascript',
+  java: 'java',
+  go: 'go',
+  py: 'python',
+  rb: 'ruby',
+  c: 'c',
+  h: 'c',
+  glsl: 'c',
+  cpp: 'cpp',
+  html: 'html',
+  css: 'css',
+  json: 'json',
+  xml: 'xml',
+  sh: 'shell',
+  php: 'php',
+  sql: 'sql',
+  md: 'markdown',
+  yaml: 'yaml',
+  yml: 'yaml',
+  jsx: 'javascript',
+  tsx: 'typescript'
+}
+
+// 根据文件扩展名获取语言类型
+function getFileLanguage(filename) {
+  if (!filename) return 'plaintext'
+
+  const ext = path.extname(filename).slice(1).toLowerCase()
+
+  return languageMap[ext] || 'shell'
+}
 
 // 可选的亮色主题列表
 const lightThemes = [
@@ -682,9 +766,12 @@ const loadHighlightTheme = (themeName) => {
 
 // 检测当前主题
 const checkTheme = () => {
+
   // 通过检查 body 上的 Vuetify 主题类来确定当前主题
-  const isDark = localStorage.getItem('isDark') === 'true'
+  // 检测系统主题偏好
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
   isDarkTheme.value = isDark
+  console.log('[FileBrowser] 当前主题:', isDark ? '暗色' : '亮色')
 
   // 根据主题加载对应的高亮样式
   const themeToUse = isDark
@@ -780,6 +867,7 @@ let progressTimer = null
 const loading = ref(true)
 const treeRef = ref(null) // Reference to the el-tree-v2 component
 const searchQuery = ref('') // Search query for filtering the tree
+const pathInput = ref('') // 路径输入框的值
 const filteredTreeData = ref([]) // Filtered tree data based on search
 const tabs = ref([])
 const activeTab = ref(null)
@@ -808,139 +896,19 @@ const findCurrentIndex = ref(-1)
 
 // allowedExtensions 常量已删除，现在使用 checkIfTextFile 函数进行智能文件类型检测
 
-// checkIfTextFile 函数：智能检测文件是否为文本文件
+// checkIfTextFile 函数：内容优先+mime兜底智能检测文本文件
 async function checkIfTextFile(filePath) {
   try {
-    // 首先检查路径是否为目录，如果是目录则直接返回false
+    // 目录直接返回 false
     try {
       const stats = await window.electron.getFileStats(filePath)
-      if (stats && stats.isDirectory) {
-        return false
-      }
+      if (stats && stats.isDirectory) return false
     } catch (error) {
-      // 如果获取文件状态失败，继续后续检查
       console.warn('获取文件状态失败:', error)
     }
-
-    // 然后检查文件扩展名，对于已知的二进制文件类型直接返回false
-    const ext = path.extname(filePath).toLowerCase()
-    const binaryExtensions = [
-      '.zip',
-      '.rar',
-      '.7z',
-      '.dmg',
-      '.exe',
-      '.tar',
-      '.gz',
-      '.iso',
-      '.apk',
-      '.jpg',
-      '.jpeg',
-      '.png',
-      '.gif',
-      '.bmp',
-      '.ico',
-      '.tiff',
-      '.webp',
-      '.mp4',
-      '.avi',
-      '.mov',
-      '.wmv',
-      '.flv',
-      '.mkv',
-      '.webm',
-      '.mp3',
-      '.wav',
-      '.flac',
-      '.aac',
-      '.ogg',
-      '.wma',
-      '.bin',
-      '.dll',
-      '.so',
-      '.dylib',
-      '.class',
-      '.jar'
-    ]
-
-    if (binaryExtensions.includes(ext)) {
-      return false
-    }
-
-    // 对于已知的文本文件类型直接返回true
-    const textExtensions = [
-      '.txt',
-      '.js',
-      '.ts',
-      '.jsx',
-      '.tsx',
-      '.vue',
-      '.html',
-      '.css',
-      '.scss',
-      '.sass',
-      '.json',
-      '.xml',
-      '.yaml',
-      '.yml',
-      '.md',
-      '.markdown',
-      '.py',
-      '.java',
-      '.go',
-      '.c',
-      '.cpp',
-      '.h',
-      '.hpp',
-      '.cs',
-      '.php',
-      '.rb',
-      '.pl',
-      '.sh',
-      '.bash',
-      '.sql',
-      '.log',
-      '.conf',
-      '.ini',
-      '.properties',
-      '.csv',
-      '.toml',
-      '.lock'
-    ]
-
-    if (textExtensions.includes(ext)) {
-      return true
-    }
-
-    // 对于无扩展名或未知扩展名的文件，尝试读取前10个字符
-    try {
-      const content = await window.electron.readFile(filePath, {
-        encoding: 'utf8',
-        maxBytes: 10
-      })
-
-      // 如果能成功读取并解析为UTF-8字符串，就认为是文本文件
-      if (content && typeof content === 'string') {
-        return true
-      }
-    } catch {
-      // UTF-8解析失败，尝试作为二进制读取检查
-      const buffer = await window.electron.readFile(filePath, {
-        encoding: null,
-        maxBytes: 1024
-      })
-
-      // 检查是否包含null字节或其他二进制字符
-      for (let i = 0; i < Math.min(buffer.length, 10); i++) {
-        const byte = buffer[i]
-        if (byte === 0 || (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13)) {
-          return false
-        }
-      }
-      return true
-    }
-
-    return false
+    const isText = await window.electron.isText(filePath)
+    console.log('isText', isText)
+    return isText
   } catch (error) {
     console.error('检查文件类型失败:', error)
     return false
@@ -1093,10 +1061,30 @@ async function updateIsCodeFile() {
     isCodeFile.value = false
     return
   }
-  const fileName = path.basename(selectedFileName.value)
-  const isTextFile = await checkIfTextFile(selectedFileName.value)
-  isCodeFile.value =
-    (isTextFile || allowedFileName.includes(fileName)) && !isMarkdown(selectedFileName.value)
+  // 1. 先尝试在 treeData 中查找对应的节点，获取完整路径
+  let absPath = ''
+  if (treeData.value && typeof findNodeByPath === 'function') {
+    // 遍历 treeData，找到 name 匹配的节点
+    const stack = Array.isArray(treeData.value) ? [...treeData.value] : [treeData.value]
+    while (stack.length) {
+      const node = stack.pop()
+      if (node && node.name === selectedFileName.value) {
+        absPath = node.path || node.fullPath || ''
+        break
+      }
+      if (node && node.children && Array.isArray(node.children)) {
+        stack.push(...node.children)
+      }
+    }
+  }
+  // 2. 如果 treeData 没查到，则拼接 newRootPath
+  if (!absPath && newRootPath.value) {
+    absPath = path.resolve(newRootPath.value, selectedFileName.value)
+  }
+  const fileName = path.basename(absPath || selectedFileName.value)
+  console.log('[FileBrowser] selectedFileName:', selectedFileName.value, '完整路径:', absPath)
+  const isTextFile = await checkIfTextFile(absPath)
+  isCodeFile.value = (isTextFile || allowedFileName.includes(fileName)) && !isMarkdown(absPath)
 }
 
 // 懒加载大文件：滚动时加载更多
@@ -1164,55 +1152,33 @@ async function initialize(initialPath) {
   const decodedRootPath = props.rootPath ? decodeURIComponent(props.rootPath) : props.rootPath
   console.log('[FileBrowser] decodedInitialPath:', decodedInitialPath)
   console.log('[FileBrowser] decodedRootPath:', decodedRootPath)
-  // 确保代码索引被加载（针对通过外部props自动打开的文件）
-  console.log('[FileBrowser] 通过外部props打开的代码文件，主动加载代码索引')
-  if (props.forceReplace == 'true') {
-    // 当forceReplace为true时，强制使用props.rootPath作为根路径
-    if (decodedRootPath) {
-      console.log('[FileBrowser] 强制使用rootPath作为根路径:', decodedRootPath)
-      newRootPath.value = decodedRootPath
-      rootDir = decodedRootPath
-    } else if (decodedInitialPath) {
-      // 如果没有提供rootPath，则退回到使用initialPath
-      console.log('[FileBrowser] 没有提供rootPath，使用initialPath:', decodedInitialPath)
-      newRootPath.value = decodedInitialPath
-      rootDir = (await isFilePath(
-        decodedInitialPath,
-        checkIfTextFile,
-        allowedFileName,
-        findNodeByPath,
-        treeData.value
-      ))
-        ? path.dirname(decodedInitialPath)
-        : decodedInitialPath
-    }
+
+  // 处理根路径的逻辑
+  if (decodedRootPath) {
+    // 如果提供了rootPath，取其上一层目录作为根路径
+    rootDir = path.dirname(decodedRootPath)
+    console.log('[FileBrowser] 使用rootPath构建根路径:', rootDir)
+    newRootPath.value = rootDir
+  } else if (decodedInitialPath) {
+    const ext = path.extname(decodedInitialPath)
+    const isFile = !!ext && ext !== ''
+    rootDir = isFile ? path.dirname(decodedInitialPath) : decodedInitialPath
+    console.log('[FileBrowser] 使用initialPath构建根路径:', rootDir)
+    newRootPath.value = rootDir
   }
+
+  // 如果有有效的根目录，加载目录树
   if (rootDir) {
     fileContent.value = ''
     await resetTree(rootDir)
     if (initialPath) {
-      if (props.forceReplace == 'true') {
-        console.log('[FileBrowser] forceReplace为true，使用initialPath:', initialPath)
-        const isFile = await isFilePath(
-          initialPath,
-          checkIfTextFile,
-          allowedFileName,
-          findNodeByPath,
-          treeData.value
-        )
-        isFile ? expandToPath(initialPath) : handleNodeSelection([rootDir])
-      } else {
-        expandToPath(initialPath)
-      }
-      if (
-        await isFilePath(
-          initialPath,
-          checkIfTextFile,
-          allowedFileName,
-          findNodeByPath,
-          treeData.value
-        )
-      ) {
+      console.log('有initialPath，展开到该路径:', initialPath)
+      // 使用 path.extname 判断是否为文件
+      const ext = path.extname(initialPath)
+      const isFile = !!ext && ext !== ''
+
+      if (isFile) {
+        console.log('是文件，加载文件内容')
         await loadFileByType(initialPath)
         const breadcrumbPath = buildBreadcrumb(initialPath)
         addOrSwitchTab({
@@ -1220,10 +1186,16 @@ async function initialize(initialPath) {
           name: path.basename(initialPath),
           breadcrumbs: breadcrumbPath
         })
+      } else {
+        console.log('不是文件，选择该路径')
+        handleNodeSelection([initialPath])
       }
+    } else {
+      console.log('没有initialPath，选择根路径')
+      handleNodeSelection([rootDir])
     }
   }
-  newRootPath.value = initialPath
+
   resetRoot()
 }
 
@@ -1332,21 +1304,21 @@ async function loadFileByType(selectedPath) {
       const arrayBuffer = convertBuffer(buffer)
       updateFileState(selectedPath, { renderedXlsx: renderXlsx(arrayBuffer) })
     } else {
-      // 判断文件大小，超过8MB则懒加载
+      // 判断文件大小，超过10MB则懒加载
       try {
         const stat = await window.electron.stat(selectedPath)
-        const maxSize = 0.5 * 1024 * 1024
+        const maxSize = 10 * 1024 * 1024
         if (stat.size > maxSize) {
-          // 懒加载逻辑：先加载前2000行
+          // 懒加载逻辑：先加载前100000行
           const stream = await window.electron.createReadStream(selectedPath, { encoding: 'utf-8' })
           let content = ''
           let lineCount = 0
-          const maxLines = 2000
+          const maxLines = 100000
           for await (const chunk of stream) {
             content += chunk
             let lines = content.split(/\r?\n/)
             if (lines.length >= maxLines) {
-              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前2000行)'
+              content = lines.slice(0, maxLines).join('\n') + '\n...\n(文件过大，仅显示前100000行)'
               break
             }
           }
@@ -1448,7 +1420,7 @@ async function handleNodeSelection(filePath) {
 }
 
 // 递归搜索文件和文件夹
-async function searchFileAndFolders(dir, query, maxDepth = 6, currentDepth = 0) {
+async function searchFileAndFolders(dir, query, maxDepth = 100, currentDepth = 0) {
   let results = []
   if (currentDepth > maxDepth) return results
   try {
@@ -1622,31 +1594,6 @@ async function processLocalImages() {
   }
 }
 
-async function fetchChildren(item) {
-  if (!item.isDirectory) return []
-  try {
-    const children = await window.electron.readDirectory(item.path)
-    children.sort((a, b) => b.mtime - a.mtime)
-    // 构造节点并去除隐藏文件
-    const map = children
-      .map((child) => ({
-        name: child.name,
-        path: child.fullPath,
-        isDirectory: child.isDirectory,
-        children: child.isDirectory ? null : undefined
-      }))
-      .filter((child) => !child.name.startsWith('.'))
-    // 目录一律展示；文件只要不在黑名单中就展示
-    return map.filter(
-      (child) =>
-        child.isDirectory || !blacklistedExtensions.includes(path.extname(child.path).toLowerCase())
-    )
-  } catch (err) {
-    console.error('加载子目录失败：', item.path, err)
-    return []
-  }
-}
-
 function convertBuffer(buffer) {
   if (buffer instanceof ArrayBuffer) return buffer
   if (buffer instanceof Uint8Array) return buffer.buffer
@@ -1688,10 +1635,11 @@ async function expandToPath(targetPath) {
   let currentNode = treeData.value[0]
   let openPaths = [currentNode.path]
   for (const segment of segments) {
+    // 由于我们已经一次性加载了所有目录树，不再需要懒加载逻辑
+    // 直接查找子节点即可
     if (!currentNode.children || currentNode.children.length === 0) {
-      await fetchChildren(currentNode).then((children) => {
-        currentNode.children = children
-      })
+      // 如果没有子节点，则无法继续导航
+      return
     }
     const child = currentNode.children.find((child) => child.name === segment)
     if (!child) return
@@ -1709,6 +1657,68 @@ async function expandToPath(targetPath) {
   handleNodeSelection([currentNode.path])
 }
 
+/**
+ * 自动展开目录树到指定路径
+ * @param {string} targetPath - 要展开到的目标路径
+ * @param {boolean} selectNode - 是否选中该节点，默认为true
+ * @returns {Promise<void>}
+ */
+async function autoExpandPath(targetPath, selectNode = true) {
+  console.log('自动展开目录树到路径:', targetPath, treeData.value)
+
+  if (!targetPath || !treeData.value || treeData.value.length === 0) {
+    console.warn('无法展开路径: 目标路径为空或目录树未加载')
+    return
+  }
+
+  // 查找路径对应的节点
+  const node = findNodeByPath(targetPath, treeData.value)
+  if (!node) {
+    console.warn('无法找到路径对应的节点:', targetPath)
+    return
+  }
+
+  // 构建路径层级
+  const pathSegments = []
+  let currentPath = targetPath
+
+  // 递归构建父路径数组
+  while (currentPath) {
+    const parentPath = path.dirname(currentPath)
+    // 如果到达根路径或者父路径与当前路径相同，则结束
+    if (parentPath === currentPath) break
+
+    pathSegments.unshift(currentPath)
+    currentPath = parentPath
+
+    // 如果到达根目录，也添加到路径中
+    if (treeData.value.some((node) => node.path === parentPath)) {
+      pathSegments.unshift(parentPath)
+      break
+    }
+  }
+
+  // 更新展开节点数组
+  openNodes.value = [...new Set([...openNodes.value, ...pathSegments])]
+
+  // 等待DOM更新后滚动到节点并选中
+  nextTick(() => {
+    // 尝试滚动到节点
+    const targetId = 'node-' + targetPath.replace(/[^a-zA-Z0-9]/g, '-')
+    const targetEl = document.getElementById(targetId)
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+
+    // 如果需要选中节点
+    if (selectNode) {
+      handleNodeSelection([targetPath])
+    }
+  })
+
+  return node
+}
+
 async function openOutside(breadcrumbsArray, shouldFile) {
   if ((!breadcrumbsArray || breadcrumbsArray.length === 0) && !shouldFile) {
     store.dispatch('snackbar/showSnackbar', {
@@ -1719,13 +1729,7 @@ async function openOutside(breadcrumbsArray, shouldFile) {
   }
   let url = breadcrumbsArray[breadcrumbsArray.length - 1].path
   if (url !== null) {
-    const isFile = await isFilePath(
-      url,
-      checkIfTextFile,
-      allowedFileName,
-      findNodeByPath,
-      treeData.value
-    )
+    const isFile = await isFilePath(url, null, allowedFileName, findNodeByPath, treeData.value)
     // 只有在非 Windows 上才加 " / "
     const platform = await window.electron.platform
     if (platform !== 'win32') {
@@ -1786,14 +1790,10 @@ async function openOutside(breadcrumbsArray, shouldFile) {
 
 // 使用导入的 isFilePath 函数判断文件路径，需要传入必要的参数
 
-// 最大递归深度（可根据实际需求调整）
-const MAX_TREE_DEPTH = 50
+// 已移除最大递归深度限制，一次性加载所有目录结构
 
-// 递归获取目录树，带深度阈值
-async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH) {
-  if (depth >= maxDepth) {
-    return null // 达到阈值，children=null，前端可懒加载
-  }
+// 递归获取目录树，不带深度阈值，一次性加载全部内容
+async function getDirectoryTree(targetPath) {
   let root
   try {
     root = await window.electron.readDirectory(targetPath)
@@ -1801,33 +1801,37 @@ async function getDirectoryTree(targetPath, depth = 0, maxDepth = MAX_TREE_DEPTH
     return [] // 目录不可读
   }
   const filteredRoot = root.filter((child) => !child.name.startsWith('.'))
-  return await Promise.all(
-    filteredRoot.map(async (child) => {
-      if (child.isDirectory) {
-        const children = await getDirectoryTree(child.fullPath, depth + 1, maxDepth)
-        return {
-          name: child.name,
-          path: child.fullPath,
-          isDirectory: true,
-          children: children // 可能为 null
-        }
-      } else {
-        return {
-          name: child.name,
-          path: child.fullPath,
-          isDirectory: false,
-          children: undefined
-        }
+  // 先分组，再递归
+  const directories = filteredRoot.filter((child) => child.isDirectory)
+  const files = filteredRoot.filter((child) => !child.isDirectory)
+
+  const dirNodes = await Promise.all(
+    directories.map(async (child) => {
+      const children = await getDirectoryTree(child.fullPath)
+      return {
+        name: child.name,
+        path: child.fullPath,
+        isDirectory: true,
+        children: children
       }
     })
   )
+
+  const fileNodes = files.map((child) => ({
+    name: child.name,
+    path: child.fullPath,
+    isDirectory: false,
+    children: undefined
+  }))
+
+  return [...dirNodes, ...fileNodes]
 }
 
 // 重置目录树：仅在用户选定路径后调用
 async function resetTree(newPath) {
   const targetPath = (await isFilePath(
     newPath,
-    checkIfTextFile,
+    null,
     allowedFileName,
     findNodeByPath,
     treeData.value
@@ -1835,7 +1839,7 @@ async function resetTree(newPath) {
     ? path.dirname(newPath)
     : newPath
   try {
-    const children = await getDirectoryTree(targetPath, 0, MAX_TREE_DEPTH)
+    const children = await getDirectoryTree(targetPath)
     treeData.value = [
       {
         name: path.basename(targetPath),
@@ -1980,7 +1984,7 @@ const openInIDE = async (filePath) => {
   // rootDir 应该始终是文件树的根目录，即 newRootPath.value
   let rootDir = newRootPath.value
   // 如果rootDir是文件，则使用其所在的目录
-  if (await isFilePath(rootDir, checkIfTextFile, allowedFileName, findNodeByPath, treeData.value)) {
+  if (await isFilePath(rootDir, null, allowedFileName, findNodeByPath, treeData.value)) {
     rootDir = path.dirname(rootDir)
   }
   console.log('openInIDE:', encodeURIComponent(pathToOpen), encodeURIComponent(rootDir))
@@ -2057,8 +2061,31 @@ const filterTree = () => {
   filteredTreeData.value = filter(clonedData, searchQuery.value)
 }
 
+/**
+ * 根据输入的路径自动展开目录树
+ * 这是一个示例方法，展示如何使用autoExpandPath
+ * @param {string} inputPath - 要展开到的路径
+ */
+function expandToInputPath(inputPath) {
+  if (!inputPath) return
+
+  // 确保路径格式正确
+  const normalizedPath = path.normalize(inputPath)
+  console.log('尝试展开到路径:', normalizedPath)
+
+  // 调用自动展开方法
+  autoExpandPath(normalizedPath, true).then((node) => {
+    if (node) {
+      console.log('成功展开到路径:', normalizedPath)
+    } else {
+      console.warn('无法展开到路径:', normalizedPath)
+    }
+  })
+}
+
 // Handle node click event
 const handleNodeClick = (data) => {
+  console.log('handleNodeClick:', data)
   if (!data.isDirectory) {
     // For files, load the file content
     handleNodeSelection(data.path)
@@ -2067,65 +2094,38 @@ const handleNodeClick = (data) => {
 
 // Handle node expand event
 const handleNodeExpand = (data) => {
-  console.log('[展开节点]', data.path)
-  console.log('[展开前 openNodes]', JSON.stringify(openNodes.value))
-
-  if (data.isDirectory && (data.children === null || data.children === undefined)) {
-    // Lazy load children when expanding a directory
-    fetchChildren(data)
-  }
-
-  // Add to openNodes if not already there
+  // 只保留核心功能：将展开节点添加到openNodes数组中
   if (!openNodes.value.includes(data.path)) {
     openNodes.value.push(data.path)
-    console.log('[添加到 openNodes]', data.path)
   }
-
-  // 不再调用 setExpandedKeys，避免循环触发
-  // 因为我们已经设置了 expand-on-click-node="true"，树组件会自动处理展开状态
-
-  console.log('[展开后 openNodes]', JSON.stringify(openNodes.value))
+  // 已删除冗余的日志输出和注释，目录树现在一次性加载完成，不需要额外处理
 }
 
 // Handle node collapse event
 const handleNodeCollapse = (data) => {
-  console.log('[折叠节点]', data.path)
-  console.log('[折叠前 openNodes]', JSON.stringify(openNodes.value))
-
-  // 只从 openNodes 中移除当前被折叠的节点，保留其他节点
+  // 移除当前被折叠的节点
   const index = openNodes.value.indexOf(data.path)
   if (index !== -1) {
     openNodes.value.splice(index, 1)
-    console.log('[从 openNodes 移除]', data.path)
-  } else {
-    console.log('[未找到节点路径]', data.path)
   }
 
   // 同时移除所有子节点的路径
   if (data.children && data.children.length > 0) {
     removeChildrenFromOpenNodes(data)
   }
-
-  // 不再调用 setExpandedKeys，避免循环触发
-  // 因为我们已经设置了 expand-on-click-node="true"，树组件会自动处理折叠状态
-
-  console.log('[折叠后 openNodes]', JSON.stringify(openNodes.value))
 }
 
 // 递归移除所有子节点的路径
 function removeChildrenFromOpenNodes(node) {
   if (!node.children) return
-  console.log('[开始移除子节点]', node.path, '子节点数量:', node.children.length)
 
   for (const child of node.children) {
     const childIndex = openNodes.value.indexOf(child.path)
     if (childIndex !== -1) {
       openNodes.value.splice(childIndex, 1)
-      console.log('[移除子节点]', child.path)
-    } else {
-      console.log('[子节点未在 openNodes 中]', child.path)
     }
 
+    // 递归移除更深层级的子节点
     if (child.children && child.children.length > 0) {
       removeChildrenFromOpenNodes(child)
     }
@@ -2145,6 +2145,28 @@ watch(
   treeData,
   (newVal) => {
     filteredTreeData.value = newVal
+
+    // 当目录树加载完成后，自动查找并选择指定路径的节点
+    if (newVal && newVal.length > 0 && props.localPath) {
+      console.log('目录树加载完成，自动查找节点:', props.localPath)
+      // 使用 nextTick 确保 DOM 已更新
+      nextTick(async () => {
+        if (isMarkdown(props.localPath)) {
+          handleLinkClick(props.localPath)
+          return
+        }
+        // 检查是否是文件路径
+        const isFile = await window.electron.isText(props.localPath)
+
+        if (isFile) {
+          // 如果是文件，展开到该路径并选择该文件
+          console.log('找到文件路径，自动选择:', props.localPath)
+          expandToPath(props.localPath)
+          handleNodeSelection(props.localPath)
+          loadFileByType(props.localPath)
+        }
+      })
+    }
   },
   { immediate: true }
 )
@@ -2170,10 +2192,11 @@ async function loadCodeIndex(filePath) {
   }
 
   try {
-    console.log('Loading code index for:', filePath)
-    const repoPath = pathSuggestions.value.find((item) =>
-      newRootPath.value.includes(item.value)
-    ).value
+    await loadPathSuggestions()
+    console.log('Loading code index for:', filePath, newRootPath.value, pathSuggestions.value)
+    const repoPath = pathSuggestions.value.find((item) => {
+      return filePath.includes(item.value)
+    }).value
     const response = await checkIndexApi(repoPath, path.relative(repoPath, filePath))
 
     if (response && response.data.code === 0) {
@@ -2221,27 +2244,49 @@ function filterFunctions(functions) {
 
 // 在代码中查找文本
 function findInCode() {
-  if (!quickFindText.value || !fileContent.value) {
+  if (!quickFindText.value || !fileContent.value || !monacoInstance) {
     findResults.value = []
     findCurrentIndex.value = -1
     return
   }
 
-  const searchTerm = quickFindText.value.toLowerCase()
-  const lines = fileContent.value.split('\n')
+  const searchTerm = quickFindText.value
 
-  // 查找所有匹配行
-  findResults.value = lines.reduce((matches, line, index) => {
-    if (line.toLowerCase().includes(searchTerm)) {
-      matches.push(index)
-    }
-    return matches
-  }, [])
+  // 清除之前的搜索装饰
+  if (searchDecorations.length) {
+    monacoInstance.deltaDecorations(searchDecorations, [])
+    searchDecorations = []
+  }
 
-  // 重置当前索引并滚动到第一个结果
+  // 使用Monaco的搜索API
+  const model = monacoInstance.getModel()
+  const matches = model.findMatches(
+    searchTerm,
+    false, // 不想要搜索整个单词
+    false, // 支持正则表达式
+    true, // 区分大小写
+    null, // 跳过单词分隔符
+    true // 支持回滚(可以在前开始)
+  )
+
+  findResults.value = matches
   findCurrentIndex.value = findResults.value.length > 0 ? 0 : -1
-  if (findCurrentIndex.value >= 0) {
-    scrollToLine(findResults.value[findCurrentIndex.value] + 1) // +1 因为行号从1开始
+
+  // 创建搜索高亮装饰
+  if (matches.length > 0) {
+    const decorations = matches.map((match) => ({
+      range: match.range,
+      options: {
+        inlineClassName: 'monaco-search-highlight',
+        stickiness: monacoGlobal.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+      }
+    }))
+
+    // 添加装饰并保存装饰ID
+    searchDecorations = monacoInstance.deltaDecorations([], decorations)
+
+    // 当前选中项特殊高亮
+    jumpToResult(findCurrentIndex.value)
   }
 
   // 显示搜索结果数量
@@ -2258,12 +2303,39 @@ function findInCode() {
   }
 }
 
+// 跳转到特定的搜索结果
+function jumpToResult(index) {
+  if (index < 0 || index >= findResults.value.length) return
+
+  // 如果Monaco实例未初始化，将操作加入等待队列
+  if (!monacoReady) {
+    console.log(`Monaco编辑器尚未准备好，缓存跳转操作到索引 ${index}`)
+    pendingScrollActions.push(() => jumpToResult(index))
+    return
+  }
+
+  // 再次检查实例
+  if (!monacoInstance) {
+    console.warn('Monaco编辑器实例仍未初始化，无法跳转到搜索结果')
+    return
+  }
+
+  // 获取当前选中的结果
+  const match = findResults.value[index]
+
+  // 滚动到匹配位置
+  monacoInstance.revealRangeInCenter(match.range)
+
+  // 选中文本
+  monacoInstance.setSelection(match.range)
+}
+
 // 查找下一个结果
 function findNext() {
   if (findResults.value.length === 0) return
 
   findCurrentIndex.value = (findCurrentIndex.value + 1) % findResults.value.length
-  scrollToLine(findResults.value[findCurrentIndex.value] + 1)
+  jumpToResult(findCurrentIndex.value)
 }
 
 // 查找上一个结果
@@ -2272,23 +2344,27 @@ function findPrevious() {
 
   findCurrentIndex.value =
     (findCurrentIndex.value - 1 + findResults.value.length) % findResults.value.length
-  scrollToLine(findResults.value[findCurrentIndex.value] + 1)
+  jumpToResult(findCurrentIndex.value)
 }
 
-// 切换高亮主题
-function changeHighlightTheme(themeName) {
-  loadHighlightTheme(themeName)
+// 切换Monaco编辑器主题
+function changeHighlightTheme() {
+  highlightThemeDark.value = !highlightThemeDark.value
 
-  // 保存用户主题选择
-  if (isDarkTheme.value) {
-    localStorage.setItem('userDarkTheme', themeName)
-  } else {
-    localStorage.setItem('userLightTheme', themeName)
+  // 存储用户的主题偏好
+  localStorage.setItem('fileBrowser.highlightDark', highlightThemeDark.value ? 'true' : 'false')
+
+  // 为Monaco编辑器切换主题
+  currentTheme.value = highlightThemeDark.value ? 'vs-dark' : 'vs-light'
+
+  // 更新Monaco编辑器选项并应用新主题
+  if (monacoInstance) {
+    monacoInstance.updateOptions({ theme: currentTheme.value })
   }
 
   // 显示主题切换成功提示
   store.dispatch('snackbar/showSnackbar', {
-    message: `已切换到 ${themeName} 主题`,
+    message: `已切换到${highlightThemeDark.value ? '深色' : '浅色'}主题`,
     color: 'success'
   })
 }
@@ -2311,43 +2387,13 @@ function getParsedDescription(description) {
     return { description: description, process: [] }
   }
 }
-
-// 滚动到指定行号
-function scrollToLine(lineNumber) {
-  if (!lineNumber) return
-
-  nextTick(() => {
-    const codeContainer = document.querySelector('.code-container')
-    if (!codeContainer) return
-
-    // 获取表格行
-    const tableRows = codeContainer.querySelectorAll('.code-table tr')
-    if (!tableRows || lineNumber > tableRows.length) return
-
-    // 获取目标行
-    const targetRow = tableRows[lineNumber - 1]
-    if (!targetRow) return
-
-    // 计算滚动位置
-    const targetTop = targetRow.offsetTop
-
-    // 滚动到目标行 - 直接使用代码容器自身而不是其父元素
-    codeContainer.scrollTop = Math.max(0, targetTop - 100) // 留出一些缓冲空间
-
-    // 高亮目标行
-    targetRow.classList.add('highlighted-line')
-
-    // 3秒后移除高亮
-    setTimeout(() => {
-      targetRow.classList.remove('highlighted-line')
-    }, 3000)
-
-    console.log(`Scrolled to line ${lineNumber}`)
-  })
-}
 </script>
 
 <style scoped>
+.monaco-container {
+  width: 100%;
+  height: 100%;
+}
 .code-container {
   position: relative;
   width: 100%;
@@ -2619,6 +2665,9 @@ body {
     color: #dcdcdc; /* 暗色文本 */
   }
 }
+.preview-content {
+  height: 80vh;
+}
 .preview-content pre {
   /* 保持原有空格格式，不自动换行 */
   white-space: pre; /* 强制按照原始空白和换行显示 */
@@ -2733,6 +2782,10 @@ body {
 :deep([v-html]) a:hover {
   color: #79c0ff !important;
 }
+:deep(.markdown-content) img,
+:deep([v-html]) img {
+  max-width: 100% !important;
+}
 :deep(.v-field__input) {
   font-size: 0.8em !important;
   padding-top: 0 !important;
@@ -2742,5 +2795,34 @@ body {
 :deep(.v-autocomplete__selection) {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+}
+.tab-item {
+  max-width: 300px !important;
+}
+.tabs-wrapper {
+  overflow-x: auto !important;
+}
+
+/* Code search container styles */
+.code-search-container {
+  position: fixed;
+  top: 80px;
+  right: 36px;
+  z-index: 20;
+  width: 250px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.13);
+  border-radius: 8px;
+  padding: 14px 18px;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+}
+
+.code-search-container.dark-theme {
+  background: rgba(30, 30, 30, 0.99) !important;
+  border: 1px solid #383838 !important;
+  color: #e2e8f0 !important;
 }
 </style>

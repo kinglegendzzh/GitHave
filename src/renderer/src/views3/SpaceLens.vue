@@ -22,7 +22,23 @@
             color="purple"
             @focus="loadPathSuggestions"
             @click="loadPathSuggestions"
-          />
+          >
+            <template #item="{ item, props }">
+              <v-list-item v-bind="props">
+                <template #title>
+                  <span style="display: flex; align-items: center">
+                    <span>{{ item.raw.title }}</span>
+                  </span>
+                </template>
+                <template #subtitle>
+                  <span>{{ item.raw.value }}</span>
+                </template>
+              </v-list-item>
+            </template>
+            <template #append-inner>
+              <!-- <v-chip v-if="lensPath" color="purple" size="x-small">已全量构建索引</v-chip> -->
+            </template>
+          </v-autocomplete>
           <v-btn color="purple" class="ml-2 mt-2 modern-btn" elevation="0" @click="applyLensPath">
             <v-icon color="white">mdi-line-scan</v-icon>
             <span style="color: white">深度扫描</span>
@@ -61,6 +77,17 @@
           "
         >
           <v-btn
+            ref="buildIndexBtn"
+            variant="outlined"
+            color="orange"
+            class="modern-btn"
+            elevation="0"
+            @click="toggleBuildIndexDialog"
+          >
+            <v-icon>mdi-database-plus</v-icon>
+            <span>构建索引</span>
+          </v-btn>
+          <v-btn
             ref="codeViewBtn"
             variant="outlined"
             color="thirdary"
@@ -72,30 +99,28 @@
             <span>从代码视窗查看</span>
           </v-btn>
           <v-btn
+            ref="architectureBtn"
+            variant="outlined"
+            color="teal"
+            elevation="0"
+            @click="toggleArchitectureDrawer"
+          >
+            <v-icon>mdi-sitemap</v-icon>
+            <span>解释并生成流程图</span>
+          </v-btn>
+          <v-btn
             ref="analysisBtn"
             variant="outlined"
             color="indigo"
-            class="mr-2 modern-btn"
             elevation="0"
             @click="toggleAnalysisDrawer"
           >
             <v-icon>mdi-file-document</v-icon>
             <span>生成代码分析报告</span>
           </v-btn>
-          <v-btn
-            ref="architectureBtn"
-            variant="outlined"
-            color="teal"
-            class="mr-2 modern-btn"
-            elevation="0"
-            @click="toggleArchitectureDrawer"
-          >
-            <v-icon>mdi-sitemap</v-icon>
-            <span>生成流程图</span>
-          </v-btn>
 
           <!-- 权重配置按钮 -->
-          <div v-if="showAiReferenceSwitch" class="weight-config-button ml-4">
+          <div v-if="showAiReferenceSwitch" class="weight-config-button ml-0">
             <v-tooltip bottom>
               <template #activator="{ props }">
                 <v-btn
@@ -106,7 +131,7 @@
                   @click="weightConfigDialog = true"
                 >
                   <v-icon size="16">mdi-tune</v-icon>
-                  分析场景权重配置
+                  AI分析场景权重配置
                 </v-btn>
               </template>
               <span>
@@ -117,7 +142,7 @@
           </div>
 
           <!-- AI参考信息选择开关 -->
-          <div v-if="showAiReferenceSwitch" class="ai-reference-switch ml-3">
+          <div v-if="showAiReferenceSwitch" class="ai-reference-switch ml-2">
             <v-tooltip bottom>
               <template #activator="{ props }">
                 <v-switch
@@ -138,7 +163,7 @@
               </template>
               <span>
                 控制AI分析时的参考信息范围<br />
-                开启：索引和源代码（提供更详细的分析结果，适合中小型项目，或者专项分析少量代码文件的场景）<br />
+                开启：索引和源代码（给AI提供更详细的参考信息，适合中小型项目，或者专项分析少量代码文件的场景）<br />
                 关闭：仅索引（推荐用于扫描大型项目和复杂代码库，或者层级目录代码文件较多的场景，避免信息过载）
               </span>
             </v-tooltip>
@@ -166,7 +191,11 @@
       <v-row v-if="showFileTypeStats">
         <v-col cols="12" style="padding-top: 0px; margin-top: 0px; max-height: 80px; z-index: 99">
           <!-- 紧凑模式：显示前4个类型 + Other -->
-          <div v-if="!fileTypeStatsExpanded" class="file-type-compact-stats">
+          <div
+            v-if="!fileTypeStatsExpanded"
+            class="file-type-compact-stats"
+            @click="fileTypeStatsExpanded = true"
+          >
             <div class="compact-header">
               <div class="compact-title">
                 <v-icon color="primary" size="14" class="mr-1">mdi-chart-donut</v-icon>
@@ -218,7 +247,7 @@
 
           <!-- 展开模式：显示所有类型 -->
           <v-card v-else class="file-type-stats-card modern-surface" elevation="2">
-            <v-card-title class="d-flex align-center">
+            <v-card-title class="d-flex align-center" @click="fileTypeStatsExpanded = false">
               <v-icon color="primary" class="mr-2">mdi-chart-pie</v-icon>
               <span>代码文件类型分布</span>
               <v-spacer />
@@ -459,14 +488,29 @@
                   @contextmenu="showContextMenu($event, item)"
                 >
                   <template #prepend>
-                    <v-avatar size="32">
+                    <v-avatar
+                      size="32"
+                      @mouseenter="onItemMouseEnter($event, item)"
+                      @mouseleave="onItemMouseLeave"
+                      @mousemove="onItemMouseMove($event, item)"
+                    >
                       <v-icon :color="item.color">
                         {{ item.isDirectory ? item.icon : 'mdi-file-outline' }}
                       </v-icon>
                     </v-avatar>
                   </template>
-                  <v-list-item-title>{{ item.name }}</v-list-item-title>
-                  <v-list-item-subtitle class="text-caption">
+                  <v-list-item-title
+                    @mouseenter="onItemMouseEnter($event, item)"
+                    @mouseleave="onItemMouseLeave"
+                    @mousemove="onItemMouseMove($event, item)"
+                    >{{ item.name }}</v-list-item-title
+                  >
+                  <v-list-item-subtitle
+                    class="text-caption"
+                    @mouseenter="onItemMouseEnter($event, item)"
+                    @mouseleave="onItemMouseLeave"
+                    @mousemove="onItemMouseMove($event, item)"
+                  >
                     {{
                       renderMode === 'size'
                         ? item.size
@@ -479,6 +523,24 @@
                           : ''
                     }}
                   </v-list-item-subtitle>
+                  <template #append>
+                    <v-tooltip location="bottom">
+                      <template #activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          icon
+                          size="small"
+                          variant="text"
+                          :title="'更多操作'"
+                          style="margin-left: 8px"
+                          @click.stop="showContextMenu($event, item)"
+                        >
+                          <v-icon color="grey">mdi-auto-fix</v-icon>
+                        </v-btn>
+                      </template>
+                      <span>更多操作</span>
+                    </v-tooltip>
+                  </template>
                 </v-list-item>
               </v-list>
             </div>
@@ -501,6 +563,31 @@
         <v-card class="tooltip-card-modern theme--light" elevation="2">
           <v-icon left>mdi-comment</v-icon>
           <span style="font-size: 18px; margin-left: 4px">{{ tooltipContent }}</span>
+        </v-card>
+      </div>
+
+      <!-- 实时回显气泡 -->
+      <div
+        v-if="hoverBubbleVisible"
+        :style="{
+          position: 'fixed',
+          left: hoverBubbleX + 'px',
+          top: hoverBubbleY + 'px',
+          pointerEvents: 'none',
+          zIndex: 2000,
+          maxWidth: '300px'
+        }"
+      >
+        <v-card class="hover-bubble-card" elevation="8">
+          <v-card-text class="pa-3">
+            <div v-if="hoverBubbleLoading" class="d-flex align-center">
+              <v-progress-circular size="16" width="2" indeterminate color="primary" class="mr-2" />
+              <span class="text-caption">加载中...</span>
+            </div>
+            <div v-else class="hover-bubble-content">
+              <pre class="bubble-text">{{ hoverBubbleContent }}</pre>
+            </div>
+          </v-card-text>
         </v-card>
       </div>
     </v-container>
@@ -559,11 +646,11 @@
         <v-card-text>
           <div class="drawer-title">选择查看范围</div>
           <v-radio-group v-model="codeViewScope" column dense>
-            <v-radio value="current" label="当前层级" color="orange"></v-radio>
-            <v-radio value="all" label="整个仓库" color="orange"></v-radio>
+            <v-radio value="current" label="当前层级" color="thirdary"></v-radio>
+            <v-radio value="all" label="整个仓库" color="thirdary"></v-radio>
           </v-radio-group>
           <div class="drawer-actions">
-            <v-btn color="orange" variant="flat" small @click="openCodeView">确认</v-btn>
+            <v-btn color="thirdary" variant="flat" small @click="openCodeView">确认</v-btn>
             <v-btn variant="text" small @click="codeViewDrawerVisible = false">取消</v-btn>
           </div>
         </v-card-text>
@@ -590,7 +677,9 @@
         </v-card-title>
         <v-card-text>
           <div class="mb-4">
-            <p class="text-body-2 mb-3">请选择您希望AI在分析代码时参考哪些信息：</p>
+            <p class="text-body-2 mb-3">
+              请选择您希望AI在分析代码时参考哪些信息（新手建议仅索引）：
+            </p>
             <v-radio-group v-model="aiReferenceChoice" column>
               <v-radio :value="false" color="deep-purple">
                 <template #label>
@@ -803,15 +892,79 @@
       </v-card>
     </v-dialog>
 
-    <v-snackbar
-      v-model="snackbar.show"
-      :color="snackbar.color"
-      :timeout="3000"
-      rounded="pill"
-      elevation="2"
+    <!-- 构建索引抽屉 -->
+    <div
+      v-if="buildIndexDialog"
+      class="modern-drawer build-index-drawer"
+      :style="buildIndexDrawerStyle"
     >
+      <v-card class="drawer-card-modern" elevation="2">
+        <v-card-text>
+          <div class="drawer-title">选择索引构建范围</div>
+          <v-radio-group v-model="indexBuildScope" column dense>
+            <v-radio value="current" label="当前层级" color="orange"></v-radio>
+            <v-radio value="repository" label="整个仓库" color="orange"></v-radio>
+          </v-radio-group>
+          <div class="drawer-actions">
+            <v-btn color="orange" variant="flat" small @click="startBuildIndex">开始构建</v-btn>
+            <v-btn variant="text" small @click="buildIndexDialog = false">取消</v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+    </div>
+
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="8000" elevation="2">
       {{ snackbar.message }}
     </v-snackbar>
+
+    <!-- 索引进度对话框 -->
+    <v-dialog v-model="indexProgressVisible" persistent max-width="500">
+      <v-card>
+        <v-card-title class="text-h6"> 正在构建索引 </v-card-title>
+        <v-card-text>
+          <div class="mb-4">
+            <v-progress-circular indeterminate color="primary"></v-progress-circular>
+            <p>正在为项目构建索引，这可能需要一些时间...</p>
+            <p v-if="indexProgressData.estimatedTime">
+              预计还剩：{{ indexProgressData.estimatedTime }}
+            </p>
+          </div>
+
+          <v-progress-linear
+            :model-value="indexProgressData.progress"
+            color="primary"
+            height="8"
+            rounded
+          ></v-progress-linear>
+
+          <div class="mt-2 text-center">
+            <small>{{ indexProgressData.progress }}% 完成</small>
+          </div>
+
+          <div v-if="indexProgressData.currentFile" class="mt-3">
+            <small class="text-grey">当前处理：{{ indexProgressData.currentFile }}</small>
+          </div>
+          <div v-if="indexProgressData.remainingFiles" class="mt-3">
+            <small class="text-grey"
+              >剩余索引文件数：{{ indexProgressData.remainingFiles }} /
+              {{ indexProgressData.totalFiles }}</small
+            >
+          </div>
+          <div v-if="indexProgressData.totalFunctions" class="mt-3">
+            <small class="text-grey"
+              >已索引的函数量：<strong style="color: #1976d2">{{
+                indexProgressData.totalFunctions
+              }}</strong></small
+            >
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="hideIndexProcess"> 隐藏并后台运行 </v-btn>
+          <v-btn color="red" variant="text" @click="cancelIndexProcess"> 取消 </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -820,7 +973,13 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import * as d3 from 'd3'
 import FileContextMenu from '../components/FileContextMenu.vue'
-import { listRepos } from '../service/api'
+import {
+  listRepos,
+  checkIndexApi,
+  listGraph,
+  resetIndexApi,
+  deleteIndexSomeApi
+} from '../service/api'
 import grassSVG from '../assets/透镜.svg'
 import { omit } from '../service/str'
 
@@ -885,6 +1044,28 @@ const selectedPreset = ref('businessComplexity')
 
 // 控制弹窗显隐
 const isModalVisible = ref(false)
+
+// 索引状态相关
+const indexStatusMap = ref(new Map()) // 存储文件路径对应的索引状态
+const indexStatusLoading = ref(false) // 索引状态检查加载状态
+
+// 索引进度相关状态
+const indexProgressVisible = ref(false) // 索引进度对话框显示状态
+const indexProgressData = ref({
+  totalFiles: 0,
+  scannedFiles: 0,
+  remainingFiles: 0,
+  totalFunctions: 0,
+  progress: 0,
+  estimatedTime: '',
+  currentFile: ''
+}) // 索引进度数据
+const indexProgressTimer = ref(null) // 索引进度定时器
+const pendingReportAction = ref(null) // 待执行的报告生成操作
+
+// 构建索引对话框相关状态
+const buildIndexDialog = ref(false) // 构建索引对话框显示状态
+const indexBuildScope = ref('current') // 索引构建范围：current(当前层级) 或 repository(整个仓库)
 
 // 模拟传给子组件的 props
 const dummyRepoID = ref('demo-repo-123')
@@ -1028,6 +1209,390 @@ const toggleAiReference = () => {
   saveAiReferenceChoice(newChoice)
 }
 
+const MIN_INDEX_TIME = 1
+const MAX_INDEX_TIME = 6
+
+// 检查索引状态并处理
+const checkIndexStatus4Toolbar = async (targetPath) => {
+  try {
+    const response = await checkIndexApi(rootPath.value, path.relative(rootPath.value, targetPath))
+
+    const { real_file_count, total_file_count, total_function_count } = response.data.data
+    const unindexedFiles = real_file_count - total_file_count
+    if (unindexedFiles > 0) {
+      // 计算预估时间
+      const minSeconds = Math.ceil(unindexedFiles * MIN_INDEX_TIME) // 最少1秒每文件
+      const maxSeconds = Math.ceil(unindexedFiles * MAX_INDEX_TIME) // 最多6秒每文件
+
+      // 转换时间显示格式
+      const formatTime = (seconds) => {
+        if (seconds < 60) {
+          return `${seconds}秒`
+        } else if (seconds < 3600) {
+          return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+        } else {
+          const hours = Math.floor(seconds / 3600)
+          const minutes = Math.floor((seconds % 3600) / 60)
+          const remainingSeconds = seconds % 60
+          return `${hours}小时${minutes}分${remainingSeconds}秒`
+        }
+      }
+
+      const minTimeFormatted = formatTime(minSeconds)
+      const maxTimeFormatted = formatTime(maxSeconds)
+
+      const confirmed = window.confirm(
+        `检测到当前路径下有 ${unindexedFiles} 个文件未建立索引，\n` +
+          `预计需要 ${minTimeFormatted}-${maxTimeFormatted}进行初始化索引。\n\n` +
+          `确认继续吗？`
+      )
+
+      if (!confirmed) {
+        return false
+      }
+
+      // 开始索引进程
+      await startIndexProcess4Toolbar(targetPath)
+      return true
+    } else {
+      const confirmed = window.confirm(
+        `当前路径已经构建过索引，共索引 ${total_file_count}/${real_file_count} 个文件，共 ${total_function_count} 个函数，确定继续并更新索引？`
+      )
+
+      if (!confirmed) {
+        return false
+      }
+      console.log('path.relative(rootPath.value, targetPath)', path.relative(rootPath.value, targetPath))
+      // 删除部分索引
+      if (path.relative(rootPath.value, targetPath) !== '') {
+        const deleteIndexSomeResponse = await deleteIndexSomeApi(
+          rootPath.value,
+          path.relative(rootPath.value, targetPath)
+        )
+        console.log('deleteIndexSomeResponse', deleteIndexSomeResponse)
+        await store.dispatch('snackbar/showSnackbar', {
+          message: `已清除 ${path.relative(rootPath.value, targetPath)} 的索引，开始重新索引`,
+          color: 'warning'
+        })
+      }
+
+      // 开始索引进程
+      await startIndexProcess4Toolbar(targetPath)
+      return true
+    }
+  } catch (error) {
+    console.error('检查索引状态失败:', error)
+    return false
+  }
+}
+
+// 检查索引状态并处理
+const checkIndexStatus = async (targetPath) => {
+  try {
+    const response = await checkIndexApi(rootPath.value, path.relative(rootPath.value, targetPath))
+
+    const { real_file_count, total_file_count, total_function_count } = response.data.data
+    const unindexedFiles = real_file_count - total_file_count
+
+    if (unindexedFiles > 0) {
+      // 计算预估时间
+      const minSeconds = Math.ceil(unindexedFiles * MIN_INDEX_TIME) // 最少1秒每文件
+      const maxSeconds = Math.ceil(unindexedFiles * MAX_INDEX_TIME) // 最多6秒每文件
+
+      // 转换时间显示格式
+      const formatTime = (seconds) => {
+        if (seconds < 60) {
+          return `${seconds}秒`
+        } else if (seconds < 3600) {
+          return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+        } else {
+          const hours = Math.floor(seconds / 3600)
+          const minutes = Math.floor((seconds % 3600) / 60)
+          const remainingSeconds = seconds % 60
+          return `${hours}小时${minutes}分${remainingSeconds}秒`
+        }
+      }
+
+      const minTimeFormatted = formatTime(minSeconds)
+      const maxTimeFormatted = formatTime(maxSeconds)
+
+      const confirmed = window.confirm(
+        `检测到当前路径下有 ${unindexedFiles} 个文件未建立索引，\n` +
+          `预计需要 ${minTimeFormatted}~${maxTimeFormatted} 进行初始化索引。\n\n` +
+          `确认继续吗？`
+      )
+
+      if (!confirmed) {
+        return false
+      }
+
+      // 开始索引进程
+      await startIndexProcess(targetPath)
+      return true
+    } else {
+      console.log('当前路径已经构建过索引')
+      return true
+    }
+  } catch (error) {
+    console.error('检查索引状态失败:', error)
+    return false
+  }
+}
+
+// 开始索引进程
+const startIndexProcess4Toolbar = async (targetPath) => {
+  try {
+    // 显示进度对话框
+    indexProgressVisible.value = true
+
+    // 开始监控索引进度
+    startIndexProgressMonitoring(targetPath)
+
+    // 调用listGraph接口开始索引
+    const response = await listGraph(rootPath.value, path.relative(rootPath.value, targetPath))
+    console.log('startIndexProcess4Toolbar ', response)
+    // 检查listGraph是否完成
+    if (response && response.data && response.data.code === 0) {
+      // 索引完成，停止监控
+      stopIndexProgressMonitoring()
+      indexProgressVisible.value = false
+
+      const checkIndex = await checkIndexApi(
+        rootPath.value,
+        path.relative(rootPath.value, targetPath)
+      )
+      const { real_file_count, total_file_count, total_function_count, functions } =
+        checkIndex.data.data
+      alert(
+        `已完成索引，共 ${real_file_count} 个文件，已建立索引 ${total_file_count} 个文件，共 ${total_function_count} 个函数`
+      )
+      let message = `索引状态检查完成\n`
+      message += `函数索引量: ${total_function_count}\n`
+      message += `总文件数量: ${total_file_count}`
+
+      message += `\n\n该路径已建立索引`
+
+      // 显示函数详情(最多显示5条)
+      if (functions && Object.keys(functions).length > 0) {
+        message += `\n\n函数详情:`
+        let count = 0
+        for (const [filePath, funcs] of Object.entries(functions)) {
+          message += `\n📁 ${filePath}:`
+          for (const func of funcs) {
+            if (count >= 5) {
+              message += `\n  • ...`
+              break
+            }
+            message += `\n  • ${func.name} (${func.start_line}-${func.end_line}行)`
+            count++
+          }
+          if (count >= 5) break
+        }
+      }
+      store.dispatch('snackbar/showSnackbar', {
+        message: message,
+        color: 'success',
+        timeout: 8000
+      })
+    } else {
+      await store.dispatch('snackbar/showSnackbar', {
+        message: `${targetPath} 的索引构建失败，错误信息：${response.data.message}`,
+        color: 'error'
+      })
+    }
+  } catch (error) {
+    console.error('启动索引进程失败:', error)
+    stopIndexProgressMonitoring()
+    indexProgressVisible.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: '启动索引进程失败',
+      color: 'error'
+    })
+    throw error
+  }
+}
+
+// 开始索引进程
+const startIndexProcess = async (targetPath) => {
+  try {
+    // 显示进度对话框
+    indexProgressVisible.value = true
+
+    // 开始监控索引进度
+    startIndexProgressMonitoring(targetPath)
+
+    // 调用listGraph接口开始索引
+    const response = await listGraph(rootPath.value, path.relative(rootPath.value, targetPath))
+    console.log('startIndexProcess ', response)
+    // 检查listGraph是否完成
+    if (response && response.data && response.data.code === 0) {
+      // 索引完成，停止监控
+      stopIndexProgressMonitoring()
+      indexProgressVisible.value = false
+
+      // 立即执行待执行的报告生成操作
+      if (pendingReportAction.value) {
+        const action = pendingReportAction.value
+        pendingReportAction.value = null
+        setTimeout(() => action(), 500) // 稍微延迟执行
+      }
+    } else {
+      await store.dispatch('snackbar/showSnackbar', {
+        message: `${targetPath} 的索引构建失败，错误信息：${response.data.message}`,
+        color: 'error'
+      })
+    }
+  } catch (error) {
+    console.error('启动索引进程失败:', error)
+    stopIndexProgressMonitoring()
+    indexProgressVisible.value = false
+    store.dispatch('snackbar/showSnackbar', {
+      message: '启动索引进程失败',
+      color: 'error'
+    })
+    throw error
+  }
+}
+
+// 监控索引进度
+const startIndexProgressMonitoring = (targetPath) => {
+  const checkProgress = async () => {
+    try {
+      const response = await checkIndexApi(
+        rootPath.value,
+        path.relative(rootPath.value, targetPath)
+      )
+      console.log('检查索引进度:', response.data.data)
+      const { real_file_count, total_file_count, total_function_count } = response.data.data
+
+      // 计算预估时间
+      const minSeconds = Math.ceil((real_file_count - total_file_count) * MIN_INDEX_TIME) // 最少1秒每文件
+      const maxSeconds = Math.ceil((real_file_count - total_file_count) * MAX_INDEX_TIME) // 最多6秒每文件
+
+      // 转换时间显示格式
+      const formatTime = (seconds) => {
+        if (seconds < 60) {
+          return `${seconds}秒`
+        } else if (seconds < 3600) {
+          return `${Math.floor(seconds / 60)}分${seconds % 60}秒`
+        } else {
+          const hours = Math.floor(seconds / 3600)
+          const minutes = Math.floor((seconds % 3600) / 60)
+          const remainingSeconds = seconds % 60
+          return `${hours}小时${minutes}分${remainingSeconds}秒`
+        }
+      }
+
+      const minTimeFormatted = formatTime(minSeconds)
+      const maxTimeFormatted = formatTime(maxSeconds)
+
+      // 计算进度百分比
+      const progress =
+        real_file_count > 0 ? Math.round(((total_file_count - 1) / real_file_count) * 100) : 0
+      indexProgressData.value.totalFiles = real_file_count
+      indexProgressData.value.scannedFiles = total_file_count
+      indexProgressData.value.currentFile = path.relative(rootPath.value, targetPath)
+      indexProgressData.value.remainingFiles = real_file_count - total_file_count
+      indexProgressData.value.totalFunctions = total_function_count || 0
+      indexProgressData.value.estimatedTime = `${minTimeFormatted}~${maxTimeFormatted}`
+      indexProgressData.value.progress = progress
+    } catch (error) {
+      console.error('检查索引进度失败:', error)
+    }
+  }
+
+  // 立即检查一次
+  checkProgress()
+
+  // 每2秒检查一次进度
+  indexProgressTimer.value = setInterval(checkProgress, 2000)
+}
+
+// 停止索引进度监控
+const stopIndexProgressMonitoring = () => {
+  if (indexProgressTimer.value) {
+    clearInterval(indexProgressTimer.value)
+    indexProgressTimer.value = null
+  }
+  // 清除缓存API中存储的索引统计信息
+  hoverApiCache.value.clear()
+  indexStatusMap.value = new Map()
+}
+
+// 打开构建索引对话框
+const toggleBuildIndexDialog = () => {
+  if (!rootPath.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先选择一个目录并进行扫描',
+      color: 'warning'
+    })
+    return
+  }
+  // 关闭其他抽屉
+  analysisDrawerVisible.value = false
+  architectureDrawerVisible.value = false
+  codeViewDrawerVisible.value = false
+  // 切换当前抽屉
+  buildIndexDialog.value = !buildIndexDialog.value
+  indexBuildScope.value = 'current' // 默认选择当前层级
+}
+
+// 开始构建索引
+const startBuildIndex = async () => {
+  try {
+    buildIndexDialog.value = false
+
+    let targetPath
+    if (indexBuildScope.value === 'repository') {
+      // 构建整个函数索引
+      targetPath = rootPath.value
+    } else {
+      // 构建当前层级索引
+      targetPath = currentFocus.value?.data?.fullPath || rootPath.value
+    }
+
+    // 如果是整个仓库，则要求用户跳转至函数索引页面自行操作
+    if (targetPath === rootPath.value) {
+      const confirmed = confirm('若要全量构建整个仓库，请跳转至函数索引页面自行操作')
+      if (!confirmed) {
+        return
+      }
+      router.push({
+        name: 'scan'
+      })
+      return
+    }
+
+    // 调用checkIndexStatus方法开始索引
+    await checkIndexStatus4Toolbar(targetPath)
+  } catch (error) {
+    console.error('构建索引失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '构建索引失败',
+      color: 'error'
+    })
+  }
+}
+
+// 取消索引进程
+const cancelIndexProcess = async () => {
+  console.log('取消索引进程', indexProgressData.value.currentFile)
+  await resetIndexApi(
+    rootPath.value,
+    path.relative(rootPath.value, indexProgressData.value.currentFile)
+  )
+  hideIndexProcess()
+}
+
+// 隐藏索引进程
+const hideIndexProcess = () => {
+  stopIndexProgressMonitoring()
+  indexProgressVisible.value = false
+  pendingReportAction.value = null
+  // 清除缓存API中存储的索引统计信息
+  hoverApiCache.value.clear()
+}
+
 // Electron 内置模块（使用 top-level await）
 const fs = window.electron.fs
 const path = window.electron.path
@@ -1046,6 +1611,15 @@ const tooltipVisible = ref(false)
 const tooltipContent = ref('')
 const tooltipX = ref(0)
 const tooltipY = ref(0)
+
+// 实时回显气泡相关状态
+const hoverBubbleVisible = ref(false)
+const hoverBubbleContent = ref('')
+const hoverBubbleX = ref(0)
+const hoverBubbleY = ref(0)
+const hoverBubbleLoading = ref(false)
+const currentHoverItem = ref(null)
+const hoverApiCache = ref(new Map()) // 缓存API响应结果
 const lensPath = ref('')
 const pathSuggestions = ref([])
 const depth = ref(20)
@@ -1071,6 +1645,7 @@ const codeViewDrawerVisible = ref(false)
 const analysisBtn = ref(null)
 const architectureBtn = ref(null)
 const codeViewBtn = ref(null)
+const buildIndexBtn = ref(null)
 
 // 抽屉位置计算
 const analysisDrawerStyle = computed(() => {
@@ -1109,6 +1684,18 @@ const codeViewDrawerStyle = computed(() => {
   }
 })
 
+const buildIndexDrawerStyle = computed(() => {
+  if (!buildIndexBtn.value) return {}
+  const rect = buildIndexBtn.value.$el.getBoundingClientRect()
+  return {
+    position: 'absolute',
+    top: `${rect.bottom + 5}px`,
+    left: `${rect.left}px`,
+    zIndex: 100,
+    transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.5, 1)'
+  }
+})
+
 // FileContextMenu 引用
 const contextMenu = ref(null)
 
@@ -1129,7 +1716,7 @@ const viewFileDetails = () => {
       name: 'finder',
       params: {
         localPath: selectedFile.value.fullPath,
-        rootPath: rootPath.value
+        rootPath: rootPath
       }
     })
   }
@@ -1180,10 +1767,33 @@ const generateFileAnalysisReport = async () => {
         const repoID = selectedItem.id
         console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-        const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+        const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+          rootPath.value
+        )
         if (indexing) {
           window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
           return
+        }
+
+        if (!hasFullIndex) {
+          console.log('未构建全量索引')
+          // 检查索引状态
+          const indexCheckResult = await checkIndexStatus(targetPath)
+          if (!indexCheckResult) {
+            return // 用户取消或索引检查失败
+          }
+
+          // 如果正在进行索引，设置待执行操作并返回
+          if (indexProgressVisible.value) {
+            pendingReportAction.value = () =>
+              generateFileAnalysisReportInternal(
+                selectedItem,
+                targetPath,
+                scopeText,
+                isAnalyzingSingleFile
+              )
+            return
+          }
         }
 
         // 给 ref 赋值，Vue 才能通知模板更新 props
@@ -1232,6 +1842,165 @@ const generateFileAnalysisReport = async () => {
     }
   }
 }
+
+// 内部报告生成逻辑
+const generateFileAnalysisReportInternal = async (
+  selectedItem,
+  targetPath,
+  scopeText,
+  isAnalyzingSingleFile
+) => {
+  stopIndexProgressMonitoring()
+  indexProgressVisible.value = false
+  try {
+    const repoID = selectedItem.id
+    console.log('执行内部报告生成逻辑:', repoID, targetPath)
+
+    const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(rootPath.value)
+    if (indexing) {
+      window.alert(`检测到正在对 "${targetPath}" 构建索引，请等待索引构建完成后，再进行分析`)
+      return
+    }
+
+    // 给 ref 赋值，Vue 才能通知模板更新 props
+    modalRepoID.value = selectedItem.id.toString()
+    modalTargetPath.value = targetPath
+    modalScopeText.value = scopeText
+    apiType.value = 'deepResearch'
+    // 根据用户选择设置wholeCode参数，如果未选择则使用false作为默认值
+    wholeCode.value = aiReferenceChoice.value !== null ? aiReferenceChoice.value : false
+    if (isAnalyzingSingleFile) {
+      wholeCode.value = true
+      console.log('已为单文件分析设置wholeCode为true')
+    }
+    // 设置文件数量
+    if (selectedFile.value && selectedFile.value.isDirectory && selectedFile.value.count) {
+      count.value = selectedFile.value.count
+    } else {
+      count.value = 1 // 单文件分析
+    }
+    // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+    analysisReportDrawerVisible.value = true
+
+    console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: `正在为${scopeText}生成代码分析报告，请稍等片刻后在'文件枢纽'中查看...`,
+      color: 'info'
+    })
+  } catch (error) {
+    console.error('生成代码分析报告失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '生成代码分析报告失败',
+      color: 'error'
+    })
+  }
+}
+
+// 异步检查指定路径的索引状态
+const checkIndexStatusForPath = async (itemPath) => {
+  if (!rootPath.value) return
+
+  try {
+    indexStatusLoading.value = true
+    const projectDir = rootPath.value
+    const relativePath = itemPath.replace(rootPath.value, '').replace(/^[\/\\]/, '')
+
+    console.log('异步检查索引状态，项目路径：', projectDir, '相对路径：', relativePath)
+
+    const response = await checkIndexApi(projectDir, relativePath)
+
+    if (response.data.code === 0) {
+      const data = response.data.data
+      const totalFunctions = data.total_function_count || 0
+      const totalFiles = data.total_file_count || 0
+      const realFiles = data.real_file_count || 0
+      const hasIndex = totalFunctions > 0 || totalFiles > 0
+
+      console.log('API响应数据:', {
+        totalFunctions,
+        totalFiles,
+        realFiles,
+        hasIndex,
+        itemPath,
+        response: data
+      })
+
+      // 存储索引状态
+      indexStatusMap.value.set(itemPath, {
+        hasIndex,
+        totalFunctions,
+        totalFiles,
+        realFiles,
+        functions: data.functions || {}
+      })
+
+      console.log('存储的索引状态:', indexStatusMap.value.get(itemPath))
+    } else {
+      // 检查失败，标记为未索引
+      indexStatusMap.value.set(itemPath, {
+        hasIndex: false,
+        totalFunctions: 0,
+        totalFiles: 0,
+        realFiles: 0,
+        functions: {},
+        error: response.message
+      })
+    }
+  } catch (error) {
+    console.error('异步检查索引状态失败:', error)
+    // 检查失败，标记为未索引
+    indexStatusMap.value.set(itemPath, {
+      hasIndex: false,
+      totalFunctions: 0,
+      totalFiles: 0,
+      realFiles: 0,
+      functions: {},
+      error: error.message
+    })
+  } finally {
+    indexStatusLoading.value = false
+  }
+}
+
+// 检查索引状态（点击菜单项时显示详细信息）
+const checkIndexStatusForMenu = async () => {
+  console.log('检查索引状态...123')
+  if (selectedFile.value && selectedFile.value.fullPath) {
+    const itemPath = selectedFile.value.fullPath
+    const indexStatus = indexStatusMap.value.get(itemPath)
+
+    if (indexStatus) {
+      await checkIndexStatus4Toolbar(itemPath)
+      // 如果已经有缓存的状态，直接显示
+      let message = `索引状态检查完成\n`
+      message += `函数索引量: ${indexStatus.totalFunctions}\n`
+      message += `总文件数量: ${indexStatus.totalFiles}`
+
+      console.log(message)
+
+      // store.dispatch('snackbar/showSnackbar', {
+      //   message: message,
+      //   color: indexStatus.hasIndex ? 'success' : 'warning',
+      //   timeout: 8000
+      // })
+    } else {
+      // 如果没有缓存状态，重新检查
+      isProcessing.value = true
+      await checkIndexStatusForPath(itemPath)
+      isProcessing.value = false
+
+      // 递归调用显示结果
+      checkIndexStatusForMenu()
+    }
+  } else {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '请先选择一个文件或文件夹',
+      color: 'warning'
+    })
+  }
+}
+
 // 为文件夹生成流程图
 const generateFolderArchitectureMap = async () => {
   if (
@@ -1263,10 +2032,28 @@ const generateFolderArchitectureMap = async () => {
         const repoID = selectedItem.id
         console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-        const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+        const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+          rootPath.value
+        )
         if (indexing) {
           window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
           return
+        }
+        if (!hasFullIndex) {
+          console.log('未构建全量索引')
+          // 检查索引状态
+          const shouldProceed = await checkIndexStatus(targetPath, () => {
+            pendingReportAction.value = () =>
+              generateFolderArchitectureMapInternal(
+                selectedItem,
+                targetPath,
+                scopeText,
+                isAnalyzingSingleFile
+              )
+          })
+          if (!shouldProceed) {
+            return
+          }
         }
 
         // 给 ref 赋值，Vue 才能通知模板更新 props
@@ -1307,17 +2094,110 @@ const generateFolderArchitectureMap = async () => {
   }
 }
 
+// 内部文件夹流程图生成逻辑
+const generateFolderArchitectureMapInternal = async (
+  selectedItem,
+  targetPath,
+  scopeText,
+  isAnalyzingSingleFile
+) => {
+  stopIndexProgressMonitoring()
+  indexProgressVisible.value = false
+  try {
+    const repoID = selectedItem.id
+    console.log('执行内部文件夹流程图生成逻辑:', repoID, targetPath)
+
+    const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(rootPath.value)
+    if (indexing) {
+      window.alert(`检测到正在对 "${targetPath}" 构建索引，请等待索引构建完成后，再进行分析`)
+      return
+    }
+
+    // 给 ref 赋值，Vue 才能通知模板更新 props
+    modalRepoID.value = selectedItem.id.toString()
+    modalTargetPath.value = targetPath
+    modalScopeText.value = scopeText
+    apiType.value = 'flowChart'
+    // 根据用户选择设置wholeCode参数，如果未选择则使用false作为默认值
+    wholeCode.value = aiReferenceChoice.value !== null ? aiReferenceChoice.value : false
+    if (isAnalyzingSingleFile) {
+      wholeCode.value = true
+      console.log('已为单文件分析设置wholeCode为true')
+    }
+    // 设置文件数量
+    if (selectedFile.value && selectedFile.value.isDirectory && selectedFile.value.count) {
+      count.value = selectedFile.value.count
+    } else {
+      count.value = 1 // 单文件分析
+    }
+    // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+    analysisReportDrawerVisible.value = true
+    store.dispatch('snackbar/showSnackbar', {
+      message: `正在为文件夹梳理流程图，请稍等片刻后在'文件枢纽'中查看...`,
+      color: 'info'
+    })
+  } catch (error) {
+    console.error('生成流程图失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '生成流程图失败',
+      color: 'error'
+    })
+  }
+}
+
 // 动态菜单项，根据选中项是文件还是文件夹显示不同的菜单
 const menuItems = computed(() => {
   const baseItems = []
-  // 非 (Windows平台且选中的是文件）时，添加预览代码选项
-  if (selectedFile.value && (isMacOS.value || (!isMacOS.value && selectedFile.value.isDirectory))) {
-    baseItems.push({
-      title: '从代码视窗查看',
-      icon: 'mdi-information',
-      action: viewFileDetails
-    })
+
+  // 添加索引状态检测选项
+  const indexStatus = selectedFile.value
+    ? indexStatusMap.value.get(selectedFile.value.fullPath)
+    : null
+  const isLoading = indexStatusLoading.value
+
+  console.log('菜单项显示逻辑:', {
+    selectedFilePath: selectedFile.value?.fullPath,
+    indexStatus,
+    isLoading,
+    indexStatusMapSize: indexStatusMap.value.size
+  })
+
+  let indexTitle = '检查索引状态'
+  let indexIcon = 'mdi-database-search'
+  let indexClass = ''
+
+  if (isLoading) {
+    indexTitle = '检查索引状态 (检查中...)'
+    indexIcon = 'mdi-loading mdi-spin'
+  } else if (indexStatus) {
+    console.log('索引状态详情:', indexStatus)
+    if (indexStatus.hasIndex) {
+      indexTitle = `索引状态: 已索引 (${indexStatus.totalFunctions}个函数, ${indexStatus.totalFiles}个文件)`
+      indexIcon = 'mdi-database-check'
+      indexClass = 'text-success'
+    } else {
+      indexTitle = '索引状态: 未索引'
+      indexIcon = 'mdi-database-remove'
+      indexClass = 'text-warning'
+    }
   }
+
+  baseItems.push({
+    title: indexTitle,
+    icon: indexIcon,
+    color: 'purple',
+    class: indexClass,
+    action: checkIndexStatusForMenu
+  })
+
+  // 非 (Windows平台且选中的是文件）时，添加预览代码选项
+  // if (selectedFile.value && (isMacOS.value || (!isMacOS.value && selectedFile.value.isDirectory))) {
+  baseItems.push({
+    title: '从代码视窗查看',
+    icon: 'mdi-information',
+    action: viewFileDetails
+  })
+  // }
 
   // 添加生成代码分析报告选项（对文件和文件夹都可用）
   baseItems.push({
@@ -1329,14 +2209,14 @@ const menuItems = computed(() => {
   // 如果是文件夹，添加生成流程图选项
   // if (selectedFile.value && selectedFile.value.isDirectory) {
   baseItems.push({
-    title: '生成流程图',
+    title: '解释并生成流程图',
     icon: 'mdi-sitemap',
     action: generateFolderArchitectureMap
   })
-  // }
+
   baseItems.push(
     { title: '复制路径', icon: 'mdi-content-copy', action: copyFilePath },
-    { title: '打开文件夹', icon: 'mdi-folder', action: openInFinder }
+    { title: '从文件夹打开', icon: 'mdi-folder', action: openInFinder }
   )
   return baseItems
 })
@@ -1385,10 +2265,20 @@ const getCompactFileTypes = computed(() => {
 
 // 以下函数均为组件内业务逻辑
 
-const showContextMenu = (event, item) => {
+const showContextMenu = async (event, item) => {
   console.log('右键菜单点击事件', event, item)
   // 先设置选中的文件，这样computed的menuItems才能根据文件类型显示正确的菜单项
   selectedFile.value = item
+
+  // 在显示菜单时异步检查索引状态
+  if (item && rootPath.value) {
+    const itemPath = item.fullPath
+    if (!indexStatusMap.value.has(itemPath)) {
+      // 如果还没有检查过这个路径的索引状态，则异步检查
+      checkIndexStatusForPath(itemPath)
+    }
+  }
+
   // 然后显示上下文菜单
   contextMenu.value?.show(event)
 }
@@ -1411,6 +2301,7 @@ const toggleAnalysisDrawer = () => {
     return
   }
   // 关闭其他抽屉
+  buildIndexDialog.value = false
   architectureDrawerVisible.value = false
   codeViewDrawerVisible.value = false
   // 切换当前抽屉
@@ -1427,6 +2318,7 @@ const toggleArchitectureDrawer = () => {
     return
   }
   // 关闭其他抽屉
+  buildIndexDialog.value = false
   analysisDrawerVisible.value = false
   codeViewDrawerVisible.value = false
   // 切换当前抽屉
@@ -1443,6 +2335,7 @@ const toggleCodeViewDrawer = () => {
     return
   }
   // 关闭其他抽屉
+  buildIndexDialog.value = false
   analysisDrawerVisible.value = false
   architectureDrawerVisible.value = false
   // 切换当前抽屉
@@ -1518,10 +2411,35 @@ const generateAnalysisReport = async () => {
       const repoID = selectedItem.id
       console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-      const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+      const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+        rootPath.value
+      )
       if (indexing) {
         window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
         return
+      }
+
+      if (!hasFullIndex) {
+        console.log('未构建全量索引')
+        // 检查索引状态
+        const indexCheckResult = await checkIndexStatus(targetPath)
+        if (!indexCheckResult) {
+          isProcessing.value = false
+          return // 用户取消或索引检查失败
+        }
+
+        // 如果正在进行索引，设置待执行操作并返回
+        if (indexProgressVisible.value) {
+          pendingReportAction.value = () =>
+            generateAnalysisReportInternal(
+              selectedItem,
+              targetPath,
+              scopeText,
+              isAnalyzingSingleFile
+            )
+          isProcessing.value = false
+          return
+        }
       }
 
       // 给 ref 赋值，Vue 才能通知模板更新 props
@@ -1560,6 +2478,60 @@ const generateAnalysisReport = async () => {
     })
   } finally {
     isProcessing.value = false
+  }
+}
+
+// 内部分析报告生成逻辑
+const generateAnalysisReportInternal = async (
+  selectedItem,
+  targetPath,
+  scopeText,
+  isAnalyzingSingleFile
+) => {
+  // 强制关闭索引进度定时器和进度框
+  stopIndexProgressMonitoring()
+  indexProgressVisible.value = false
+  try {
+    const repoID = selectedItem.id
+    console.log('执行内部分析报告生成逻辑:', repoID, targetPath)
+
+    const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(rootPath.value)
+    if (indexing) {
+      window.alert(`检测到正在对 "${targetPath}" 构建索引，请等待索引构建完成后，再进行分析`)
+      return
+    }
+
+    // 给 ref 赋值，Vue 才能通知模板更新 props
+    modalRepoID.value = selectedItem.id.toString()
+    modalTargetPath.value = targetPath
+    modalScopeText.value = scopeText
+    apiType.value = 'deepResearch'
+
+    // 根据用户选择设置wholeCode参数
+    wholeCode.value = aiReferenceChoice.value
+    console.log('wholeCode', wholeCode.value, 'aiReferenceChoice', aiReferenceChoice.value)
+    if (isAnalyzingSingleFile) {
+      wholeCode.value = true
+      console.log('已为单文件分析设置wholeCode为true')
+    }
+    // 设置文件数量
+    if (analysisScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
+      count.value = currentFocus.value.data.count || 0
+    } else {
+      // 整个仓库的文件数量，使用根节点的count
+      count.value = fileTree.value ? fileTree.value.count || 0 : 0
+    }
+
+    // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+    analysisReportDrawerVisible.value = true
+
+    console.log('yep', modalRepoID, modalTargetPath, modalScopeText, analysisReportDrawerVisible)
+  } catch (error) {
+    console.error('生成代码分析报告失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '生成代码分析报告失败',
+      color: 'error'
+    })
   }
 }
 
@@ -1603,10 +2575,29 @@ const generateArchitectureMap = async () => {
       const repoID = selectedItem.id
       console.log('找到匹配的仓库ID:', repoID, targetPath)
 
-      const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(targetPath)
+      const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+        rootPath.value
+      )
       if (indexing) {
         window.alert(`检测到正在对 “${targetPath}” 构建索引，请等待索引构建完成后，再进行分析`)
         return
+      }
+
+      if (!hasFullIndex) {
+        console.log('未构建全量索引')
+        // 检查索引状态
+        const shouldProceed = await checkIndexStatus(targetPath, () => {
+          pendingReportAction.value = () =>
+            generateArchitectureMapInternal(
+              selectedItem,
+              targetPath,
+              scopeText,
+              isAnalyzingSingleFile
+            )
+        })
+        if (!shouldProceed) {
+          return
+        }
       }
 
       // 给 ref 赋值，Vue 才能通知模板更新 props
@@ -1643,6 +2634,58 @@ const generateArchitectureMap = async () => {
     })
   } finally {
     isProcessing.value = false
+  }
+}
+
+// 内部流程图生成逻辑
+const generateArchitectureMapInternal = async (
+  selectedItem,
+  targetPath,
+  scopeText,
+  isAnalyzingSingleFile
+) => {
+  // 强制关闭索引进度定时器和进度框
+  stopIndexProgressMonitoring()
+  indexProgressVisible.value = false
+  try {
+    const repoID = selectedItem.id
+    console.log('执行内部流程图生成逻辑:', repoID, targetPath)
+
+    const { indexing, hasDb } = await window.electron.checkMemoryFlashStatus(rootPath.value)
+    if (indexing) {
+      window.alert(`检测到正在对 "${targetPath}" 构建索引，请等待索引构建完成后，再进行分析`)
+      return
+    }
+
+    // 给 ref 赋值，Vue 才能通知模板更新 props
+    modalRepoID.value = selectedItem.id.toString()
+    modalTargetPath.value = targetPath
+    modalScopeText.value = scopeText
+    apiType.value = 'flowChart'
+
+    // 根据用户选择设置wholeCode参数
+    wholeCode.value = aiReferenceChoice.value
+    console.log('wholeCode', wholeCode.value, 'aiReferenceChoice', aiReferenceChoice.value)
+    if (isAnalyzingSingleFile) {
+      wholeCode.value = true
+      console.log('已为单文件分析设置wholeCode为true')
+    }
+    // 设置文件数量
+    if (architectureScope.value === 'current' && currentFocus.value && currentFocus.value.data) {
+      count.value = currentFocus.value.data.count || 0
+    } else {
+      // 整个仓库的文件数量，使用根节点的count
+      count.value = fileTree.value ? fileTree.value.count || 0 : 0
+    }
+
+    // 再打开弹窗，AnalysisReportModal 会收到最新的 props & visible=true
+    analysisReportDrawerVisible.value = true
+  } catch (error) {
+    console.error('生成流程图失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '生成流程图失败',
+      color: 'error'
+    })
   }
 }
 
@@ -1744,6 +2787,107 @@ const onLegendItemClick = async (event, item) => {
       }
     }
   }
+}
+
+// 鼠标进入目录项时的处理
+const onItemMouseEnter = async (event, item) => {
+  if (!item || !item.fullPath) return
+
+  currentHoverItem.value = item
+  hoverBubbleVisible.value = true
+  hoverBubbleLoading.value = true
+
+  // 更新气泡位置
+  updateBubblePosition(event)
+
+  // 检查缓存
+  const cacheKey = item.fullPath
+  if (hoverApiCache.value.has(cacheKey)) {
+    hoverBubbleContent.value = hoverApiCache.value.get(cacheKey)
+    hoverBubbleLoading.value = false
+    return
+  }
+
+  try {
+    // 异步调用索引状态检查API
+    const projectDir = rootPath.value
+    const relativePath = item.fullPath.replace(rootPath.value, '').replace(/^[\/\\]/, '')
+
+    console.log('异步检查索引状态，项目路径：', projectDir, '相对路径：', relativePath)
+    const response = await checkIndexApi(projectDir, relativePath)
+    console.log('气泡API响应:', response)
+
+    let content = ''
+    if (response && response.status === 200) {
+      if (response.data.code === 0) {
+        const {
+          total_function_count = 0,
+          total_file_count = 0,
+          real_file_count = 0,
+          function_details = []
+        } = response.data.data
+        if (total_function_count > 0 || total_file_count > 0) {
+          content = `📁 ${item.name}\n`
+          content += `📄 已索引文件数: ${total_file_count} / ${real_file_count}\n`
+          content += `⚡ 函数索引量: ${total_function_count}`
+
+          if (function_details && function_details.length > 0) {
+            content += '\n\n🔧 主要函数:'
+            function_details.slice(0, 3).forEach((func) => {
+              content += `\n• ${func.function_name || func.name || '未知函数'}`
+            })
+            if (function_details.length > 3) {
+              content += `\n... 还有 ${function_details.length - 3} 个函数`
+            }
+          }
+        } else {
+          content = `📁 ${item.name}\n❌ 未索引`
+        }
+      } else {
+        content = `📁 ${item.name}\n❌ 未索引`
+      }
+    } else {
+      content = `📁 ${item.name}\n⚠️ 无法获取信息`
+    }
+
+    // 缓存结果
+    hoverApiCache.value.set(cacheKey, content)
+
+    // 只有当前悬停项目没有改变时才更新内容
+    if (currentHoverItem.value && currentHoverItem.value.fullPath === item.fullPath) {
+      hoverBubbleContent.value = content
+      hoverBubbleLoading.value = false
+    }
+  } catch (error) {
+    console.error('获取气泡信息失败:', error)
+    const errorContent = `📁 ${item.name}\n❌ 获取信息失败`
+
+    if (currentHoverItem.value && currentHoverItem.value.fullPath === item.fullPath) {
+      hoverBubbleContent.value = errorContent
+      hoverBubbleLoading.value = false
+    }
+  }
+}
+
+// 鼠标离开目录项时的处理
+const onItemMouseLeave = () => {
+  hoverBubbleVisible.value = false
+  currentHoverItem.value = null
+  hoverBubbleLoading.value = false
+}
+
+// 鼠标在目录项上移动时的处理
+const onItemMouseMove = (event, item) => {
+  if (hoverBubbleVisible.value && currentHoverItem.value === item) {
+    updateBubblePosition(event)
+  }
+}
+
+// 更新气泡位置
+const updateBubblePosition = (event) => {
+  const offset = 15
+  hoverBubbleX.value = event.clientX + offset
+  hoverBubbleY.value = event.clientY - offset
 }
 
 const buildFileTree = (dirPath, parentName = '') => {
@@ -1925,11 +3069,13 @@ const loadPathSuggestions = async () => {
     if (!response.data || !Array.isArray(response.data)) return
     // 根据id降序排序
     const sortedData = [...response.data].sort((a, b) => b.id - a.id)
-    pathSuggestions.value = sortedData.map((repo) => ({
-      value: repo.local_path,
-      title: repo.desc ? `${omit(repo.desc, 25)}(${repo.name})` : repo.name,
-      id: repo.id
-    }))
+    pathSuggestions.value = sortedData.map((repo) => {
+      return {
+        value: repo.local_path,
+        title: repo.desc ? `${omit(repo.desc, 25)}(${repo.name})` : repo.name,
+        id: repo.id
+      }
+    })
   } catch (err) {
     console.error('获取仓库数据失败:', err)
   }
@@ -2401,7 +3547,7 @@ const analyzeFileTypes = (tree) => {
   // 转换为数组并排序（按文件数量排序，取前10个）
   const sortedTypes = Array.from(typeMap.values())
     .sort((a, b) => b.count - a.count)
-    .slice(0, 10)
+    .slice(0, 30)
 
   // 计算百分比
   const totalCount = sortedTypes.reduce((sum, type) => sum + type.count, 0)
@@ -2822,6 +3968,39 @@ watch(selectedPreset, () => {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(var(--v-theme-on-surface-rgb), 0.08);
   animation: slideUp 0.6s ease-out;
+}
+
+/* 实时回显气泡样式 */
+.hover-bubble-card {
+  background: rgba(var(--v-theme-surface-rgb), 0.98) !important;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 12px !important;
+  border: 1px solid rgba(var(--v-theme-primary-rgb), 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15) !important;
+  animation: fadeIn 0.2s ease-out;
+  transition: all 0.2s ease-out;
+}
+
+.hover-bubble-content {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.bubble-text {
+  font-family:
+    'SF Pro Text',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: rgba(var(--v-theme-on-surface-rgb), 0.87);
 }
 
 .file-type-chart-container {

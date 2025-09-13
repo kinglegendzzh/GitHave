@@ -52,6 +52,8 @@ const api = {
   invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
   // 当前用户的 home 目录
   homeDir: os.homedir(),
+  // 临时目录
+  tmpdir: os.tmpdir(),
   // 暴露 shell 模块（慎用：仅建议将确定安全的功能暴露出去）
   shell: shell,
   // 专门封装 openPathWithApp 接口
@@ -388,6 +390,7 @@ const api = {
   unzipFile: (zipFile, outputDir) => ipcRenderer.invoke('unzip-file', zipFile, outputDir),
   tarGzFiles: (dirPath, output) => ipcRenderer.invoke('tar-gz-files', dirPath, output),
   untarGzFile: (tarFile, outputDir) => ipcRenderer.invoke('untar-gz-file', tarFile, outputDir),
+  extractTarGz: (sourcePath, targetPath) => ipcRenderer.invoke('untar-gz-file', sourcePath, targetPath),
   /**
    * Get file stats (size in bytes) for a given path.
    * Usage: window.electron.stat('/path/to/file')
@@ -413,7 +416,7 @@ const api = {
 
   /**
    * 监听协议调用（可多次）
-   * @param {(data:{route:string,repo:string,tab:string,token:string,user_id:string,username:string,email:string,timestamp:string,raw:string})=>void} callback
+   * @param {(data:{route:string,repo:string,tab:string,token:string,user_id:string,username:string,email:string,timestamp:string,verified:string,github:string,download:string,filename:string,owner:string,branch:string,description:string,isPrivate:boolean,raw:string})=>void} callback
    * @returns {() => void} unsubscribe
    */
   onProtocolUrl(callback) {
@@ -425,7 +428,7 @@ const api = {
 
   /**
    * 仅监听一次协议调用（自动取消）
-   * @param {(data:{route:string,repo:string,tab:string,token:string,user_id:string,username:string,email:string,timestamp:string,raw:string})=>void} callback
+   * @param {(data:{route:string,repo:string,tab:string,token:string,user_id:string,username:string,email:string,timestamp:string,verified:string,github:string,download:string,filename:string,owner:string,branch:string,description:string,isPrivate:boolean,raw:string})=>void} callback
    */
   onceProtocolUrl(callback) {
     const channel = 'protocol-url'

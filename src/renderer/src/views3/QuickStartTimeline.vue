@@ -11,6 +11,18 @@
     <template v-else>
       <!-- 产品介绍头部 -->
       <div class="hero-section" :class="{ 'animate-fade-in': !loading }">
+        <!-- 新手引导按钮 -->
+        <v-btn
+          class="onboarding-btn"
+          size="small"
+          variant="text"
+          color="grey"
+          @click="jumpToOnboarding"
+        >
+          <v-icon size="16" class="mr-1">mdi-dog</v-icon>
+          回到环境配置引导界面
+        </v-btn>
+
         <div class="hero-content">
           <div class="hero-logo animate-slide-up" :style="{ animationDelay: '0.2s' }">
             <v-img :src="titleNSrc" alt="GitHave" class="logo-image"></v-img>
@@ -19,26 +31,28 @@
             AI 驱动的代码仓库助手
           </h1>
           <p class="hero-subtitle animate-slide-up" :style="{ animationDelay: '0.2s' }">
-            让 AI 帮您深度理解代码仓库，提供智能搜索、代码分析、文档生成等强大功能
+            <!-- 让 AI 帮您深度理解代码仓库，提供智能搜索、代码分析、文档生成等强大功能 -->
           </p>
           <div class="hero-features animate-slide-up" :style="{ animationDelay: '0.2s' }">
             <div class="feature-highlight" :style="{ animationDelay: '0.3s' }">
-              <v-icon color="white" size="24">mdi-telescope</v-icon>
-              <span>空间透镜 - 可视化代码架构</span>
+              <v-icon color="white" size="24">mdi-magnify</v-icon>
+              <span>AI搜索</span>
             </div>
             <div class="feature-highlight" :style="{ animationDelay: '0.4s' }">
-              <v-icon color="white" size="24">mdi-magnify</v-icon>
-              <span>深度搜索 - 智能代码检索</span>
+              <v-icon color="white" size="24">mdi-sitemap-outline</v-icon>
+              <span>AI理解</span>
             </div>
             <div class="feature-highlight" :style="{ animationDelay: '0.5s' }">
-              <v-icon color="white" size="24">mdi-file-document-multiple</v-icon>
-              <span>提交审查 - 识别潜在问题，提升质量和效率</span>
+              <v-icon color="white" size="24">mdi-telescope</v-icon>
+              <span>AI分析</span>
             </div>
             <div class="feature-highlight" :style="{ animationDelay: '0.6s' }">
-              <v-icon color="white" size="24">mdi-file-document-multiple</v-icon>
-              <span
-                >文件枢纽 - 集中管理所有项目相关的文档、报告、分析结果和知识沉淀，信息不再散落</span
-              >
+              <v-icon color="white" size="24">mdi-robot</v-icon>
+              <span>AI生成</span>
+            </div>
+            <div class="feature-highlight" :style="{ animationDelay: '0.7s' }">
+              <v-icon color="white" size="24">mdi-github</v-icon>
+              <span>AI审查</span>
             </div>
           </div>
         </div>
@@ -46,7 +60,7 @@
 
       <!-- 快速开始步骤 -->
       <div class="steps-section animate-fade-in">
-        <h2 class="steps-title animate-slide-up">五步开始使用</h2>
+        <h2 class="steps-title animate-slide-up">四步开始使用</h2>
         <div class="steps-container">
           <div
             v-for="(step, index) in steps"
@@ -62,7 +76,7 @@
                   <h3 class="step-title">{{ step.title }}</h3>
                   <v-chip
                     v-if="step.optional"
-                    size="x-small"
+                    size="small"
                     color="orange"
                     variant="tonal"
                     class="optional-chip"
@@ -71,7 +85,7 @@
                   </v-chip>
                 </div>
               </div>
-              <p class="step-description">{{ step.description }}</p>
+              <!-- <p class="step-description">{{ step.description }}</p> -->
 
               <!-- 子步骤展示 -->
               <div v-if="step.subSteps && step.subSteps.length" class="sub-steps">
@@ -110,7 +124,12 @@
 
               <!-- 单一跳转按钮 -->
               <div v-if="step.route && !step.branches" class="step-action">
-                <v-btn :color="step.color" variant="elevated" @click="jumpToRoute(step.route)">
+                <v-btn
+                  size="large"
+                  :color="step.color"
+                  variant="elevated"
+                  @click="jumpToRoute(step.route)"
+                >
                   <v-icon left>{{ step.icon }}</v-icon>
                   {{ step.buttonText || '开始使用' }}
                 </v-btn>
@@ -134,44 +153,48 @@
         :style="{ animationDelay: '1s' }"
       >
         <h2 class="features-title animate-slide-up" :style="{ animationDelay: '1s' }">
-          九大核心 AI 功能
+          九大核心功能
         </h2>
-        <p class="features-subtitle animate-slide-up" :style="{ animationDelay: '1s' }">
-          基于真实代码理解的智能化开发工具集
-        </p>
         <div class="features-grid">
           <div
             v-for="(feature, index) in aiFeatures"
             :key="index"
             class="feature-card enhanced animate-slide-up"
             :style="{ animationDelay: `${1 + index * 0.01}s` }"
-            @click="jumpToRoute(feature.route)"
           >
-            <div class="feature-header">
-              <div class="feature-icon">
-                <v-icon :color="feature.color" size="32">{{ feature.icon }}</v-icon>
+            <div @click="showFeatureDetail(feature)">
+              <div class="feature-header">
+                <div class="feature-icon">
+                  <v-icon :color="feature.color" size="32">{{ feature.icon }}</v-icon>
+                </div>
+                <div class="feature-badge">
+                  <v-chip size="x-small" :color="feature.color" variant="tonal">AI驱动</v-chip>
+                </div>
               </div>
-              <div class="feature-badge">
-                <v-chip size="x-small" :color="feature.color" variant="tonal">AI驱动</v-chip>
-              </div>
-            </div>
-            <h4 class="feature-title">{{ feature.title }}</h4>
-            <p class="feature-description">{{ feature.description }}</p>
-            <div v-if="feature.features" class="feature-highlights">
-              <div
-                v-for="(highlight, idx) in feature.features.slice(0, 3)"
-                :key="idx"
-                class="highlight-item"
-              >
-                <v-icon size="12" :color="feature.color">mdi-check-circle</v-icon>
-                <span>{{ highlight }}</span>
-              </div>
-              <div v-if="feature.features.length > 3" class="more-features">
-                <span>+{{ feature.features.length - 3 }} 更多功能</span>
+              <h4 class="feature-title">{{ feature.title }}</h4>
+              <p class="feature-description">{{ feature.description }}</p>
+              <div v-if="feature.features" class="feature-highlights">
+                <div
+                  v-for="(highlight, idx) in feature.features.slice(0, 3)"
+                  :key="idx"
+                  class="highlight-item"
+                >
+                  <v-icon size="12" :color="feature.color">mdi-check-circle</v-icon>
+                  <span>{{ highlight }}</span>
+                </div>
+                <div v-if="feature.features.length > 3" class="more-features">
+                  <span>+{{ feature.features.length - 3 }} 更多功能</span>
+                </div>
               </div>
             </div>
             <div class="feature-action">
-              <v-btn size="small" :color="feature.color" variant="outlined" class="feature-btn">
+              <v-btn
+                size="small"
+                :color="feature.color"
+                variant="outlined"
+                class="feature-btn"
+                @click="jumpToRoute(feature.route)"
+              >
                 立即体验
                 <v-icon size="16" end>mdi-arrow-right</v-icon>
               </v-btn>
@@ -179,7 +202,6 @@
           </div>
         </div>
       </div>
-
       <!-- 剪切板快速导入功能介绍 -->
       <div class="clipboard-import-section animate-fade-in" :style="{ animationDelay: '1s' }">
         <div class="clipboard-import-container">
@@ -258,7 +280,7 @@
 
       <!-- 内置专业终端 - 开发者的得力助手 -->
       <div
-        v-if="isMacOS"
+        v-if="false"
         class="terminal-feature-section animate-fade-in"
         :style="{ animationDelay: '1.2s' }"
       >
@@ -465,29 +487,70 @@
         </div>
       </div>
     </template>
+
+    <!-- 功能详情模态框 -->
+    <a-modal
+      v-model:open="featureDetailVisible"
+      width="800px"
+      :footer="null"
+      class="feature-detail-modal"
+    >
+      <div v-if="selectedFeature" class="feature-detail-content">
+        <div class="feature-detail-header">
+          <div class="feature-icon-large">
+            <v-icon :color="selectedFeature.color" size="48">{{ selectedFeature.icon }}</v-icon>
+          </div>
+          <div class="feature-info">
+            <h3 class="feature-title-large">{{ selectedFeature.title }}</h3>
+            <p class="feature-description-large">{{ selectedFeature.description }}</p>
+            <v-chip :color="selectedFeature.color" variant="tonal" size="small">AI驱动</v-chip>
+          </div>
+        </div>
+
+        <a-divider>核心功能特性</a-divider>
+
+        <div class="feature-list-container">
+          <div
+            v-for="(feature, index) in selectedFeature.features"
+            :key="index"
+            class="feature-item-detailed"
+          >
+            <div class="feature-item-icon">
+              <v-icon :color="selectedFeature.color" size="16">mdi-check-circle</v-icon>
+            </div>
+            <div class="feature-item-text">{{ feature }}</div>
+          </div>
+        </div>
+
+        <div class="feature-detail-actions">
+          <a-button type="primary" size="large" class="experience-btn" @click="jumpToFeatureRoute">
+            <template #icon>
+              <v-icon size="16">mdi-rocket-launch</v-icon>
+            </template>
+            立即体验
+          </a-button>
+          <a-button size="large" @click="featureDetailVisible = false"> 关闭 </a-button>
+        </div>
+      </div>
+    </a-modal>
   </v-container>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTheme } from 'vuetify'
-import titleSrc from '../assets/title.svg'
-import titleNSrc from '../assets/title-night.svg'
 import dynamicLoadingSvg from '../assets/load.svg'
 import VirtualTerminal from '../components/VirtualTerminal.vue'
-
-// —— 平台检测 ——
-const isMacOS = ref(navigator.platform.toUpperCase().indexOf('MAC') >= 0)
+import titleNSrc from '../assets/title-night.svg'
 
 const termPath = ref(window.electron?.homeDir || '')
 
 const router = useRouter()
-const theme = useTheme()
 const loading = ref(true)
-const selectedBranch = ref(null)
 
-const isDarkMode = computed(() => theme.global.current.value.dark)
+// 功能详情模态框状态
+const featureDetailVisible = ref(false)
+const selectedFeature = ref(null)
 
 // 演示链接配置
 const demoLinks = ref([
@@ -505,6 +568,11 @@ const demoLinks = ref([
   }
 ])
 
+// 跳转到新手引导
+const jumpToOnboarding = () => {
+  router.push('/onboarding')
+}
+
 // 模拟加载时间
 onMounted(() => {
   setTimeout(() => {
@@ -513,33 +581,33 @@ onMounted(() => {
 })
 
 const steps = ref([
-  {
-    title: '环境准备',
-    description: '确保您的环境已准备就绪，包括Python和Git等必要工具。',
-    icon: 'mdi-check-circle',
-    color: 'success',
-    route: '/onboarding',
-    buttonText: '重新检查环境',
-    subSteps: [
-      {
-        title: 'Python 环境',
-        description: '检查Python版本是否符合要求（3.9+）',
-        icon: 'mdi-language-python'
-      },
-      {
-        title: 'Git 工具',
-        description: '确保Git已正确安装并配置',
-        icon: 'mdi-git'
-      },
-      {
-        title: '依赖安装',
-        description: '自动安装所需的Python依赖包',
-        icon: 'mdi-package-down'
-      }
-    ],
-    currentStep: 1,
-    selectedSubStep: null
-  },
+  // {
+  //   title: '环境准备',
+  //   description: '确保您的环境已准备就绪，包括Python和Git等必要工具。',
+  //   icon: 'mdi-check-circle',
+  //   color: 'success',
+  //   route: '/onboarding',
+  //   buttonText: '重新检查环境',
+  //   subSteps: [
+  //     {
+  //       title: 'Python 环境',
+  //       description: '检查Python版本是否符合要求（3.9+）',
+  //       icon: 'mdi-language-python'
+  //     },
+  //     {
+  //       title: 'Git 工具',
+  //       description: '确保Git已正确安装并配置',
+  //       icon: 'mdi-git'
+  //     },
+  //     {
+  //       title: '依赖安装',
+  //       description: '自动安装所需的Python依赖包',
+  //       icon: 'mdi-package-down'
+  //     }
+  //   ],
+  //   currentStep: 1,
+  //   selectedSubStep: null
+  // },
   {
     title: '选择AI模型',
     description: '根据您的需求和硬件配置选择合适的AI模型，本地模型或云端API均可。',
@@ -554,14 +622,15 @@ const steps = ref([
         icon: 'mdi-server'
       },
       {
-        title: '云端API',
-        description: '使用OpenAI、Claude等云端API，性能更强',
+        title: '云端模型',
+        description: '自由搭配使用OpenAI、Qwen等供应商的顶尖模型',
         icon: 'mdi-cloud'
       },
       {
-        title: '混合使用',
-        description: '在高级配置中自行搭配，实现最佳性能',
-        icon: 'mdi-auto-fix'
+        title: '订阅 GitHave AI 服务',
+        description:
+          '使用 GitHave 官方模型，登录即赠送1万tokens，无需消耗算力，自动导入社区优质代码索引，免费试用全部AI功能',
+        icon: 'mdi-currency-usd'
       }
     ],
     currentStep: 3,
@@ -571,7 +640,7 @@ const steps = ref([
     title: '导入项目仓库',
     description: '选择合适的方式导入您的代码仓库，支持多种导入方式。',
     icon: 'mdi-source-repository',
-    color: 'info',
+    color: 'success',
     route: '/repo',
     buttonText: '导入项目仓库',
     subSteps: [
@@ -590,16 +659,16 @@ const steps = ref([
         description: '复制GitHub/GitLab链接，自动检测并导入',
         icon: 'mdi-clipboard-text',
         action: 'scrollToClipboard'
-      },
+      }
     ],
     currentStep: 2,
     selectedSubStep: null
   },
   {
-    title: '构建智能索引',
+    title: '构建代码索引',
     description: '可选步骤：为代码仓库构建AI索引，提升分析质量和搜索精度。',
     icon: 'mdi-database-search',
-    color: 'orange',
+    color: 'pink',
     route: '/scan',
     buttonText: '构建索引',
     optional: true,
@@ -649,10 +718,15 @@ const steps = ref([
         icon: 'mdi-github',
         value: '/commits/history'
       },
+      // {
+      //   title: 'IDE',
+      //   icon: 'mdi-code-block-tags',
+      //   value: '/ide'
+      // },
       {
-        title: 'IDE',
+        title: '代码视窗',
         icon: 'mdi-code-block-tags',
-        value: '/ide'
+        value: '/finder'
       },
       {
         title: '推送机器人',
@@ -669,76 +743,169 @@ const steps = ref([
 const aiFeatures = ref([
   {
     title: '空间透镜',
-    description: '深度扫描代码仓库，生成架构分析报告和流程图，可视化项目结构',
+    description: '可视化代码仓库结构分析工具，通过多级饼图和智能索引提供深度代码洞察',
     icon: 'mdi-telescope',
     color: 'purple',
     route: '/space',
-    features: ['代码深度扫描', '架构分析报告', '流程图生成', '代码视窗查看']
+    features: [
+      '🔍 多级饼图可视化，直观展示代码仓库的层级结构和文件分布',
+      '📊 智能文件类型统计，支持紧凑和详细两种展示模式',
+      '⚡ 实时索引构建，支持函数级别的代码结构分析',
+      '🎯 交互式导航，点击饼图或目录列表快速跳转到任意层级',
+      '🧠 AI驱动的代码分析，生成深度分析报告和流程图',
+      '🔧 权重配置系统，支持多种分析场景的个性化设置',
+      '📈 全量/普通扫描模式，根据项目规模自适应扫描深度',
+      '💡 悬浮提示功能，实时显示文件索引状态和函数信息',
+      '🎨 多配色方案支持，提供预设色卡和自定义配色选项',
+      '📋 右键菜单操作，支持代码预览、路径复制、本地打开等功能'
+    ]
   },
   {
     title: '深度搜索',
-    description:
-      '基于自然语言代码功能描述，支持语义搜索、关键词搜索、混合搜索三种模式，精准定位代码片段',
+    description: '基于AI增强的智能代码搜索引擎，支持自然语言查询和多模式检索',
     icon: 'mdi-book-search',
     color: 'primary',
     route: '/search',
-    features: ['语义理解搜索', '关键词精确匹配', '混合搜索模式', '智能标签推荐']
+    features: [
+      '🔍 混合增强搜索，结合RAG检索增强生成技术提供精准结果',
+      '🎯 意图精确搜索，基于大模型意图识别的关键词匹配',
+      '🧠 语义向量检索，基于自然语义相似度的智能搜索',
+      '📝 自然语言查询，支持用自然语言描述功能需求进行搜索',
+      '🏷️ 智能标签推荐，"猜你所想"功能提供相关搜索建议',
+      '📊 多维度结果展示，支持函数、文件、目录的分类筛选',
+      '💡 搜索助手引导，提供丰富的搜索示例和使用技巧',
+      '🔄 实时索引状态检测，自动检查和管理代码库索引',
+      '📖 Markdown渲染支持，美观展示搜索结果和代码描述',
+      '⚡ 快捷键操作，支持键盘快捷键快速切换搜索模式'
+    ]
   },
   {
     title: '文件枢纽',
-    description: '集中管理所有项目相关的AI文档、报告、分析结果和知识沉淀，信息不再散落',
+    description: '智能文档管理中心，集中展示和管理所有AI生成的分析报告、图表和研究成果',
     icon: 'mdi-microsoft-word',
     color: 'info',
     route: '/report',
-    features: ['文档管理', '报告生成', '知识沉淀', '分析结果查看']
+    features: [
+      '📊 多类型文档管理，支持代码分析报告、提交记录分析、仓库报刊等',
+      '🔍 智能搜索筛选，支持文件名搜索和文件类型分类筛选',
+      '👁️ 在线预览功能，支持Markdown、CSV、图片等多种格式预览',
+      '📈 数据可视化展示，包括贡献榜图表和活跃度热力图',
+      '🏷️ 智能标签系统，自动分类和标记文档来源与类型',
+      '⚡ 实时刷新机制，自动同步最新生成的分析报告',
+      '🔧 文件操作功能，支持重命名、删除、外部打开等操作',
+      '📋 CSV数据分析，支持大文件分页浏览和内容搜索',
+      '🖼️ 图片智能加载，支持本地图片路径解析和预览',
+      '📱 响应式设计，支持虚拟滚动和性能优化'
+    ]
   },
   {
     title: '提交审查',
-    description: '智能分析Git提交记录，生成代码变更报告和开发统计',
+    description: '全方位Git提交记录分析平台，提供智能代码审查和开发统计功能',
     icon: 'mdi-github',
     color: 'teal',
     route: '/commits/history',
-    features: ['提交记录分析', '代码变更统计', '开发者报告', '时间范围筛选']
+    features: [
+      '🔍 多维度筛选查询，支持仓库、分支、时间范围、作者等条件筛选',
+      '📊 批量操作功能，支持多选提交记录生成综合报告和明细',
+      '👀 可视化代码差异，提供直观的代码变更对比和审查界面',
+      '📈 智能统计图表，生成仓库提交贡献榜和活跃度热力图',
+      '🏷️ 作者马甲管理，支持提交作者别名映射和统一显示',
+      '📋 详细报告导出，生成提交记录分析报告和修改明细CSV',
+      '📰 仓库报刊生成，定期生成项目开发动态和统计报告',
+      '⚡ 缓存优化机制，支持提交记录缓存清理和性能优化',
+      '🎯 精确代码审查，逐行显示代码变更和AI智能评价',
+      '📅 灵活时间选择，支持自定义时间范围和预设时间段'
+    ]
   },
   {
-    title: 'GitHave IDE（内测版）',
-    description: '内置代码编辑器和终端，支持目录树导航、Git集成、语法高亮、代码格式化和多主题切换',
+    title: '代码视窗',
+    description: '强大的代码浏览和预览工具，支持多种文件格式的在线查看和代码结构分析',
     icon: 'mdi-code-block-tags',
     color: 'success',
-    route: '/ide',
-    features: ['语法高亮、目录树导航', 'Git集成、真实终端', '多主题支持、快捷键操作', '']
+    route: '/finder',
+    features: [
+      '📁 智能目录树浏览，支持文件搜索和快速定位',
+      '📄 多格式文件预览：代码、Markdown、PDF、Word、Excel等',
+      '🎨 多主题代码高亮，支持亮色/暗色主题切换',
+      '🔍 代码结构索引，函数和类的智能解析展示',
+      '📑 多标签页管理，支持同时打开多个文件',
+      '🔗 面包屑导航，快速跳转到任意目录层级',
+      '⚡ Monaco编辑器集成，提供专业的代码查看体验',
+      '🎯 右键菜单操作，支持文件的创建、重命名、删除等',
+      '📋 剪贴板操作，支持文件和文件夹的复制粘贴',
+      '🔧 侧边栏自定义，可隐藏/显示目录树和索引面板'
+    ]
   },
   {
     title: '推送机器人',
-    description: '企业微信推送机器人，实时推送代码提交记录到团队群聊',
+    description: '智能企业微信推送机器人，自动化团队协作和代码变更通知',
     icon: 'mdi-robot',
     color: 'pink',
     route: '/sender',
-    features: ['企业微信集成', '实时推送', '状态监控', '一键启停']
+    features: [
+      '🤖 企业微信机器人集成，支持自动推送消息到团队群聊',
+      '⚡ 实时状态监控，显示机器人运行状态和健康检查',
+      '🎛️ 一键启停控制，通过可视化开关快速管理机器人服务',
+      '🔧 智能配置管理，自动读取系统配置并启动服务',
+      '📊 服务状态反馈，实时显示启动、运行、停止等状态'
+    ]
   },
   {
     title: '模型管理',
-    description: 'Ollama模型可视化管理，支持本地模型和云端API配置',
+    description: '全方位AI模型管理平台，提供本地模型部署和云端API配置的一站式解决方案',
     icon: 'mdi-brain',
     color: 'indigo',
     route: '/model',
-    features: ['本地模型管理', '云端API配置', '环境检测', '一键安装依赖']
+    features: [
+      '🔧 基础环境检测，自动检测Python、Git、Pandoc等必要依赖',
+      '📦 一键安装依赖，支持自动安装缺失的基础环境组件',
+      '🤖 Ollama本地模型管理，支持模型部署、删除和状态监控',
+      '☁️ 云端模型API配置，支持多家AI服务提供商的API集成',
+      '🎯 可视化角色分配，通过拖拽方式为不同角色分配专用模型',
+      '⚙️ 高级配置管理，支持详细的模型参数和提示词配置',
+      '📊 实时状态监控，显示模型运行状态和资源使用情况',
+      '🔄 智能模式切换，一键在本地模型和云端模型间切换',
+      '📈 网络速度监控，实时显示下载和上传速度信息',
+      '📝 安装日志记录，详细记录依赖安装过程和错误信息'
+    ]
   },
   {
     title: '智能索引',
-    description: 'AI构建代码索引，支持函数级别的智能检索和代码理解',
+    description: 'AI驱动的代码索引构建平台，提供函数级别的智能检索和深度代码理解',
     icon: 'mdi-database-search',
     color: 'orange',
     route: '/scan',
-    features: ['AI索引构建', '函数级扫描', '进度可视化', '社区索引导入']
+    features: [
+      '🔍 快速仓库搜索，支持仓库名称和描述的实时搜索过滤',
+      '📊 智能索引状态监控，实时显示构建、已构建、未构建等状态',
+      '⚡ 函数级别扫描，支持Go、Java、Python、C/C++、PHP、JS等语言',
+      '📈 可视化进度跟踪，显示索引构建进度和预估完成时间',
+      '🎯 仓库大小智能分类，自动识别超小型、小型、中型、大型仓库',
+      '🔧 自定义排除规则，支持配置索引排除文件和目录',
+      '📦 索引导出功能，支持将构建的索引打包导出和分享',
+      '🔄 增量索引更新，支持索引的增量构建和重置操作',
+      '🤖 模块分析集成，自动进行代码模块结构分析',
+      '💾 本地进度缓存，自动保存和恢复索引构建进度'
+    ]
   },
   {
     title: '智能体中心',
-    description: '配置和管理AI智能体，包括企业微信推送、报告生成等自动化任务',
+    description: '全方位AI智能体管理平台，提供企业级自动化任务配置和工作流管理',
     icon: 'mdi-robot',
     color: 'deep-purple',
     route: '/agent',
-    features: ['企业微信推送', '提交记录分析', '仓库报刊生成', '自动化任务']
+    features: [
+      '🤖 企业微信推送智能体，自动推送代码提交记录到团队群聊',
+      '📊 提交记录分析智能体，生成详细的代码变更分析报告',
+      '📰 仓库报刊智能体，定期生成项目动态和开发统计报告',
+      '⚙️ 智能体配置管理，支持Webhook、定时任务、消息模板配置',
+      '🎯 AI语气风格定制，支持多种评价语气和消息总结风格',
+      '📁 文件消息发送设置，灵活控制热力图、报告、明细的推送',
+      '🔄 一键导入功能，快速导入监听仓库和索引',
+      '📈 可视化工作流展示，直观了解智能体的工作流程',
+      '🛠️ 高级配置选项，支持自定义提示词和文件模板设置',
+      '📋 智能体状态监控，实时显示配置状态和运行信息'
+    ]
   }
 ])
 
@@ -769,6 +936,11 @@ async function jumpToRoute(route) {
     // 调用主进程打开新窗口
     await window.electron.openNewWindowIDE(url)
     return
+  }
+  if (route === '/onboarding') {
+    console.log('跳转新手引导时，清除相关localStorage')
+    localStorage.removeItem('onboarding_completed')
+    localStorage.removeItem('index_service_started')
   }
   router.push(route).catch((err) => {
     // 忽略重复导航错误
@@ -804,6 +976,25 @@ function scrollToFeatures() {
       behavior: 'smooth',
       block: 'start'
     })
+  }
+}
+
+/**
+ * 显示功能详情模态框
+ * @param {Object} feature - 功能对象
+ */
+function showFeatureDetail(feature) {
+  selectedFeature.value = feature
+  featureDetailVisible.value = true
+}
+
+/**
+ * 跳转到功能路由
+ */
+function jumpToFeatureRoute() {
+  if (selectedFeature.value?.route) {
+    featureDetailVisible.value = false
+    jumpToRoute(selectedFeature.value.route)
   }
 }
 
@@ -847,7 +1038,7 @@ onMounted(() => {
 }
 .quick-start-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%);
   position: relative;
   overflow-x: hidden;
 }
@@ -972,8 +1163,9 @@ onMounted(() => {
   margin: 0 auto;
   padding: 0 24px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 40px;
+  max-width: 1100px;
 }
 
 .step-card {
@@ -985,6 +1177,7 @@ onMounted(() => {
   position: relative;
   transition: all 0.3s ease;
   overflow: hidden;
+  max-width: 550px;
 }
 
 .step-card::before {
@@ -994,7 +1187,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  background: linear-gradient(90deg, #1e3a8a, #0891b2);
 }
 
 .step-card:hover {
@@ -1008,11 +1201,11 @@ onMounted(() => {
 
 .step-number {
   position: absolute;
-  top: 0px;
+  top: 12px;
   right: 24px;
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #1e3a8a, #0891b2);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -1140,7 +1333,7 @@ onMounted(() => {
   text-align: center;
   font-size: 2.5rem;
   font-weight: 700;
-  margin-bottom: 20px;
+  margin-bottom: 60px;
   color: #2c3e50;
 }
 
@@ -1183,7 +1376,7 @@ onMounted(() => {
 .feature-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-  border-color: #667eea;
+  border-color: #1e3a8a;
 }
 
 .feature-header {
@@ -1317,7 +1510,7 @@ onMounted(() => {
 .demo-step-number {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #1e3a8a, #0891b2);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -1648,6 +1841,13 @@ onMounted(() => {
 }
 
 /* Responsive Design */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .steps-container {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 30px;
+  }
+}
+
 @media (max-width: 768px) {
   .hero-title {
     font-size: 2.5rem;
@@ -1798,6 +1998,98 @@ onMounted(() => {
   }
 }
 
+/* 功能详情模态框样式 */
+.feature-detail-modal :deep(.ant-modal-content) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.feature-detail-content {
+  padding: 8px 0;
+}
+
+.feature-detail-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.feature-icon-large {
+  flex-shrink: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(var(--v-theme-surface), 0.1);
+}
+
+.feature-info {
+  flex: 1;
+}
+
+.feature-title-large {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--v-theme-on-surface);
+}
+
+.feature-description-large {
+  font-size: 1rem;
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+  color: var(--v-theme-on-surface-variant);
+}
+
+.feature-list-container {
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 16px 0;
+}
+
+.feature-item-detailed {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
+}
+
+.feature-item-detailed:last-child {
+  border-bottom: none;
+}
+
+.feature-item-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.feature-item-text {
+  flex: 1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--v-theme-on-surface);
+}
+
+.feature-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(var(--v-theme-outline), 0.1);
+}
+
+.experience-btn {
+  background: linear-gradient(135deg, var(--v-theme-primary), var(--v-theme-secondary));
+  border: none;
+  box-shadow: 0 4px 12px rgba(var(--v-theme-primary), 0.3);
+}
+
+.experience-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(var(--v-theme-primary), 0.4);
+}
+
 .step-more {
   margin-top: 24px;
   text-align: center;
@@ -1913,6 +2205,23 @@ onMounted(() => {
 
 .demo-link-description {
   color: #64748b !important;
+}
+
+/* 新手引导按钮样式 */
+.onboarding-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  opacity: 0.6;
+  font-size: 12px;
+  min-width: auto;
+  padding: 4px 8px;
+  transition: opacity 0.3s ease;
+}
+
+.onboarding-btn:hover {
+  opacity: 1;
 }
 
 .demo-copy-btn {

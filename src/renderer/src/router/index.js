@@ -2,7 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 
 // 创建路由实例（使用动态导入实现懒加载）
 const router = createRouter({
-  history: createWebHashHistory(),  // 使用 hash 模式
+  history: createWebHashHistory(), // 使用 hash 模式
   routes: [
     { path: '/', redirect: '/start' },
     {
@@ -20,7 +20,7 @@ const router = createRouter({
     {
       path: '/repo',
       name: 'repo',
-      meta: { title: '仓库身份证' },
+      meta: { title: '仓库' },
       component: () => import('../views3/CodeRepoManagement.vue')
     },
     {
@@ -34,6 +34,15 @@ const router = createRouter({
       name: 'agent',
       meta: { title: '智能体配置' },
       component: () => import('../views3/AgentConfig.vue')
+    },
+    {
+      path: '/module-graphs',
+      name: 'moduleGraphs',
+      meta: { title: '脉络感知' },
+      component: () => import('../views3/ModuleGraphs.vue'),
+      props: (route) => ({
+        repoPath: route.query.repoPath
+      })
     },
     {
       path: '/diff/viewer',
@@ -56,7 +65,7 @@ const router = createRouter({
     {
       path: '/scan',
       name: 'scan',
-      meta: { title: '仓库智能索引' },
+      meta: { title: '上下文索引' },
       component: () => import('../views/MemoryCard.vue')
     },
     {
@@ -76,11 +85,11 @@ const router = createRouter({
       name: 'finder',
       meta: { title: '代码视窗' },
       component: () => import('../views3/FileBrowser.vue'),
-      props: route => ({
+      props: (route) => ({
         localPath: route.params.localPath,
         rootPath: route.query.rootPath,
         forceReplace: route.query.forceReplace,
-        forceDeep: route.query.forceDeep,
+        forceDeep: route.query.forceDeep
       })
     },
     {
@@ -91,11 +100,11 @@ const router = createRouter({
         standalone: true
       },
       component: () => import('../views3/IDE.vue'),
-      props: route => ({
+      props: (route) => ({
         localPath: route.params.localPath,
         rootPath: route.query.rootPath,
         forceReplace: route.query.forceReplace,
-        forceDeep: route.query.forceDeep,
+        forceDeep: route.query.forceDeep
       })
     },
     {
@@ -103,23 +112,29 @@ const router = createRouter({
       name: 'space',
       meta: { title: '空间透镜' },
       component: () => import('../views3/SpaceLens.vue'),
-      props: route => ({
-        localPath: route.params.localPath,
+      props: (route) => ({
+        localPath: route.params.localPath
       })
     },
     {
       path: '/commits/history',
       name: 'commitsHistory',
       meta: { title: '提交审查' },
-      component: () => import('../views3/CommitHistory.vue'),
+      component: () => import('../views3/CommitHistory.vue')
     },
     {
       path: '/term',
       name: 'term',
       meta: { title: '虚拟终端' },
-      component: () => import('../views/TerminalDemo.vue'),
+      component: () => import('../components/VirtualTerminal.vue')
     },
+    {
+      path: '/ant-design-demo',
+      name: 'antDesignDemo',
+      meta: { title: 'Ant Design 组件演示' },
+      component: () => import('../components/AntDesignDemo.vue')
+    }
   ]
-});
+})
 
-export default router;
+export default router

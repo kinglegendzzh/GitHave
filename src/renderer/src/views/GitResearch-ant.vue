@@ -1,580 +1,599 @@
 <template>
-  <v-container
-    class="mt-4"
-    style="display: flex; align-items: first baseline; justify-content: center"
-  >
-    <div v-cloak class="research-container">
+  <div class="research-page">
+    <div class="research-container">
       <!-- 初始加载状态 -->
-      <div v-if="initialLoad && !files.length" class="text-center my-8">
+      <div v-if="initialLoad && !files.length" class="empty-state">
         <img
           :src="placeholderImage"
           alt="Chart Placeholder"
           draggable="false"
           class="placeholder-image"
-          style="max-width: 300px; opacity: 0.8"
         />
-        <!--        <v-btn color="primary" class="mt-6 research-button" elevation="0" @click="selectDirectory">-->
-        <!--          <v-icon left>mdi-folder-open</v-icon>-->
+        <!--        <a-button type="primary" size="large" class="mt-6" @click="selectDirectory">-->
+        <!--          <FolderOpenOutlined />-->
         <!--          初始化指定存储目录-->
-        <!--        </v-btn>-->
+        <!--        </a-button>-->
       </div>
 
       <!-- 文件列表展示 -->
       <div v-else class="research-content">
         <div class="research-header">
-          <h2>
+          <a-typography-title :level="2" class="main-title">
             文件枢纽
-            <span class="subtitle">各个智能体应用的洞见与分析文件都汇聚在这里...</span>
-          </h2>
-          <a-button class="refresh-button" @click="refreshAllReports">
-            <template #icon><RefreshIcon /></template>
+            <a-typography-text type="secondary" class="subtitle">各个智能体应用的洞见与分析文件都汇聚在这里...</a-typography-text>
+          </a-typography-title>
+          <a-button type="primary" @click="refreshAllReports">
+            <template #icon><ReloadOutlined /></template>
             刷新
           </a-button>
         </div>
 
         <!-- 文件类型标签页 -->
-        <v-tabs v-model="activeTab" background-color="transparent" color="primary" class="mb-4">
-          <v-tab value="codeReport">代码分析报告</v-tab>
-          <v-tab value="commitAnalysis">提交记录分析报告</v-tab>
-          <v-tab value="commitDetails">提交记录修改明细</v-tab>
-          <v-tab value="contributionChart">仓库提交贡献榜</v-tab>
-          <v-tab value="activityHeatmap">提交活跃度·热力图</v-tab>
-          <v-tab value="weeklyReport">仓库报刊</v-tab>
-        </v-tabs>
+        <a-tabs v-model:active-key="activeTab" class="file-tabs">
+          <!-- 代码分析报告 -->
+          <a-tab-pane key="codeReport" tab="代码分析报告">
+            <a-card class="content-card">
 
         <!-- 搜索和筛选工具栏 -->
-        <v-row class="mb-4" align="center">
-          <v-col cols="12" md="6">
-            <v-text-field
-              v-model="searchText"
-              label="搜索文件名"
-              prepend-inner-icon="mdi-magnify"
-              variant="outlined"
-              density="compact"
-              clearable
-              hide-details
-            ></v-text-field>
-          </v-col>
-          <v-col cols="12" md="6">
-            <v-select
-              v-model="selectedFileTypes"
-              :items="availableFileTypes"
-              label="文件类型筛选"
-              variant="outlined"
-              density="compact"
-              multiple
-              chips
-              clearable
-              hide-details
+        <a-row :gutter="16" class="search-toolbar">
+          <a-col :span="12">
+            <a-input
+              v-model:value="searchText"
+              placeholder="搜索文件名"
+              allow-clear
             >
-              <template #selection="{ item, index }">
-                <v-chip
-                  v-if="index < 2"
-                  size="small"
-                  :color="getFileTypeColor(item.value)"
-                  text-color="white"
-                >
-                  {{ item.title }}
-                </v-chip>
-                <span v-if="index === 2" class="text-grey text-caption align-self-center">
-                  (+{{ selectedFileTypes.length - 2 }} 其他)
-                </span>
-              </template>
-            </v-select>
-          </v-col>
-        </v-row>
+              <template #prefix><SearchOutlined /></template>
+            </a-input>
+          </a-col>
+          <a-col :span="12">
+            <a-select
+              v-model:value="selectedFileTypes"
+              :options="availableFileTypes"
+              placeholder="文件类型筛选"
+              mode="multiple"
+              allow-clear
+              :max-tag-count="2"
+              :max-tag-placeholder="(omittedValues) => `+${omittedValues.length} 其他`"
+            />
+          </a-col>
+        </a-row>
+            </a-card>
 
-        <v-card class="content-card" variant="flat">
-          <v-card-text class="content-container">
-            <!-- 代码分析报告 -->
-            <div v-if="activeTab === 'codeReport'">
-              <div v-if="!filteredFiles.length" class="text-center py-4">
-                <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-                <div class="text-body-1 mt-2">
+        <a-card class="content-card">
+              <div v-if="!filteredFiles.length" class="empty-content">
+                <FileTextOutlined class="empty-icon" />
+                <div class="empty-text">
                   {{
                     searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无代码分析报告'
                   }}
                 </div>
               </div>
-              <recycle-scroller
+              <a-list
                 v-else
-                :items="filteredFiles.slice(0, visibleCount)"
-                :item-size="72"
-                key-field="path"
-                class="file-scroller"
+                :data-source="filteredFiles.slice(0, visibleCount)"
+                class="file-list"
               >
-                <template #default="{ item: file }">
-                  <v-list-item @click="previewFile(file)">
-                    <template #prepend>
-                      <v-icon :color="getFileIconColor(file.type)" size="large">
-                        {{ getFileIcon(file.type) }}
-                      </v-icon>
+                <template #renderItem="{ item: file }">
+                  <a-list-item class="file-list-item" @click="previewFile(file)">
+                    <a-list-item-meta>
+                      <template #avatar>
+                        <component
+                          :is="getFileIcon(file.type)"
+                          :style="{ color: getFileIconColor(file.type), fontSize: '24px' }"
+                        />
+                      </template>
+                      <template #title>
+                        <div class="file-title">{{ file.name }}</div>
+                      </template>
+                      <template #description>
+                        <div class="file-meta">
+                          <span class="file-date">{{ formatDate(file.modifiedTime) }}</span>
+                          <a-tag
+                            size="small"
+                            :color="getFileTypeColor(file.type)"
+                            class="file-type-tag"
+                          >
+                            {{ file.type.toUpperCase() || 'UNKNOWN' }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(main_tag, tIndex) in file.main_tags"
+                            :key="'main-tag-' + tIndex"
+                            size="small"
+                            color="green"
+                            class="main-tag"
+                          >
+                            {{ main_tag }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(tag, tIndex) in file.tags"
+                            :key="'tag-' + tIndex"
+                            size="small"
+                            color="default"
+                            class="tag"
+                          >
+                            {{ tag }}
+                          </a-tag>
+                        </div>
+                      </template>
+                    </a-list-item-meta>
+                    <template #actions>
+                      <a-tooltip title="在外部打开">
+                        <a-button
+                          type="text"
+                          size="small"
+                          @click.stop="openFile(file)"
+                        >
+                          <template #icon><ExportOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="重命名">
+                        <a-button
+                          type="text"
+                          size="small"
+                          @click.stop="showRenameDialog(file)"
+                        >
+                          <template #icon><EditOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="删除">
+                        <a-button
+                          type="text"
+                          size="small"
+                          danger
+                          @click.stop="removeFile(file)"
+                        >
+                          <template #icon><DeleteOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
                     </template>
-                    <v-list-item-title class="text-subtitle-1 font-weight-medium">
-                      {{ file.name }}
-                    </v-list-item-title>
-                    <v-list-item-subtitle>
-                      <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                      <v-chip
-                        size="x-small"
-                        class="ml-2"
-                        :color="getFileTypeColor(file.type)"
-                        text-color="white"
-                      >
-                        {{ file.type.toUpperCase() || 'UNKNOWN' }}
-                      </v-chip>
-                      <v-chip
-                        v-for="(main_tag, tIndex) in file.main_tags"
-                        :key="'tag-' + tIndex"
-                        size="x-small"
-                        class="ml-2"
-                        color="green"
-                        text-color="white"
-                      >
-                        {{ main_tag }}
-                      </v-chip>
-                      <v-chip
-                        v-for="(tag, tIndex) in file.tags"
-                        :key="'tag-' + tIndex"
-                        size="x-small"
-                        class="ml-2"
-                        color="grey"
-                        text-color="white"
-                      >
-                        {{ tag }}
-                      </v-chip>
-                    </v-list-item-subtitle>
-                    <template #append>
-                      <a-button type="text" size="small" @click.stop="openFile(file)">
-                        <template #icon><OpenInNewIcon /></template>
-                      </a-button>
-                      <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
-                        <template #icon><EditIcon /></template>
-                      </a-button>
-                      <a-button type="text" size="small" danger @click.stop="removeFile(file)">
-                        <template #icon><DeleteIcon /></template>
-                      </a-button>
-                    </template>
-                  </v-list-item>
+                  </a-list-item>
                 </template>
-              </recycle-scroller>
+              </a-list>
               <!-- 加载更多 -->
-              <div v-if="filteredFiles.length > visibleCount" class="text-center py-4">
-                <a-button type="primary" ghost class="load-more-button" @click="visibleCount += 40">
-                  <template #icon><ArrowDownIcon /></template>
+              <div v-if="filteredFiles.length > visibleCount" class="load-more-container">
+                <a-button
+                  type="link"
+                  size="large"
+                  @click="visibleCount += 40"
+                >
+                  <template #icon><DownOutlined /></template>
                   加载更多 ({{ filteredFiles.length - visibleCount }} 项)
                 </a-button>
               </div>
-            </div>
-            <!-- 仓库提交贡献榜 -->
-            <div v-else-if="activeTab === 'contributionChart'">
-              <div v-if="filteredFiles.length === 0" class="text-center py-4">
-                <v-icon size="48" color="grey">mdi-image-outline</v-icon>
-                <div class="text-body-1 mt-2">
+            </a-card>
+          </a-tab-pane>
+          <!-- 仓库提交贡献榜 -->
+          <a-tab-pane key="contributionChart" tab="仓库提交贡献榜">
+            <a-card class="content-card">
+              <div v-if="filteredFiles.length === 0" class="empty-content">
+                <PictureOutlined class="empty-icon" />
+                <div class="empty-text">
                   {{
                     searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无贡献榜图片'
                   }}
                 </div>
               </div>
-              <v-list v-else lines="one">
-                <v-list-item
-                  v-for="file in filteredFiles"
-                  :key="file.path"
-                  @click="previewFile(file)"
-                >
-                  <template #prepend>
-                    <v-icon color="orange" size="large">mdi-image-outline</v-icon>
-                  </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
-                    file.name
-                  }}</v-list-item-title>
-                  <v-list-item-subtitle>
-                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                    <v-chip size="x-small" class="ml-2" color="orange" text-color="white"
-                      >IMG</v-chip
-                    >
-                    <v-chip
-                      v-for="(main_tag, tIndex) in file.main_tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="green"
-                      text-color="white"
-                    >
-                      {{ main_tag }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(tag, tIndex) in file.tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="grey"
-                      text-color="white"
-                    >
-                      {{ tag }}
-                    </v-chip>
-                  </v-list-item-subtitle>
-                  <template #append>
-                    <a-button type="text" size="small" @click.stop="openFile(file)">
-                      <template #icon><OpenInNewIcon /></template>
-                    </a-button>
-                    <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
-                      <template #icon><EditIcon /></template>
-                    </a-button>
-                    <a-button
-                      type="text"
-                      size="small"
-                      danger
-                      @click.stop="removeContributionChartFile(file)"
-                    >
-                      <template #icon><DeleteIcon /></template>
-                    </a-button>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </div>
-            <!-- 仓库报刊 -->
-            <div v-else-if="activeTab === 'weeklyReport'">
-              <div v-if="filteredFiles.length === 0" class="text-center py-4">
-                <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-                <div class="text-body-1 mt-2">
+              <a-list
+                v-else
+                :data-source="filteredFiles"
+                class="file-list"
+              >
+                <template #renderItem="{ item: file }">
+                  <a-list-item class="file-list-item" @click="previewFile(file)">
+                    <a-list-item-meta>
+                      <template #avatar>
+                        <PictureOutlined style="color: #fa8c16; font-size: 24px" />
+                      </template>
+                      <template #title>
+                        <div class="file-title">{{ file.name }}</div>
+                      </template>
+                      <template #description>
+                        <div class="file-meta">
+                          <span class="file-date">{{ formatDate(file.modifiedTime) }}</span>
+                          <a-tag size="small" color="orange" class="file-type-tag">IMG</a-tag>
+                          <a-tag
+                            v-for="(main_tag, tIndex) in file.main_tags"
+                            :key="'main-tag-' + tIndex"
+                            size="small"
+                            color="green"
+                            class="main-tag"
+                          >
+                            {{ main_tag }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(tag, tIndex) in file.tags"
+                            :key="'tag-' + tIndex"
+                            size="small"
+                            color="default"
+                            class="tag"
+                          >
+                            {{ tag }}
+                          </a-tag>
+                        </div>
+                      </template>
+                    </a-list-item-meta>
+                    <template #actions>
+                      <a-tooltip title="在外部打开">
+                        <a-button type="text" size="small" @click.stop="openFile(file)">
+                          <template #icon><ExportOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="重命名">
+                        <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
+                          <template #icon><EditOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="删除">
+                        <a-button type="text" size="small" danger @click.stop="removeContributionChartFile(file)">
+                          <template #icon><DeleteOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                    </template>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
+          </a-tab-pane>
+          <!-- 仓库报刊 -->
+          <a-tab-pane key="weeklyReport" tab="仓库报刊">
+            <a-card class="content-card">
+              <div v-if="filteredFiles.length === 0" class="empty-content">
+                <FileTextOutlined class="empty-icon" />
+                <div class="empty-text">
                   {{
                     searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无仓库报刊文件'
                   }}
                 </div>
               </div>
-              <v-list v-else lines="two">
-                <v-list-item
-                  v-for="file in filteredFiles"
-                  :key="file.path"
-                  @click="previewFile(file)"
-                >
-                  <template #prepend>
-                    <v-icon :color="getFileIconColor(file.type)" size="large">
-                      {{ getFileIcon(file.type) }}
-                    </v-icon>
-                  </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
-                    file.name
-                  }}</v-list-item-title>
-                  <v-list-item-subtitle>
-                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                    <v-chip
-                      size="x-small"
-                      class="ml-2"
-                      :color="getFileTypeColor(file.type)"
-                      text-color="white"
-                    >
-                      {{ file.type.toUpperCase() }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(main_tag, tIndex) in file.main_tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="green"
-                      text-color="white"
-                    >
-                      {{ main_tag }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(tag, tIndex) in file.tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="grey"
-                      text-color="white"
-                    >
-                      {{ tag }}
-                    </v-chip>
-                  </v-list-item-subtitle>
-                  <template #append>
-                    <a-button type="text" size="small" @click.stop="openFile(file)">
-                      <template #icon><OpenInNewIcon /></template>
-                    </a-button>
-                    <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
-                      <template #icon><EditIcon /></template>
-                    </a-button>
-                    <a-button
-                      type="text"
-                      size="small"
-                      danger
-                      @click.stop="removeWeeklyReportFile(file)"
-                    >
-                      <template #icon><DeleteIcon /></template>
-                    </a-button>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </div>
-            <div v-else-if="activeTab === 'activityHeatmap'">
-              <div v-if="filteredFiles.length === 0" class="text-center py-4">
-                <v-icon size="48" color="grey">mdi-image-outline</v-icon>
-                <div class="text-body-1 mt-2">
+              <a-list
+                v-else
+                :data-source="filteredFiles"
+                class="file-list"
+              >
+                <template #renderItem="{ item: file }">
+                  <a-list-item class="file-list-item" @click="previewFile(file)">
+                    <a-list-item-meta>
+                      <template #avatar>
+                        <component
+                          :is="getFileIcon(file.type)"
+                          :style="{ color: getFileIconColor(file.type), fontSize: '24px' }"
+                        />
+                      </template>
+                      <template #title>
+                        <div class="file-title">{{ file.name }}</div>
+                      </template>
+                      <template #description>
+                        <div class="file-meta">
+                          <span class="file-date">{{ formatDate(file.modifiedTime) }}</span>
+                          <a-tag
+                            size="small"
+                            :color="getFileTypeColor(file.type)"
+                            class="file-type-tag"
+                          >
+                            {{ file.type.toUpperCase() }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(main_tag, tIndex) in file.main_tags"
+                            :key="'main-tag-' + tIndex"
+                            size="small"
+                            color="green"
+                            class="main-tag"
+                          >
+                            {{ main_tag }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(tag, tIndex) in file.tags"
+                            :key="'tag-' + tIndex"
+                            size="small"
+                            color="default"
+                            class="tag"
+                          >
+                            {{ tag }}
+                          </a-tag>
+                        </div>
+                      </template>
+                    </a-list-item-meta>
+                    <template #actions>
+                      <a-tooltip title="在外部打开">
+                        <a-button type="text" size="small" @click.stop="openFile(file)">
+                          <template #icon><ExportOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="重命名">
+                        <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
+                          <template #icon><EditOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="删除">
+                        <a-button type="text" size="small" danger @click.stop="removeWeeklyReportFile(file)">
+                          <template #icon><DeleteOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                    </template>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
+          </a-tab-pane>
+          <!-- 提交活跃度热力图 -->
+          <a-tab-pane key="activityHeatmap" tab="提交活跃度·热力图">
+            <a-card class="content-card">
+              <div v-if="filteredFiles.length === 0" class="empty-content">
+                <PictureOutlined class="empty-icon" />
+                <div class="empty-text">
                   {{
                     searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无活跃度热力图'
                   }}
                 </div>
               </div>
-              <v-list v-else lines="one">
-                <v-list-item
-                  v-for="file in filteredFiles"
-                  :key="file.path"
-                  @click="previewFile(file)"
-                >
-                  <template #prepend>
-                    <v-icon color="orange" size="large">mdi-image-outline</v-icon>
-                  </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
-                    file.name
-                  }}</v-list-item-title>
-                  <v-list-item-subtitle>
-                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                    <v-chip size="x-small" class="ml-2" color="orange" text-color="white"
-                      >IMG</v-chip
-                    >
-                    <v-chip
-                      v-for="(main_tag, tIndex) in file.main_tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="green"
-                      text-color="white"
-                    >
-                      {{ main_tag }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(tag, tIndex) in file.tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="grey"
-                      text-color="white"
-                    >
-                      {{ tag }}
-                    </v-chip>
-                  </v-list-item-subtitle>
-                  <template #append>
-                    <a-button type="text" size="small" @click.stop="openFile(file)">
-                      <template #icon><OpenInNewIcon /></template>
-                    </a-button>
-                    <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
-                      <template #icon><EditIcon /></template>
-                    </a-button>
-                    <a-button
-                      type="text"
-                      size="small"
-                      danger
-                      @click.stop="removeActivityHeatmapFile(file)"
-                    >
-                      <template #icon><DeleteIcon /></template>
-                    </a-button>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </div>
-            <div v-else-if="activeTab === 'commitDetails'">
-              <div v-if="filteredFiles.length === 0" class="text-center py-4">
-                <v-icon size="48" color="grey">mdi-file-delimited-outline</v-icon>
-                <div class="text-body-1 mt-2">
+              <a-list
+                v-else
+                :data-source="filteredFiles"
+                class="file-list"
+              >
+                <template #renderItem="{ item: file }">
+                  <a-list-item class="file-list-item" @click="previewFile(file)">
+                    <a-list-item-meta>
+                      <template #avatar>
+                        <PictureOutlined style="color: #fa8c16; font-size: 24px" />
+                      </template>
+                      <template #title>
+                        <div class="file-title">{{ file.name }}</div>
+                      </template>
+                      <template #description>
+                        <div class="file-meta">
+                          <span class="file-date">{{ formatDate(file.modifiedTime) }}</span>
+                          <a-tag size="small" color="orange" class="file-type-tag">IMG</a-tag>
+                          <a-tag
+                            v-for="(main_tag, tIndex) in file.main_tags"
+                            :key="'main-tag-' + tIndex"
+                            size="small"
+                            color="green"
+                            class="main-tag"
+                          >
+                            {{ main_tag }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(tag, tIndex) in file.tags"
+                            :key="'tag-' + tIndex"
+                            size="small"
+                            color="default"
+                            class="tag"
+                          >
+                            {{ tag }}
+                          </a-tag>
+                        </div>
+                      </template>
+                    </a-list-item-meta>
+                    <template #actions>
+                      <a-tooltip title="在外部打开">
+                        <a-button type="text" size="small" @click.stop="openFile(file)">
+                          <template #icon><ExportOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="重命名">
+                        <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
+                          <template #icon><EditOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="删除">
+                        <a-button type="text" size="small" danger @click.stop="removeActivityHeatmapFile(file)">
+                          <template #icon><DeleteOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                    </template>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
+          </a-tab-pane>
+          <!-- 提交记录修改明细 -->
+          <a-tab-pane key="commitDetails" tab="提交记录修改明细">
+            <a-card class="content-card">
+              <div v-if="filteredFiles.length === 0" class="empty-content">
+                <TableOutlined class="empty-icon" />
+                <div class="empty-text">
                   {{
                     searchText || selectedFileTypes.length ? '未找到匹配的文件' : '暂无提交记录明细'
                   }}
                 </div>
               </div>
-              <v-list v-else lines="two">
-                <v-list-item
-                  v-for="file in filteredFiles"
-                  :key="file.path"
-                  @click="previewFile(file)"
-                >
-                  <template #prepend>
-                    <v-icon color="green" size="large">mdi-file-delimited-outline</v-icon>
-                  </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
-                    file.name
-                  }}</v-list-item-title>
-                  <v-list-item-subtitle>
-                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                    <v-chip size="x-small" class="ml-2" color="green" text-color="white"
-                      >CSV</v-chip
-                    >
-                    <v-chip
-                      v-for="(main_tag, tIndex) in file.main_tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="green"
-                      text-color="white"
-                    >
-                      {{ main_tag }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(tag, tIndex) in file.tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="grey"
-                      text-color="white"
-                    >
-                      {{ tag }}
-                    </v-chip>
-                  </v-list-item-subtitle>
-                  <template #append>
-                    <a-button type="text" size="small" @click.stop="openFile(file)">
-                      <template #icon><OpenInNewIcon /></template>
-                    </a-button>
-                    <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
-                      <template #icon><EditIcon /></template>
-                    </a-button>
-                    <a-button
-                      type="text"
-                      size="small"
-                      danger
-                      @click.stop="removeCommitDetailsFile(file)"
-                    >
-                      <template #icon><DeleteIcon /></template>
-                    </a-button>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </div>
-            <div v-else-if="activeTab === 'commitAnalysis'">
-              <div v-if="filteredFiles.length === 0" class="text-center py-4">
-                <v-icon size="48" color="grey">mdi-file-document-outline</v-icon>
-                <div class="text-body-1 mt-2">
-                  {{
-                    searchText || selectedFileTypes.length
-                      ? '未找到匹配的文件'
-                      : '暂无提交记录分析报告'
-                  }}
-                </div>
+              <a-list
+                v-else
+                :data-source="filteredFiles"
+                class="file-list"
+              >
+                <template #renderItem="{ item: file }">
+                  <a-list-item class="file-list-item" @click="previewFile(file)">
+                    <a-list-item-meta>
+                      <template #avatar>
+                        <TableOutlined style="color: #52c41a; font-size: 24px" />
+                      </template>
+                      <template #title>
+                        <div class="file-title">{{ file.name }}</div>
+                      </template>
+                      <template #description>
+                        <div class="file-meta">
+                          <span class="file-date">{{ formatDate(file.modifiedTime) }}</span>
+                          <a-tag size="small" color="green" class="file-type-tag">CSV</a-tag>
+                          <a-tag
+                            v-for="(main_tag, tIndex) in file.main_tags"
+                            :key="'main-tag-' + tIndex"
+                            size="small"
+                            color="green"
+                            class="main-tag"
+                          >
+                            {{ main_tag }}
+                          </a-tag>
+                          <a-tag
+                            v-for="(tag, tIndex) in file.tags"
+                            :key="'tag-' + tIndex"
+                            size="small"
+                            color="default"
+                            class="tag"
+                          >
+                            {{ tag }}
+                          </a-tag>
+                        </div>
+                      </template>
+                    </a-list-item-meta>
+                    <template #actions>
+                      <a-tooltip title="在外部打开">
+                        <a-button type="text" size="small" @click.stop="openFile(file)">
+                          <template #icon><ExportOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="重命名">
+                        <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
+                          <template #icon><EditOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="删除">
+                        <a-button type="text" size="small" danger @click.stop="removeCommitDetailsFile(file)">
+                          <template #icon><DeleteOutlined /></template>
+                        </a-button>
+                      </a-tooltip>
+                    </template>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
+          </a-tab-pane>
+          <a-tab-pane key="commitAnalysis">
+            <a-card class="content-card">
+            <div v-if="filteredFiles.length === 0" class="empty-content">
+              <FileTextOutlined class="empty-icon" />
+              <div class="empty-text">
+                {{
+                  searchText || selectedFileTypes.length
+                    ? '未找到匹配的文件'
+                    : '暂无提交记录分析报告'
+                }}
               </div>
-              <v-list v-else lines="two">
-                <v-list-item
-                  v-for="file in filteredFiles"
-                  :key="file.path"
-                  @click="previewFile(file)"
-                >
-                  <template #prepend>
-                    <v-icon :color="getFileIconColor(file.type)" size="large">
-                      {{ getFileIcon(file.type) }}
-                    </v-icon>
-                  </template>
-                  <v-list-item-title class="text-subtitle-1 font-weight-medium">{{
-                    file.name
-                  }}</v-list-item-title>
-                  <v-list-item-subtitle>
-                    <span class="text-caption">{{ formatDate(file.modifiedTime) }}</span>
-                    <v-chip
-                      size="x-small"
-                      class="ml-2"
-                      :color="getFileTypeColor(file.type)"
-                      text-color="white"
-                    >
-                      {{ file.type.toUpperCase() }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(main_tag, tIndex) in file.main_tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="green"
-                      text-color="white"
-                    >
-                      {{ main_tag }}
-                    </v-chip>
-                    <v-chip
-                      v-for="(tag, tIndex) in file.tags"
-                      :key="'tag-' + tIndex"
-                      size="x-small"
-                      class="ml-2"
-                      color="grey"
-                      text-color="white"
-                    >
-                      {{ tag }}
-                    </v-chip>
-                  </v-list-item-subtitle>
-                  <template #append>
-                    <a-button type="text" size="small" @click.stop="openFile(file)">
-                      <template #icon><OpenInNewIcon /></template>
-                    </a-button>
-                    <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
-                      <template #icon><EditIcon /></template>
-                    </a-button>
-                    <a-button
-                      type="text"
-                      size="small"
-                      danger
-                      @click.stop="removeCommitAnalysisFile(file)"
-                    >
-                      <template #icon><DeleteIcon /></template>
-                    </a-button>
-                  </template>
-                </v-list-item>
-              </v-list>
             </div>
-          </v-card-text>
-        </v-card>
+            <a-list
+              v-else
+              :data-source="filteredFiles"
+              class="file-list"
+            >
+              <template #renderItem="{ item: file }">
+                <a-list-item class="file-list-item" @click="previewFile(file)">
+                  <a-list-item-meta>
+                    <template #avatar>
+                      <component
+                        :is="getFileIcon(file.type)"
+                        :style="{ color: getFileIconColor(file.type), fontSize: '24px' }"
+                      />
+                    </template>
+                    <template #title>
+                      <div class="file-title">{{ file.name }}</div>
+                    </template>
+                    <template #description>
+                      <div class="file-meta">
+                        <span class="file-date">{{ formatDate(file.modifiedTime) }}</span>
+                        <a-tag
+                          size="small"
+                          :color="getFileTypeColor(file.type)"
+                          class="file-type-tag"
+                        >
+                          {{ file.type.toUpperCase() }}
+                        </a-tag>
+                        <a-tag
+                          v-for="(main_tag, tIndex) in file.main_tags"
+                          :key="'main-tag-' + tIndex"
+                          size="small"
+                          color="green"
+                          class="main-tag"
+                        >
+                          {{ main_tag }}
+                        </a-tag>
+                        <a-tag
+                          v-for="(tag, tIndex) in file.tags"
+                          :key="'tag-' + tIndex"
+                          size="small"
+                          color="default"
+                          class="tag"
+                        >
+                          {{ tag }}
+                        </a-tag>
+                      </div>
+                    </template>
+                  </a-list-item-meta>
+                  <template #actions>
+                    <a-tooltip title="在外部打开">
+                      <a-button type="text" size="small" @click.stop="openFile(file)">
+                        <template #icon><ExportOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                    <a-tooltip title="重命名">
+                      <a-button type="text" size="small" @click.stop="showRenameDialog(file)">
+                        <template #icon><EditOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                    <a-tooltip title="删除">
+                      <a-button type="text" size="small" danger @click.stop="removeCommitAnalysisFile(file)">
+                        <template #icon><DeleteOutlined /></template>
+                      </a-button>
+                    </a-tooltip>
+                  </template>
+                </a-list-item>
+              </template>
+            </a-list>
+            </a-card>
+          </a-tab-pane>
+        </a-tabs>
 
         <!-- 文件预览对话框 -->
-        <v-dialog v-model="previewDialog" max-width="98%">
-          <v-card>
-            <v-card-title class="d-flex align-center" style="overflow-x: auto">
-              <span>{{ selectedFile?.name || '文件预览' }}</span>
-              <v-spacer></v-spacer>
-              <a-button type="text" @click="previewDialog = false">
-                <template #icon><CloseIcon /></template>
-              </a-button>
-            </v-card-title>
-            <v-divider></v-divider>
-            <v-card-text class="preview-content">
+        <a-modal
+          v-model:open="previewDialog"
+          :title="selectedFile?.name || '文件预览'"
+          width="98%"
+          class="preview-modal"
+          :footer="null"
+          destroyOnClose
+        >
+          <template #extra>
+            <a-button type="primary" @click="openFile(selectedFile)">
+              在外部打开
+              <template #icon><ExportOutlined /></template>
+            </a-button>
+          </template>
+          <div class="preview-content">
+            <v-card-text>
               <div v-if="fileContent" class="pa-2">
                 <div v-if="selectedFile.type === 'md'" class="markdown-container">
                   <!-- MD搜索工具栏 -->
                   <div class="md-search-bar">
-                    <v-row align="center" class="mb-3">
-                      <v-col cols="12" md="6">
-                        <v-text-field
-                          v-model="mdSearchText"
+                    <a-row :gutter="16" style="margin-bottom: 16px">
+                      <a-col :span="12">
+                        <a-input
+                          v-model:value="mdSearchText"
                           placeholder="搜索文档内容... (Enter: 下一个, Shift+Enter: 上一个)"
-                          density="compact"
-                          variant="outlined"
-                          hide-details
-                          clearable
+                          allow-clear
                           @input="searchInMarkdown"
                           @keydown="handleSearchKeydown"
                         >
-                          <template #prepend-inner>
-                            <v-icon size="small">mdi-magnify</v-icon>
-                          </template>
-                          <template #append-inner>
-                            <v-progress-circular
-                              v-if="isSearching"
-                              size="16"
-                              width="2"
-                              indeterminate
-                              color="primary"
-                              class="mr-2"
-                            ></v-progress-circular>
-                            <v-chip
+                          <template #prefix><SearchOutlined /></template>
+                          <template #suffix>
+                            <a-spin v-if="isSearching" size="small" />
+                            <a-tag
                               v-if="isLargeFile"
-                              size="x-small"
-                              color="info"
-                              variant="outlined"
+                              size="small"
+                              color="blue"
+                              style="margin-left: 8px"
                             >
                               全文搜索
-                            </v-chip>
+                            </a-tag>
                           </template>
-                        </v-text-field>
-                      </v-col>
-                      <v-col v-if="mdSearchText && mdSearchResults.length > 0" cols="12" md="6">
-                        <div class="d-flex align-center">
-                          <span class="text-caption mr-3">
+                        </a-input>
+                      </a-col>
+                      <a-col v-if="mdSearchText && mdSearchResults.length > 0" :span="12">
+                        <div style="display: flex; align-items: center">
+                          <span style="margin-right: 12px; color: #666">
                             {{ mdCurrentSearchIndex + 1 }} / {{ mdSearchResults.length }} 个结果
                             <span
                               v-if="isLargeFile && mdSearchResults.length > 0"
-                              class="text-info"
+                              style="color: #1890ff"
                             >
                               (块 {{ mdSearchResults[mdCurrentSearchIndex]?.chunkIndex + 1 || 1 }})
                             </span>
@@ -582,11 +601,11 @@
                           <a-button
                             size="small"
                             :disabled="mdSearchResults.length === 0"
-                            class="mr-2"
+                            style="margin-right: 8px"
                             title="上一个结果 (Shift+Enter)"
                             @click="prevSearchResult"
                           >
-                            <template #icon><ChevronUpIcon /></template>
+                            <template #icon><UpOutlined /></template>
                           </a-button>
                           <a-button
                             size="small"
@@ -594,98 +613,87 @@
                             title="下一个结果 (Enter)"
                             @click="nextSearchResult"
                           >
-                            <template #icon><ChevronDownIcon /></template>
+                            <template #icon><DownOutlined /></template>
                           </a-button>
                         </div>
-                      </v-col>
-                      <span v-if="mdSearchText && mdSearchResults.length === 0" cols="12">
-                        <span class="text-caption text-grey">未找到匹配的内容</span>
-                      </span>
-                      <v-col v-if="isLargeFile && mdTotalChunks > 1" class="md-navigation">
-                        <div class="md-info">
-                          <v-chip size="small" color="info" variant="outlined">
-                            <v-icon left size="small">mdi-file-document</v-icon>
-                            大文件模式 ({{ Math.round(fileContent.length / 1024) }}KB)
-                          </v-chip>
-                          <v-chip size="small" color="primary" variant="outlined" class="ml-2">
-                            第 {{ mdCurrentChunk + 1 }} / {{ mdTotalChunks }} 块
-                          </v-chip>
-                        </div>
-                        <div class="md-controls mt-2 mb-2">
-                          <a-button
-                            type="info"
-                            size="small"
-                            :disabled="mdCurrentChunk === 0"
-                            @click="mdCurrentChunk--"
-                          >
-                            <template #icon><ChevronLeftIcon /></template>
-                            上一块
-                          </a-button>
-                          <a-button
-                            type="info"
-                            size="small"
-                            class="ml-2"
-                            :disabled="mdCurrentChunk >= mdTotalChunks - 1"
-                            @click="mdCurrentChunk++"
-                          >
-                            下一块
-                            <template #icon><ChevronRightIcon /></template>
-                          </a-button>
-                        </div>
-                      </v-col>
-                    </v-row>
+                      </a-col>
+                      <a-col v-if="mdSearchText && mdSearchResults.length === 0" :span="24">
+                        <div style="color: #999; font-size: 12px">未找到匹配的内容</div>
+                      </a-col>
+                    </a-row>
+                  </div>
+
+                  <!-- 大文件导航控制 -->
+                  <div v-if="isLargeFile && mdTotalChunks > 1" class="md-navigation sticky-md-nav">
+                    <div class="md-info" style="margin-bottom: 8px">
+                      <a-tag color="blue">
+                        <template #icon><FileTextOutlined /></template>
+                        大文件模式 ({{ Math.round(fileContent.length / 1024) }}KB)
+                      </a-tag>
+                      <a-tag color="green" style="margin-left: 8px">
+                        第 {{ mdCurrentChunk + 1 }} / {{ mdTotalChunks }} 块
+                      </a-tag>
+                    </div>
+                    <div class="md-controls" style="margin: 8px 0">
+                      <a-button
+                        size="small"
+                        :disabled="mdCurrentChunk === 0"
+                        @click="mdCurrentChunk--"
+                      >
+                        <template #icon><LeftOutlined /></template>
+                        上一块
+                      </a-button>
+                      <a-button
+                        size="small"
+                        style="margin-left: 8px"
+                        :disabled="mdCurrentChunk >= mdTotalChunks - 1"
+                        @click="mdCurrentChunk++"
+                      >
+                        下一块
+                        <template #icon><RightOutlined /></template>
+                      </a-button>
+                    </div>
                   </div>
 
                   <!-- MD内容显示 -->
                   <div class="markdown-preview" v-html="displayedMarkdown"></div>
 
                   <!-- 加载状态 -->
-                  <div v-if="mdLoading" class="text-center py-4">
-                    <v-progress-circular
-                      indeterminate
-                      color="primary"
-                      size="24"
-                    ></v-progress-circular>
-                    <div class="text-caption mt-2">加载中...</div>
+                  <div v-if="mdLoading" style="text-align: center; padding: 16px">
+                    <a-spin size="large" />
+                    <div style="margin-top: 8px; color: #666">加载中...</div>
                   </div>
                 </div>
                 <div v-if="selectedFile?.type === 'csv'" class="csv-container">
                   <!-- CSV信息栏 -->
-                  <div class="csv-info-bar">
+                  <div class="csv-info-bar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
                     <div class="csv-stats">
-                      <v-chip size="small" color="primary" variant="outlined">
-                        <v-icon left size="small">mdi-table</v-icon>
+                      <a-tag color="blue">
+                        <template #icon><TableOutlined /></template>
                         {{ csvHeaders.length }} 列
-                      </v-chip>
-                      <v-chip size="small" color="success" variant="outlined" class="ml-2">
-                        <v-icon left size="small">mdi-format-list-numbered</v-icon>
+                      </a-tag>
+                      <a-tag color="green" style="margin-left: 8px">
+                        <template #icon><UnorderedListOutlined /></template>
                         {{ csvData.length }} 行
-                      </v-chip>
-                      <v-chip
+                      </a-tag>
+                      <a-tag
                         v-if="isLargeFile"
-                        size="small"
-                        color="warning"
-                        variant="outlined"
-                        class="ml-2"
+                        color="orange"
+                        style="margin-left: 8px"
                       >
-                        <v-icon left size="small">mdi-flash</v-icon>
+                        <template #icon><ThunderboltOutlined /></template>
                         大文件模式
-                      </v-chip>
+                      </a-tag>
                     </div>
                     <div class="csv-search">
-                      <v-text-field
-                        v-model="csvSearchText"
+                      <a-input
+                        v-model:value="csvSearchText"
                         placeholder="搜索内容..."
-                        density="compact"
-                        variant="outlined"
-                        hide-details
-                        clearable
-                        style="min-width: 500px"
+                        allow-clear
+                        style="min-width: 300px"
                       >
-                        <template #prepend-inner>
-                          <v-icon size="small">mdi-magnify</v-icon>
-                        </template>
-                      </v-text-field>
+                        <template #prefix><SearchOutlined /></template>
+                      </a-input>
                     </div>
                   </div>
 
@@ -693,35 +701,34 @@
                   <div
                     v-if="isLargeFile && csvTotalPages > 1 && !csvSearchText"
                     class="csv-pagination"
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px"
                   >
                     <div class="pagination-info">
-                      <span class="text-caption">
+                      <span style="color: #666; font-size: 12px">
                         第 {{ (csvCurrentPage - 1) * csvPageSize + 1 }} -
                         {{ Math.min(csvCurrentPage * csvPageSize, csvData.length) }} 行， 共
                         {{ csvData.length }} 行
                       </span>
                     </div>
-                    <div class="pagination-controls">
+                    <div class="pagination-controls" style="display: flex; align-items: center">
                       <a-button
-                        type="info"
                         size="small"
                         :disabled="csvCurrentPage === 1"
                         @click="csvCurrentPage--"
                       >
-                        <template #icon><ChevronLeftIcon /></template>
+                        <template #icon><LeftOutlined /></template>
                         上一页
                       </a-button>
-                      <span class="mx-3 text-caption">
+                      <span style="margin: 0 12px; color: #666; font-size: 12px">
                         {{ csvCurrentPage }} / {{ csvTotalPages }}
                       </span>
                       <a-button
-                        type="info"
                         size="small"
                         :disabled="csvCurrentPage >= csvTotalPages"
                         @click="csvCurrentPage++"
                       >
                         下一页
-                        <template #icon><ChevronRightIcon /></template>
+                        <template #icon><RightOutlined /></template>
                       </a-button>
                     </div>
                   </div>
@@ -729,13 +736,9 @@
                   <!-- CSV表格 -->
                   <div class="csv-preview">
                     <!-- 加载状态 -->
-                    <div v-if="csvLoading" class="text-center py-4">
-                      <v-progress-circular
-                        indeterminate
-                        color="primary"
-                        size="24"
-                      ></v-progress-circular>
-                      <div class="text-caption mt-2">加载中...</div>
+                    <div v-if="csvLoading" style="text-align: center; padding: 16px">
+                      <a-spin size="large" />
+                      <div style="margin-top: 8px; color: #666">加载中...</div>
                     </div>
 
                     <!-- 表格内容 -->
@@ -759,15 +762,15 @@
                     </div>
 
                     <!-- 无结果提示 -->
-                    <div v-if="filteredCsvData.length === 0 && csvSearchText" class="no-results">
-                      <v-icon color="grey">mdi-magnify</v-icon>
-                      <div class="text-body-2 mt-2">未找到匹配的内容</div>
+                    <div v-if="filteredCsvData.length === 0 && csvSearchText" class="no-results" style="text-align: center; padding: 32px">
+                      <SearchOutlined style="font-size: 48px; color: #ccc" />
+                      <div style="margin-top: 8px; color: #666">未找到匹配的内容</div>
                     </div>
 
                     <!-- 空数据提示 -->
-                    <div v-if="csvHeaders.length === 0 && !csvLoading" class="no-results">
-                      <v-icon color="grey">mdi-table</v-icon>
-                      <div class="text-body-2 mt-2">无法解析CSV数据</div>
+                    <div v-if="csvHeaders.length === 0 && !csvLoading" class="no-results" style="text-align: center; padding: 32px">
+                      <TableOutlined style="font-size: 48px; color: #ccc" />
+                      <div style="margin-top: 8px; color: #666">无法解析CSV数据</div>
                     </div>
                   </div>
                 </div>
@@ -792,17 +795,21 @@
                       @error="handleImageError"
                       @load="handleImageLoad"
                     />
-                    <div class="image-info mt-2 text-center">
-                      <v-chip size="small" color="info" variant="outlined">
-                        <v-icon left size="small">mdi-image</v-icon>
+                    <div class="image-info" style="margin-top: 8px; text-align: center">
+                      <a-tag color="blue">
+                        <template #icon><PictureOutlined /></template>
                         {{ selectedFile.name }}
-                      </v-chip>
+                      </a-tag>
                     </div>
                   </div>
-                  <div v-else class="text-center py-4">
-                    <v-icon size="48" color="error">mdi-image-broken</v-icon>
-                    <div class="text-body-1 mt-2 text-error">{{ fileContent }}</div>
-                    <a-button type="primary" ghost class="mt-2" @click="openFile(selectedFile)">
+                  <div v-else style="text-align: center; padding: 16px">
+                    <PictureOutlined style="font-size: 48px; color: #ff4d4f" />
+                    <div style="margin: 8px 0; color: #ff4d4f">{{ fileContent }}</div>
+                    <a-button
+                      type="primary"
+                      style="margin-top: 8px"
+                      @click="openFile(selectedFile)"
+                    >
                       在外部打开
                     </a-button>
                   </div>
@@ -811,64 +818,56 @@
                   {{ fileContent }}
                 </div>
               </div>
-              <div v-else class="d-flex justify-center align-center" style="height: 200px">
-                <v-progress-circular indeterminate color="primary"></v-progress-circular>
+              <div v-else style="display: flex; justify-content: center; align-items: center; height: 200px">
+                <a-spin size="large" />
               </div>
             </v-card-text>
             <v-card-actions>
               <v-spacer></v-spacer>
-              <a-button type="primary" ghost @click="openFile(selectedFile)">
+              <v-btn color="primary" variant="text" @click="openFile(selectedFile)">
                 在外部打开
-                <template #icon><OpenInNewIcon /></template>
-              </a-button>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
+                <v-icon right>mdi-open-in-new</v-icon>
+              </v-btn>
+              </v-card-actions>
+          </div>
+        </a-modal>
 
         <!-- 重命名对话框 -->
-        <v-dialog v-model="renameDialog" max-width="500px">
-          <v-card>
-            <v-card-title class="d-flex align-center">
-              <v-icon left>mdi-pencil</v-icon>
-              <span>重命名文件</span>
-              <v-spacer></v-spacer>
-              <a-button type="text" @click="renameDialog = false">
-                <template #icon><CloseIcon /></template>
-              </a-button>
-            </v-card-title>
-            <v-divider></v-divider>
-            <v-card-text>
-              <div class="mb-4">
-                <div class="text-body-2 text-grey-darken-1 mb-2">当前文件名：</div>
-                <div class="text-body-1">{{ renameFile?.name }}</div>
-              </div>
-              <v-text-field
-                v-model="newFileName"
-                label="新文件名"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                :rules="[(v) => !!v || '文件名不能为空']"
-                @keyup.enter="handleRename"
-              ></v-text-field>
-            </v-card-text>
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <a-button @click="renameDialog = false"> 取消 </a-button>
-              <a-button type="primary" ghost :disabled="!newFileName" @click="handleRename">
-                确认重命名
-              </a-button>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
+        <a-modal
+          v-model:open="renameDialog"
+          title="重命名文件"
+          @ok="handleRename"
+          @cancel="renameDialog = false"
+          :ok-button-props="{ disabled: !newFileName }"
+          ok-text="确认重命名"
+          cancel-text="取消"
+        >
+          <template #title>
+            <div style="display: flex; align-items: center">
+              <EditOutlined style="margin-right: 8px" />
+              重命名文件
+            </div>
+          </template>
+          <div style="margin-bottom: 16px">
+            <div style="margin-bottom: 8px; color: #666">当前文件名：</div>
+            <div>{{ renameFile?.name }}</div>
+          </div>
+          <a-input
+            v-model:value="newFileName"
+            placeholder="新文件名"
+            @keyup.enter="handleRename"
+            :status="!newFileName ? 'error' : ''"
+          />
+          <div v-if="!newFileName" style="color: #ff4d4f; font-size: 12px; margin-top: 4px">
+            文件名不能为空
+          </div>
+        </a-modal>
       </div>
     </div>
-  </v-container>
+  </div>
 </template>
 
 <script>
-import { RecycleScroller } from 'vue-virtual-scroller'
-import 'vue-virtual-scroller/dist/vue-virtual-scroller.css'
 import SVG from '../assets/report.svg'
 import {
   deepResearchFiles,
@@ -881,39 +880,44 @@ import {
   weeklyReportFilesList
 } from '../service/api'
 import MarkdownIt from 'markdown-it'
-// import path from 'path-browserify'; // 移除未使用的 path
-// import store from '../store'; // 移除未使用的 store
 import { mapState } from 'vuex'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/docco.css'
-// Ant Design Icons
+// Ant Design Vue Icons
 import {
-  ReloadOutlined as RefreshIcon,
-  ExportOutlined as OpenInNewIcon,
-  EditOutlined as EditIcon,
-  DeleteOutlined as DeleteIcon,
-  DownOutlined as ArrowDownIcon,
-  CloseOutlined as CloseIcon,
-  UpOutlined as ChevronUpIcon,
-  DownOutlined as ChevronDownIcon,
-  LeftOutlined as ChevronLeftIcon,
-  RightOutlined as ChevronRightIcon
+  SearchOutlined,
+  ReloadOutlined,
+  FileTextOutlined,
+  PictureOutlined,
+  TableOutlined,
+  ExportOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  UpOutlined,
+  LeftOutlined,
+  RightOutlined,
+  UnorderedListOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons-vue'
 
 export default {
   name: 'GitResearch',
   components: {
-    RecycleScroller,
-    RefreshIcon,
-    OpenInNewIcon,
-    EditIcon,
-    DeleteIcon,
-    ArrowDownIcon,
-    CloseIcon,
-    ChevronUpIcon,
-    ChevronDownIcon,
-    ChevronLeftIcon,
-    ChevronRightIcon
+    SearchOutlined,
+    ReloadOutlined,
+    FileTextOutlined,
+    PictureOutlined,
+    TableOutlined,
+    ExportOutlined,
+    EditOutlined,
+    DeleteOutlined,
+    DownOutlined,
+    UpOutlined,
+    LeftOutlined,
+    RightOutlined,
+    UnorderedListOutlined,
+    ThunderboltOutlined
   },
   data() {
     return {
@@ -947,7 +951,7 @@ export default {
       csvLoading: false, // CSV加载状态
       // 定时刷新相关
       refreshTimer: null, // 定时器引用
-      mdChunkSize: 80000, // MD文件分块大小（字符数）
+      mdChunkSize: 50000 * 2, // MD文件分块大小（字符数）
       mdCurrentChunk: 0, // MD当前显示的块
       mdTotalChunks: 0, // MD总块数
       mdLoading: false, // MD加载状态
@@ -1835,7 +1839,7 @@ export default {
           const raw = await window.electron.readFile(file.path)
           this.fileContent = raw
 
-          // 检测是否为大文件（超过80KB）
+          // 检测是否为大文件（超过50KB）
           if (raw.length > this.mdChunkSize) {
             this.isLargeFile = true
             this.mdTotalChunks = Math.ceil(raw.length / this.mdChunkSize)
@@ -2390,8 +2394,8 @@ export default {
         return
       }
 
-      // 若搜索文本为空，则不启动搜索
-      if (!this.mdSearchText || this.mdSearchText.length < 1) {
+      // 如果搜索文本少于3个字符，不启动搜索
+      if (this.mdSearchText.length < 3) {
         this.mdSearchResults = []
         this.mdCurrentSearchIndex = 0
         this.isSearching = false
@@ -2407,9 +2411,8 @@ export default {
       this.mdSearchResults = []
       this.mdCurrentSearchIndex = 0
 
-      // 异步搜索实现 - 如果是大文件模式且当前不在第一块，从当前块开始搜索
-      const shouldStartFromCurrentChunk = this.isLargeFile && this.mdCurrentChunk > 0
-      this.asyncSearchInMarkdown(content, searchText, shouldStartFromCurrentChunk)
+      // 异步搜索实现
+      this.asyncSearchInMarkdown(content, searchText)
     },
 
     // 异步搜索实现，分批处理避免UI阻塞
@@ -2424,11 +2427,9 @@ export default {
       const chunkSize = 100000 // 每次处理的字符数
       const totalLength = content.length
 
-      // 如果是块切换触发的搜索或从当前块开始搜索，优先从当前块开始搜索
+      // 如果是块切换触发的搜索，优先从当前块开始搜索
       // 否则从文件开头搜索
       let startIndex = fromChunkChange ? this.mdCurrentChunk * this.mdChunkSize : 0
-      let hasSearchedFromBeginning = !fromChunkChange // 标记是否已从文件开头搜索过
-      const originalStartIndex = startIndex // 记录原始起始位置，避免重复搜索
 
       // 创建异步搜索函数
       const processChunk = () => {
@@ -2447,11 +2448,7 @@ export default {
         }
 
         // 计算本次处理的结束位置
-        let endIndex = Math.min(startIndex + chunkSize, totalLength)
-        // 仅在 originalStartIndex>0 时限制至初始起点，避免第一页（0）被错误收缩为 0
-        if (startIndex === 0 && originalStartIndex > 0) {
-          endIndex = Math.min(endIndex, originalStartIndex)
-        }
+        const endIndex = Math.min(startIndex + chunkSize, totalLength)
         let index = startIndex
 
         // 在当前块中搜索
@@ -2493,11 +2490,6 @@ export default {
         if (index < totalLength && results.length < maxResults) {
           startIndex = index
           this.searchTask = setTimeout(processChunk, 0) // 使用setTimeout让出主线程
-        } else if (!hasSearchedFromBeginning && results.length < maxResults) {
-          // 如果从当前块开始搜索已到文件末尾，但还没搜索过文件开头，则从开头继续搜索
-          startIndex = 0
-          hasSearchedFromBeginning = true
-          this.searchTask = setTimeout(processChunk, 0)
         } else {
           // 搜索完成
           this.isSearching = false
@@ -2519,6 +2511,9 @@ export default {
       let localMatchIndex = 0
 
       return html.replace(regex, (match, p1) => {
+        // 计算当前块中匹配的全局索引
+        const currentChunkStart = this.mdCurrentChunk * this.mdChunkSize
+
         // 找到当前块中对应的搜索结果索引
         const currentChunkResults = this.mdSearchResults.filter(
           (result) => result.chunkIndex === this.mdCurrentChunk
@@ -2571,9 +2566,6 @@ export default {
               } else {
                 imagePath = path.resolve(markdownDir, originalSrc)
               }
-
-              // 修复：在 Windows 系统下将反斜杠转换为正斜杠，避免 URL 编码问题
-              imagePath = imagePath.replace(/\\/g, '/')
 
               console.log('加载本地图片:', imagePath)
 

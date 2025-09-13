@@ -11,18 +11,18 @@
       </v-btn>
       <!-- 标题banner -->
       <div class="toolbar-title">
-        <span class="text-h6">GitHave IDE (Beta测试)</span>
+        <span class="text-caption">GitHave IDE (Beta测试)</span>
       </div>
       <!-- 左侧操作区 -->
       <div class="toolbar-left ml-4">
         <v-btn v-if="isMacOS" text size="small" title="终端" @click="showTerminal = !showTerminal">
           <v-icon>mdi-console</v-icon>
-          终端
+          <span class="text-caption">终端</span>
         </v-btn>
 
         <v-btn text size="small" title="Git" :disabled="true" @click="openGitModal">
           <v-icon>mdi-git</v-icon>
-          版本管理
+          <span class="text-caption">版本管理</span>
         </v-btn>
 
         <!-- 帮助按钮 -->
@@ -581,7 +581,7 @@ import LoadingSpinner from '../components/LoadingSpinner.vue'
 import { useStore } from 'vuex'
 import mammoth from 'mammoth'
 import { LOAD_ROOT_OPTIONS, LOAD_CHILDREN_OPTIONS, ASYNC_SEARCH } from 'vue3-treeselect'
-import path from 'path-browserify'
+// 使用 window.electron.path 替代 path-browserify
 import Treeselect from 'vue3-treeselect'
 import 'vue3-treeselect/dist/vue3-treeselect.css'
 import MarkdownIt from 'markdown-it'
@@ -693,7 +693,7 @@ onUnmounted(() => {
   })
 })
 const detectedLanguage = computed(() => {
-  const ext = path.extname(selectedFileName.value).slice(1).toLowerCase()
+  const ext = window.electron.path.extname(selectedFileName.value).slice(1).toLowerCase()
   return languageMap[ext] || 'shell'
 })
 
@@ -956,13 +956,13 @@ function handleLinkClick(event) {
   }
 }
 
-// 递归加载子目录时的阈值，超出则懒加载
-const CHILDREN_THRESHOLD = 100
+// 移除懒加载机制，直接遍历所有子路径
+// const CHILDREN_THRESHOLD = 1000 // 已移除懒加载阈值
 // 检查文件是否为文本文件
 async function checkIfTextFile(filePath) {
   try {
     // 首先检查文件扩展名，对于已知的二进制文件类型直接返回false
-    const ext = path.extname(filePath).toLowerCase()
+    const ext = window.electron.path.extname(filePath).toLowerCase()
     const binaryExtensions = [
       '.zip',
       '.rar',
@@ -1112,7 +1112,7 @@ async function initializePage() {
       } else {
         // 如果没有指定rootPath，则根据localPath确定根目录
         const isFile = await isFilePath(props.localPath)
-        rootDir = isFile ? path.dirname(props.localPath) : props.localPath
+        rootDir = isFile ? window.electron.path.dirname(props.localPath) : props.localPath
       }
 
       // 初始化目录树
@@ -1138,12 +1138,12 @@ async function initializePage() {
           // 添加或切换到对应的标签页
           addOrSwitchTab({
             path: props.localPath,
-            name: path.basename(props.localPath),
+            name: window.electron.path.basename(props.localPath),
             breadcrumbs: breadcrumbPath
           })
         } else {
           // 显示不支持的文件类型警告
-          const fileExt = path.extname(props.localPath).toLowerCase()
+          const fileExt = window.electron.path.extname(props.localPath).toLowerCase()
           store.dispatch('snackbar/showSnackbar', {
             message: `不支持的文件类型: ${fileExt || '无扩展名'}`,
             type: 'warning'
@@ -1182,7 +1182,7 @@ async function initializePage() {
 async function initialize(initialPath) {
   if (!initialPath) return
   const isFile = await isFilePath(initialPath)
-  let rootDir = isFile ? path.dirname(initialPath) : initialPath
+  let rootDir = isFile ? window.electron.path.dirname(initialPath) : initialPath
   await resetTree(rootDir)
   if (initialPath) {
     if (props.forceReplace) {
@@ -1195,7 +1195,7 @@ async function initialize(initialPath) {
       const breadcrumbPath = buildBreadcrumb(initialPath)
       addOrSwitchTab({
         path: initialPath,
-        name: path.basename(initialPath),
+        name: window.electron.path.basename(initialPath),
         breadcrumbs: breadcrumbPath
       })
     }
@@ -1244,16 +1244,16 @@ function onPathSelectionChanged(newPath) {
 }
 
 function isPDF(fileName) {
-  return path.extname(fileName).toLowerCase() === '.pdf'
+  return window.electron.path.extname(fileName).toLowerCase() === '.pdf'
 }
 function isDocx(fileName) {
-  return ['.doc', '.docx'].includes(path.extname(fileName).toLowerCase())
+  return ['.doc', '.docx'].includes(window.electron.path.extname(fileName).toLowerCase())
 }
 function isXlsx(fileName) {
-  return path.extname(fileName).toLowerCase() === '.xlsx'
+  return window.electron.path.extname(fileName).toLowerCase() === '.xlsx'
 }
 function isMarkdown(fileName) {
-  const ext = path.extname(fileName).toLowerCase()
+  const ext = window.electron.path.extname(fileName).toLowerCase()
   return ['.md', '.markdown'].includes(ext)
 }
 function getPDFUrl() {
@@ -1392,19 +1392,16 @@ function loadDirectoryOptions({ action, parentNode, searchQuery, callback }) {
       })
       .catch((error) => callback(error))
   } else if (action === LOAD_CHILDREN_OPTIONS) {
-    fetchChildren(parentNode)
-      .then((children) => {
-        parentNode.children = children
-        callback()
-      })
-      .catch((error) => callback(error))
+    // 由于已经递归加载了所有子目录，这里直接回调即可
+    // 子目录内容已经在初始加载时完成
+    callback()
   } else if (action === ASYNC_SEARCH) {
     fetchPathSuggestions(searchQuery)
       .then((results) => {
         const suggestions = results.map((p) => ({
           id: p,
           label: p,
-          children: null
+          children: undefined // 路径建议不需要子节点
         }))
         callback(null, suggestions)
       })
@@ -1450,9 +1447,8 @@ async function handleNodeSelection(activeItems) {
   const node = findNodeByPath(treeData.value, selectedPath)
   if (!node) return
   if (node.isDirectory) {
-    if (node.children === null) {
-      await fetchChildren(node)
-    }
+    // 由于已经递归加载了所有子目录，这里不需要再次加载
+    // 目录节点的children已经在初始化时完成加载
   } else {
     // 检查文件是否为文本文件
     const isTextFile = await checkIfTextFile(node.path)
@@ -1525,7 +1521,7 @@ function renderMarkdown(content) {
   return md.render(content)
 }
 
-// 递归加载所有子目录和文件，超阈值则懒加载
+// 递归加载所有子目录和文件，一次性遍历所有子路径
 async function fetchChildren(item, depth = 0) {
   if (!item.isDirectory) return []
   try {
@@ -1533,25 +1529,29 @@ async function fetchChildren(item, depth = 0) {
     children.sort((a, b) => b.mtime - a.mtime)
     const visibleChildren = children.filter((child) => !child.name.startsWith('.'))
 
-    // 超过阈值则懒加载
-    if (visibleChildren.length > CHILDREN_THRESHOLD) {
-      return visibleChildren.map((child) => ({
-        name: child.name,
-        path: child.fullPath,
-        isDirectory: child.isDirectory,
-        children: child.isDirectory ? null : undefined // 懒加载
-      }))
-    }
-
-    // 只展开第一级目录，不递归加载所有子目录
+    // 递归加载所有子目录，不使用懒加载
     const result = []
     for (const child of visibleChildren) {
       let node = {
         name: child.name,
         path: child.fullPath,
         isDirectory: child.isDirectory,
-        children: child.isDirectory ? null : undefined // 设置为null表示需要懒加载
+        children: undefined // 文件没有children
       }
+      
+      // 如果是目录，递归加载其子内容
+      if (child.isDirectory) {
+        try {
+          node.children = await fetchChildren({
+            path: child.fullPath,
+            isDirectory: true
+          }, depth + 1)
+        } catch (err) {
+          console.error(`加载子目录失败：${child.fullPath}`, err)
+          node.children = [] // 加载失败时设为空数组
+        }
+      }
+      
       result.push(node)
     }
     return result
@@ -1597,15 +1597,16 @@ function renderXlsx(buffer) {
 async function expandToPath(targetPath) {
   const homeDir = await window.electron.homeDir
   if (!targetPath.startsWith(homeDir)) return
-  const relativePath = path.relative(homeDir, targetPath)
-  const segments = relativePath.split(path.sep)
+  const relativePath = window.electron.path.relative(homeDir, targetPath)
+  const segments = relativePath.split(window.electron.path.sep)
   let currentNode = treeData.value[0]
   let openPaths = [currentNode.path]
   for (const segment of segments) {
-    if (!currentNode.children || currentNode.children.length === 0) {
-      await fetchChildren(currentNode).then((children) => {
-        currentNode.children = children
-      })
+    // 由于已经递归加载了所有子目录，这里不需要再次加载
+    // 直接查找子节点即可
+    if (!currentNode.children) {
+      console.warn(`节点 ${currentNode.path} 没有子节点`)
+      return
     }
     const child = currentNode.children.find((child) => child.name === segment)
     if (!child) return
@@ -2163,7 +2164,7 @@ async function confirmCreateFolder() {
       name: newFolderName.value,
       path: newFolderPath,
       isDirectory: true,
-      children: null // 懒加载
+      children: [] // 新建的空文件夹，子内容为空数组
     }
     addNodeToTree(currentDir, newFolderNode)
 
@@ -2292,8 +2293,8 @@ function updateNodeInTree(oldPath, newPath) {
 
 function updateChildrenPaths(children, oldParentPath, newParentPath) {
   children.forEach(child => {
-    const relativePath = path.relative(oldParentPath, child.path)
-    child.path = path.join(newParentPath, relativePath)
+    const relativePath = window.electron.path.relative(oldParentPath, child.path)
+    child.path = window.electron.path.join(newParentPath, relativePath)
     if (child.children) {
       updateChildrenPaths(child.children, oldParentPath, newParentPath)
     }

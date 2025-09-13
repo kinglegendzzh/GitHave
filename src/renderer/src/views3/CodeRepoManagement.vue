@@ -1,13 +1,46 @@
 <template>
   <v-container fluid>
     <!-- 顶部工具栏 -->
-    <v-toolbar outlined>
+    <v-toolbar outlined class="pt-2">
       <v-toolbar-title>
-        <v-icon>mdi-github</v-icon>
+        <!-- <v-icon>mdi-github</v-icon> -->
+        <v-btn class="ml-2" color="pink" variant="elevated" @click="jumpToFm">前往构建索引</v-btn>
       </v-toolbar-title>
-      
+
       <!-- 左侧按钮组 -->
-      <div class="d-flex align-center ml-4">
+      <div class="d-flex align-center ml-4"></div>
+
+      <v-spacer></v-spacer>
+
+      <!-- 中间搜索框 -->
+      <div class="d-flex align-center mx-4" style="min-width: 300px; max-width: 400px">
+        <v-text-field
+          v-model="searchQuery"
+          :placeholder="placeholder"
+          prepend-inner-icon="mdi-magnify"
+          variant="outlined"
+          density="compact"
+          hide-details
+          clearable
+          class="search-field"
+          @input="handleSearch"
+          @click:clear="clearSearch"
+        >
+          <template #append-inner>
+            <v-tooltip bottom>
+              <template #activator="{ props }">
+                <v-icon v-bind="props" size="small" class="ml-1">mdi-help-circle-outline</v-icon>
+              </template>
+              <span>支持搜索：仓库名称、URL、本地路径、分支、描述</span>
+            </v-tooltip>
+          </template>
+        </v-text-field>
+      </div>
+
+      <v-spacer></v-spacer>
+
+      <!-- 右侧按钮组 -->
+      <div class="d-flex align-center">
         <!-- 快速导入 -->
         <v-tooltip bottom>
           <template #activator="{ props }">
@@ -40,39 +73,6 @@
           </template>
           <span>从本地已有目录导入仓库</span>
         </v-tooltip>
-      </div>
-      
-      <v-spacer></v-spacer>
-      
-      <!-- 中间搜索框 -->
-      <div class="d-flex align-center mx-4" style="min-width: 300px; max-width: 400px;">
-        <v-text-field
-          v-model="searchQuery"
-          placeholder="搜索仓库"
-          prepend-inner-icon="mdi-magnify"
-          variant="outlined"
-          density="compact"
-          hide-details
-          clearable
-          class="search-field"
-          @input="handleSearch"
-          @click:clear="clearSearch"
-        >
-          <template #append-inner>
-            <v-tooltip bottom>
-              <template #activator="{ props }">
-                <v-icon v-bind="props" size="small" class="ml-1">mdi-help-circle-outline</v-icon>
-              </template>
-              <span>支持搜索：仓库名称、URL、本地路径、分支、描述</span>
-            </v-tooltip>
-          </template>
-        </v-text-field>
-      </div>
-      
-      <v-spacer></v-spacer>
-      
-      <!-- 右侧按钮组 -->
-      <div class="d-flex align-center">
         <v-tooltip bottom>
           <template #activator="{ props }">
             <v-btn v-bind="props" size="small" class="mr-2" variant="outlined" @click="fetchRepos">
@@ -107,10 +107,10 @@
         <div class="flex-grow-1">
           <div class="text-h6 mb-1">
             <v-icon class="mr-2">mdi-magic-staff</v-icon>
-            智能剪切板监听已开启
+            复制任意 GitHub 仓库链接
           </div>
           <div class="text-body-2">
-            复制任意 GitHub 仓库链接到剪切板，系统将自动检测并弹出一键导入提示！
+            系统自动检测并一键导入 GitHave！
             <v-chip size="small" color="primary" variant="outlined" class="ml-2">
               <v-icon start>mdi-lightning-bolt</v-icon>
               超便捷
@@ -163,25 +163,15 @@
             <div class="action-buttons">
               <v-btn
                 small
-                class="detail-btn mr-0"
-                color="purple"
-                variant="outlined"
-                @click="jumpToFm"
-              >
-                <v-icon>mdi-flash</v-icon>
-                索引
-              </v-btn>
-              <v-btn
-                small
                 class="preview-btn mr-0"
                 color="warning"
                 variant="outlined"
                 @click="previewRepo(repo)"
               >
                 <v-icon>mdi-eye</v-icon>
-                详情
+                预览代码
               </v-btn>
-              <v-tooltip text="编辑">
+              <v-tooltip text="编辑卡片">
                 <template #activator="{ props }">
                   <v-btn
                     v-bind="props"
@@ -192,7 +182,7 @@
                     @click="viewRepo(repo)"
                   >
                     <v-icon>mdi-pencil</v-icon>
-                    编辑
+                    编辑卡片
                   </v-btn>
                 </template>
               </v-tooltip>
@@ -252,6 +242,7 @@
                 <v-text-field
                   v-model="repoForm.repo_url"
                   required
+                  :rules="githubUrlRules"
                   density="compact"
                   variant="outlined"
                   bg-color="rgba(255,255,255,0.7)"
@@ -372,7 +363,7 @@
               @click="saveRepo"
             >
               <v-icon>mdi-content-save</v-icon>
-              {{ selectedRepo ? '保存仓库' : '创建仓库' }}
+              {{ selectedRepo ? '保存' : '创建' }}
             </v-btn>
             <v-btn small size="small" color="error" @click="closeDialog">
               <v-icon>mdi-close</v-icon>
@@ -437,6 +428,7 @@
               placeholder="https://github.com/username/project"
               prepend-inner-icon="mdi-link"
               required
+              :rules="githubUrlRules"
             />
             <v-text-field
               v-model="importForm.local_path"
@@ -471,11 +463,10 @@
             </template>
           </v-progress-linear>
           <div class="text-center mt-2">{{ progressMessage }}</div>
-          
+
           <!-- 网络速度显示区域 -->
           <v-divider class="my-3"></v-divider>
           <div class="network-speed-section">
-            <div class="text-subtitle2 mb-2 text-center">网络速度监控</div>
             <v-row class="text-center">
               <v-col cols="6">
                 <div class="speed-item">
@@ -492,11 +483,24 @@
                 </div>
               </v-col>
             </v-row>
-            <div class="text-center mt-2" v-if="networkSpeed.interfaceName">
+            <div v-if="networkSpeed.interfaceName" class="text-center mt-2">
               <span class="text-caption text-grey">网络接口: {{ networkSpeed.interfaceName }}</span>
             </div>
           </div>
         </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn
+            color="grey"
+            variant="text"
+            size="small"
+            class="text-caption"
+            @click="hideProgressDialog"
+          >
+            <v-icon left size="small">mdi-eye-off</v-icon>
+            隐藏并后台运行
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -551,7 +555,6 @@
 
 <script setup>
 import { ref, reactive, watch, onMounted, computed } from 'vue'
-import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import {
   listRepos,
@@ -566,8 +569,7 @@ import { omit } from '../service/str'
 import { generateAvatar } from '../components/AvatarGenerator'
 import { VSelect, VSnackbar } from 'vuetify/components'
 
-// 获取 Vuex store 与 Vue Router 实例
-const store = useStore()
+// 获取 Vue Router 实例
 const router = useRouter()
 
 // 新写法：简易 toast 列表
@@ -603,11 +605,7 @@ const snackbar = reactive({
 /** 队列：按先进先出依次展示 snackbar */
 const snackbarQueue = ref([])
 
-/** 入队并在空闲时立即播放 */
-function enqueueSnackbar(msg, color = 'info', timeout = 3000) {
-  snackbarQueue.value.push({ msg, color, timeout })
-  if (!snackbar.show) playNextSnackbar()
-}
+
 
 /** 将队首元素赋给 snackbar，触发显示 */
 function playNextSnackbar() {
@@ -681,6 +679,8 @@ const showLocalSnackbar = (message, color) => toast(message, color)
 
 const showErrorSnackbar = (message) => toastError(message)
 
+const placeholder = computed(() => `快速搜索${repos.value.length}个仓库`)
+
 /**
  * 拉取分支列表并写入 branchOptions。
  * 若当前 repoForm.branch 不在列表中则自动设为第一个分支。
@@ -697,7 +697,6 @@ async function ensureBranch(repoID) {
     }
   } catch (e) {
     console.error('获取分支列表失败', e.response.data)
-    showErrorSnackbar(e.response.data || e)
   }
 }
 
@@ -756,9 +755,9 @@ const filteredRepos = computed(() => {
   if (!searchQuery.value.trim()) {
     return repos.value
   }
-  
+
   const query = searchQuery.value.toLowerCase().trim()
-  return repos.value.filter(repo => {
+  return repos.value.filter((repo) => {
     // 搜索字段：name, repo_url, local_path, branch, desc
     const searchFields = [
       repo.name || '',
@@ -767,10 +766,8 @@ const filteredRepos = computed(() => {
       repo.branch || '',
       repo.desc || ''
     ]
-    
-    return searchFields.some(field => 
-      field.toLowerCase().includes(query)
-    )
+
+    return searchFields.some((field) => field.toLowerCase().includes(query))
   })
 })
 
@@ -809,13 +806,13 @@ const fetchRepos = async () => {
 
 // 预览仓库内容，使用 Vue Router 进行跳转
 const previewRepo = (item) => {
-  const localPath = item.local_path
-  const rootPath = item.local_path
-  const forceReplace = 'true'
-  if (localPath) {
+  if (item.local_path) {
+    console.log('跳转到文件浏览器页面，路径：', item.local_path)
     router.push({
       name: 'finder',
-      params: { localPath, forceReplace, rootPath }
+      params: {
+        localPath: item.local_path
+      }
     })
   } else {
     alert('该仓库未配置本地路径')
@@ -914,7 +911,7 @@ const viewRepo = async (item) => {
 const startNetworkMonitoring = async () => {
   try {
     await window.electron.startNetworkMonitor()
-    
+
     // 监听网络速度更新事件
     window.electron.onNetworkSpeedUpdate((data) => {
       networkSpeed.value = {
@@ -983,11 +980,17 @@ const startProgressSimulation = () => {
   }, 200) // 每200毫秒更新一次
 }
 
+// 隐藏进度条弹窗（后台运行）
+const hideProgressDialog = () => {
+  progressDialog.value = false
+  toastInfo('任务已转入后台运行，完成后将自动通知')
+}
+
 // 完成进度条
 const completeProgress = async (success = true) => {
   // 停止网络监控
   await stopNetworkMonitoring()
-  
+
   // 清除定时器
   if (progressTimer.value) {
     clearInterval(progressTimer.value)
@@ -1015,6 +1018,21 @@ const completeProgress = async (success = true) => {
 
 // 保存仓库（判断更新或新增）
 const saveRepo = async () => {
+  // 验证 GitHub 链接（新增仓库时必须填写）
+  if (!selectedRepo.value && (!repoForm.repo_url || !repoForm.repo_url.trim())) {
+    showErrorSnackbar('GitHub 链接不能为空，请填写有效的 GitHub 仓库链接')
+    return
+  }
+
+  // 验证 GitHub 链接格式（如果填写了链接）
+  if (repoForm.repo_url && repoForm.repo_url.trim()) {
+    const githubPattern = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(?:\.git)?\/?$/
+    if (!githubPattern.test(repoForm.repo_url.trim())) {
+      showErrorSnackbar('请输入有效的 GitHub HTTPS 链接格式，例如：https://github.com/username/project')
+      return
+    }
+  }
+
   // 启动进度条模拟
   startProgressSimulation()
   try {
@@ -1213,6 +1231,16 @@ const importForm = reactive({
   local_path: ''
 })
 
+// GitHub URL 验证规则
+const githubUrlRules = [
+  (v) => !!v || 'GitHub 链接不能为空',
+  (v) => {
+    if (!v) return true
+    const githubPattern = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(?:\.git)?\/?$/
+    return githubPattern.test(v) || '请输入有效的 GitHub HTTPS 链接格式'
+  }
+]
+
 // 监听 repo_url 变化，自动更新本地路径
 watch(
   () => importForm.repo_url,
@@ -1252,6 +1280,19 @@ const extractNameFromUrl = (url) => {
 
 const importRepo = async () => {
   if (!importFormValid.value) return
+
+  // 验证 GitHub 链接是否为空
+  if (!importForm.repo_url || !importForm.repo_url.trim()) {
+    showErrorSnackbar('GitHub 链接不能为空，请填写有效的 GitHub 仓库链接')
+    return
+  }
+
+  // 验证 GitHub 链接格式
+  const githubPattern = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(?:\.git)?\/?$/
+  if (!githubPattern.test(importForm.repo_url.trim())) {
+    showErrorSnackbar('请输入有效的 GitHub HTTPS 链接格式，例如：https://github.com/username/project')
+    return
+  }
 
   // 显示进度条复用现有逻辑
   startProgressSimulation()

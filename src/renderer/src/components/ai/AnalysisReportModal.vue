@@ -34,9 +34,6 @@
               </span>
             </v-row>
             <v-row>
-              <span class="text-grey-darken-2">(为该仓库提前构建全量索引，可以大幅提升AI分析的速度和质量哦)</span>
-            </v-row>
-            <v-row>
               <span class="text-grey-lighten-1">(如果你第一次分析该路径，系统会花费较长时间为路径构建索引，请耐心等待...)</span>
             </v-row>
           </div>
@@ -64,7 +61,7 @@
             </router-link>
             <v-btn color="error" @click="deleteReport" size="small">删除报告</v-btn>
           </div>
-          <div v-else class="ml-auto flex space-x-2">
+          <div v-else class="ml-auto flex items-center space-x-2">
             <span class="text-green-600"> 流程图已生成成功！</span>
             <v-btn color="error" variant="outlined" size="small" @click="restartStreaming">不满意?重新生成</v-btn>
             <v-btn variant="outlined" size="small" @click="exportDiagram">
@@ -80,23 +77,55 @@
       <!-- Content: flex-1 + min-h-0 + overflow-auto -->
       <div class="flex-1 min-h-0 overflow-auto px-6 py-4 prose max-w-none" style="max-height: 70vh; max-width: 90vw;">
         <div v-if="props.api === 'deepResearch' || props.api === 'commitsResearch' || props.api === 'weeklyReport'">
-          <div v-html="renderedMarkdown"></div>
+          <div v-html="renderedMarkdown" class="markdown-content" style="padding-left: 10px; padding-right: 10px;"></div>
         </div>
         <div v-else>
-          <div class="flowchart-toolbar mb-2">
-            <v-btn variant="outlined" size="small" @click="zoomIn"><v-icon>mdi-magnify</v-icon> 放大</v-btn>
-            <v-btn variant="outlined" size="small" @click="zoomOut"><v-icon>mdi-magnify-minus</v-icon> 缩小</v-btn>
-            <v-btn variant="outlined" size="small" @click="resetZoom"><v-icon>mdi-refresh</v-icon> 重置</v-btn>
+          <div class="flow-area flex gap-3">
+            <div class="flex-1 min-w-0">
+              <div class="flowchart-toolbar mb-2 flex items-center space-x-2">
+                <v-btn variant="outlined" size="small" @click="zoomIn"><v-icon>mdi-magnify</v-icon> 放大</v-btn>
+                <v-btn variant="outlined" size="small" @click="zoomOut"><v-icon>mdi-magnify-minus</v-icon> 缩小</v-btn>
+                <v-btn variant="outlined" size="small" @click="resetZoom"><v-icon>mdi-refresh</v-icon> 重置</v-btn>
+                <div v-if="showExplainPanel" class="explain-panel" style="width: 80vw; max-height: 50vh; overflow: auto;">
+              <a-card :title="'流程图解释 (' + explanationLines.length + ')'" :bordered="true">
+                <template #extra>
+                  <a-button type="text" @click="showExplainPanel = false">收起</a-button>
+                </template>
+                <div v-if="explanationLines.length === 0" style="color:#999;">暂无说明</div>
+                <ul v-else class="list-disc pl-4 space-y-1">
+                  <li v-for="(line, i) in explanationLines" :key="i">{{ line }}</li>
+                </ul>
+              </a-card>
+            </div>
+            <div v-else class="explain-collapsed-handle" style="display:flex; align-items:center;">
+              <a-button @click="showExplainPanel = true">流程图解释</a-button>
+            </div>
+                <v-btn
+                  v-if="pendingLarge"
+                  color="primary"
+                  variant="outlined"
+                  size="small"
+                  @click="confirmRenderLarge"
+                >渲染大型图表</v-btn>
+                <v-progress-circular
+                  v-if="isRenderingChart"
+                  indeterminate
+                  size="20"
+                  color="primary"
+                />
+              </div>
+              <div 
+                ref="mermaidContainer" 
+                class="prose max-w-none mermaid-draggable"
+                :style="mermaidContainerStyle"
+                @mousedown="startDrag"
+                @mousemove="onDrag"
+                @mouseup="endDrag"
+                @mouseleave="endDrag"
+              ></div>
+            </div>
+            
           </div>
-          <div 
-            ref="mermaidContainer" 
-            class="prose max-w-none mermaid-draggable"
-            :style="mermaidContainerStyle"
-            @mousedown="startDrag"
-            @mousemove="onDrag"
-            @mouseup="endDrag"
-            @mouseleave="endDrag"
-          ></div>
         </div>
       </div>
     </div>
@@ -104,7 +133,6 @@
       v-model="snackbar.show"
       :color="snackbar.color"
       :timeout="3000"
-      rounded="pill"
       elevation="2"
     >
       {{ snackbar.message }}
@@ -113,21 +141,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, nextTick } from 'vue'
+import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
+import type { CSSProperties } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { deepResearch, flowChart, deleteFile, commitsResearch, generateWeeklyReport } from '../../service/api.js'
 import { useStore } from 'vuex'
 import mermaid from 'mermaid/dist/mermaid.esm.min.mjs'
-import { useRouter } from 'vue-router'
 import html2canvas from 'html2canvas'
-import { loadRepoProgress } from "../../storage/progress-storage";
 
 const mermaidContainer = ref<HTMLElement|null>(null)
 const zoomLevel = ref(1)
 
 // 窗口大小相关
-const dialogWidth = ref('w-11/12 max-w-3xl')
-const dialogHeight = ref('max-h-[90vh]')
 const mermaidWidth = ref(0)
 const mermaidHeight = ref(0)
 
@@ -138,28 +163,48 @@ const dragStartY = ref(0)
 const translateX = ref(0)
 const translateY = ref(0)
 
+// Tooltip 与渲染状态
+let hoverTimer: number | null = null
+const isRenderingChart = ref(false)
+const pendingLarge = ref(false)
+const userConfirmLarge = ref(false)
+
+// 解析后的 mermaid 与说明
+const mermaidCode = ref('')
+const mermaidExplanation = ref('')
+// 右侧说明折叠面板
+const showExplainPanel = ref(false)
+const explanationLines = computed(() => {
+  return (mermaidExplanation.value || '')
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((s) => !!s)
+})
+
 // 计算样式
-const dialogStyle = computed(() => ({
+const dialogStyle = computed<CSSProperties>(() => ({
   width: mermaidWidth.value > 800 ? '90vw' : '66vw',
   maxWidth: mermaidWidth.value > 1200 ? '95vw' : '80vw',
   height: mermaidHeight.value > 600 ? '85vh' : 'auto',
   maxHeight: '90vh',
   margin: '0 auto',
   borderRadius: '16px',
-  position: 'relative'
+  position: 'relative' as CSSProperties['position']
 }))
 
-const mermaidContainerStyle = computed(() => ({
+const mermaidContainerStyle = computed<CSSProperties>(() => ({
   cursor: isDragging.value ? 'grabbing' : 'grab',
-  overflow: 'hidden',
-  position: 'relative'
+  overflowX: 'auto',
+  overflowY: 'auto',
+  textAlign: 'left',
+  position: 'relative' as CSSProperties['position']
 }))
 
 function applyZoom() {
   const svg = mermaidContainer.value?.querySelector<SVGSVGElement>('svg')
   if (svg) {
     svg.style.transformOrigin = '0 0'
-    svg.style.transform = `scale(${zoomLevel.value}) translate(${translateX.value}px, ${translateY.value}px)`
+    svg.style.transform = `translate(${translateX.value}px, ${translateY.value}px) scale(${zoomLevel.value})`
   }
 }
 
@@ -173,43 +218,49 @@ function resetZoom(){
 }
 
 // 拖动功能
-function startDrag(event: MouseEvent) {
+function startDrag(event: any) {
   if (props.api !== 'flowChart') return
   isDragging.value = true
-  dragStartX.value = event.clientX - translateX.value
-  dragStartY.value = event.clientY - translateY.value
-  event.preventDefault()
+  const e = event as MouseEvent
+  dragStartX.value = e.clientX - translateX.value
+  dragStartY.value = e.clientY - translateY.value
+  e.preventDefault()
 }
 
-function onDrag(event: MouseEvent) {
+function onDrag(event: any) {
   if (!isDragging.value || props.api !== 'flowChart') return
-  translateX.value = event.clientX - dragStartX.value
-  translateY.value = event.clientY - dragStartY.value
+  const e = event as MouseEvent
+  translateX.value = e.clientX - dragStartX.value
+  translateY.value = e.clientY - dragStartY.value
   applyZoom()
-  event.preventDefault()
+  e.preventDefault()
 }
 
 function endDrag() {
   isDragging.value = false
 }
 
-// 自动调整窗口大小
+// 自动调整窗口大小与宽图适配
 function autoResizeDialog() {
   if (props.api !== 'flowChart') return
-  
   nextTick(() => {
     const svg = mermaidContainer.value?.querySelector<SVGSVGElement>('svg')
     if (svg) {
       const bbox = svg.getBBox()
       mermaidWidth.value = bbox.width
       mermaidHeight.value = bbox.height
-      
-      console.log('Mermaid图尺寸:', { width: mermaidWidth.value, height: mermaidHeight.value })
-      
-      // 如果图很宽但不高，优先适应宽度
-      if (mermaidWidth.value > 800 && mermaidHeight.value < 400) {
-        // 宽图，调整窗口以适应宽度
-        console.log('检测到宽图，调整窗口大小')
+      const containerWidth = mermaidContainer.value?.clientWidth || 0
+      const viewportH = window.innerHeight
+
+      // 当宽度超过容器：以高度为基准进行自适应，最大显示高度 90vh，固定高度渲染，宽度自适应
+      if (containerWidth && bbox.width > containerWidth) {
+        svg.style.height = Math.min(viewportH * 0.9, bbox.height || viewportH * 0.9) + 'px'
+        svg.style.width = 'auto'
+        // 取消缩放变换，避免叠加
+        svg.style.transform = ''
+        translateX.value = 0
+        translateY.value = 0
+        zoomLevel.value = 1
       }
     }
   })
@@ -217,7 +268,6 @@ function autoResizeDialog() {
 
 const store = useStore()
 const snackbar = computed(() => store.state.snackbar)
-const router = useRouter()
 
 const props = defineProps<{
   modelValue: boolean
@@ -243,10 +293,7 @@ const markdownContent = ref('')
 const isProcessing = ref(false)
 const success = ref(false)
 const scopeText = ref('')
-const lastEndIndex = ref(-1)
-const isRendering = ref(false)
-let fileIds = []
-const MAX_TREE_COUNT = 10
+let fileIds: number[] = []
 
 // —— 1. 初始化 Mermaid ——
 mermaid.initialize({ startOnLoad: false, theme: 'default' })
@@ -258,38 +305,76 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const info = token.info.trim()
   if (info === 'mermaid') {
     const code = token.content.trim()
-    return `<div class="mermaid">${code}</div>`
+    return `<div class=\"mermaid\">${code}</div>`
   }
   return self.renderToken(tokens, idx, options)
 }
 const renderedMarkdown = computed(() => md.render(markdownContent.value))
 
+// —— 辅助：去抖与定点渲染 ——
+const lastRenderedMermaid = ref('')
+let renderTimer: number | null = null
+let streamingClosedFence = false
+
+function extractMermaidCodeFromMarkdown(mdAll: string): { code: string; explanation: string } {
+  const m = mdAll.match(/```mermaid\s*([\s\S]*?)```/)
+  if (!m) return { code: '', explanation: '' }
+  const code = (m[1] || '').trim()
+  const explanation = mdAll.slice((m.index ?? 0) + m[0].length).trim()
+  return { code, explanation }
+}
+
+function scheduleRenderMermaid() {
+  if (renderTimer) {
+    window.clearTimeout(renderTimer)
+    renderTimer = null
+  }
+  isRenderingChart.value = true
+  renderTimer = window.setTimeout(async () => {
+    await renderMermaidOnce()
+  }, 200)
+}
+
+async function renderMermaidOnce() {
+  if (props.api !== 'flowChart') { isRenderingChart.value = false; return }
+  // 以增量解析得到的 code 为准
+  const code = mermaidCode.value || extractMermaidCodeFromMarkdown(markdownContent.value).code
+  if (!code) { isRenderingChart.value = false; return }
+  if (!streamingClosedFence) { isRenderingChart.value = false; return }
+  if (code === lastRenderedMermaid.value) { isRenderingChart.value = false; return }
+
+  // 大图懒加载策略
+  const estimatedNodes = (code.match(/\w+\s*\[/g) || []).length
+  const isLarge = code.length > 8000 || estimatedNodes > 120
+  if (isLarge && !userConfirmLarge.value) {
+    pendingLarge.value = true
+    isRenderingChart.value = false
+    return
+  }
+  pendingLarge.value = false
+
+  try {
+    mermaid.parse(code)
+    const { svg } = await mermaid.render('mmd-' + Date.now(), code)
+    if (mermaidContainer.value) {
+      mermaidContainer.value.innerHTML = svg
+      await nextTick()
+        autoResizeDialog()
+        applyZoom()
+      // 记录已渲染代码，避免重复渲染
+      lastRenderedMermaid.value = code
+    }
+  } catch (e) {
+    // 解析未通过时跳过
+  } finally {
+    isRenderingChart.value = false
+  }
+}
+
 // —— 3. Mermaid 渲染观察 ——
 watch(renderedMarkdown, async () => {
   if (props.api !== 'flowChart') return
-  await nextTick()
-  try {
-    mermaidContainer.value!.innerHTML = renderedMarkdown.value
-    const mdStr = renderedMarkdown.value
-    const openTag = '<div class="mermaid">'
-    const closeTag = '</div>'
-    const startIndex = mdStr.indexOf(openTag)
-    const endIndex = mdStr.indexOf(closeTag)
-    if (
-      startIndex !== -1 && endIndex !== -1 && startIndex < endIndex
-      && endIndex === lastEndIndex.value && !isRendering.value
-    ) {
-      mermaid.init(undefined, '.prose .mermaid')
-      applyZoom()
-      isRendering.value = true
-      // 渲染完成后自动调整窗口大小
-      setTimeout(() => {
-        autoResizeDialog()
-      }, 100)
-    }
-  } catch (e) {
-    console.error('Mermaid 渲染失败：', e)
-  }
+  scheduleRenderMermaid()
 })
 
 watch(visible, (val) => {
@@ -299,11 +384,9 @@ watch(visible, (val) => {
 
 async function exportDiagram() {
   if (!mermaidContainer.value) return
-
-  // html2canvas 会把 div（包含 SVG）渲染成一张图片
   const canvas = await html2canvas(mermaidContainer.value, {
-    scale: 2,            // 可选：提高分辨率
-    backgroundColor: 'white' // 不保留透明背景
+    scale: 2,
+    backgroundColor: 'white'
   })
   canvas.toBlob(blob => {
     if (!blob) return
@@ -318,14 +401,28 @@ async function exportDiagram() {
   })
 }
 
+function confirmRenderLarge() {
+  userConfirmLarge.value = true
+  scheduleRenderMermaid()
+}
+
 const reset = () => {
   scopeText.value = ''
   markdownContent.value = ''
   isProcessing.value = false
   success.value = false
-  lastEndIndex.value = -1
-  isRendering.value = false
+  lastRenderedMermaid.value = ''
+  if (renderTimer) {
+    window.clearTimeout(renderTimer)
+    renderTimer = null
+  }
+  streamingClosedFence = false
   fileIds = []
+  mermaidCode.value = ''
+  mermaidExplanation.value = ''
+  pendingLarge.value = false
+  userConfirmLarge.value = false
+  if (hoverTimer) { window.clearTimeout(hoverTimer); hoverTimer = null }
 }
 
 async function restartStreaming() {
@@ -334,17 +431,12 @@ async function restartStreaming() {
 }
 
 async function deleteReport() {
-  //二次确认
   if (!confirm('确定要删除报告吗？')) return
   for (let fileIdsKey in fileIds) {
     console.log('delete ', fileIds[fileIdsKey])
     await deleteFile(fileIds[fileIdsKey]).then(
-      () => {
-        store.dispatch('snackbar/showSnackbar', { message: '文件删除成功', color: 'success' })
-      },
-      (error) => {
-        store.dispatch('snackbar/showSnackbar', { message: '文件删除失败', color: 'error' })
-      }
+      () => { store.dispatch('snackbar/showSnackbar', { message: '文件删除成功', color: 'success' }) },
+      () => { store.dispatch('snackbar/showSnackbar', { message: '文件删除失败', color: 'error' }) }
     )
   }
   close()
@@ -354,18 +446,8 @@ async function deleteReport() {
 
 async function renderingMermaid() {
   if (props.api !== 'flowChart') return
-  await nextTick()
-  try {
-    mermaidContainer.value!.innerHTML = renderedMarkdown.value
-    mermaid.init(undefined, '.prose .mermaid')
-    applyZoom()
-    // 渲染完成后自动调整窗口大小
-    setTimeout(() => {
-      autoResizeDialog()
-    }, 100)
-  } catch (e) {
-    console.error('Mermaid 渲染失败：', e)
-  }
+  streamingClosedFence = true
+  await renderMermaidOnce()
 }
 
 async function startStreaming() {
@@ -375,61 +457,17 @@ async function startStreaming() {
     const repoID = parseInt(props.repoID)
     const without_code = !props.wholeCode
     let response
-    // 估算扫描时间：扫描每个文件平均需要n秒，则扫描props.count个文件需要props.count * n 秒
-    const min_n = 2
-    const max_n = 6
-    // 小数量后2位忽略，自动正则 秒 和 分钟 的转换
-    const minEstimatedTime = props.count * min_n < 60 ? props.count * min_n + '秒' : (props.count * min_n / 60).toFixed(0) + '分钟'
-    const maxEstimatedTime = props.count * max_n < 60 ? props.count * max_n + '秒' : (props.count * max_n / 60).toFixed(0) + '分钟'
     if (props.api  === 'deepResearch') {
-      const saved = loadRepoProgress(repoID);
-      if (saved != null) {
-        console.log('从 localStorage 读取进度', saved);
-        const progress = saved.indexProgress;
-        if (progress < 75 && props.count > MAX_TREE_COUNT) {
-          const confirmed = window.confirm(
-            `当前路径下需要分析${props.count}个代码文件，
-            检测到你对该仓库构建的索引量少于75%，如果从未构建过这个路径的索引，可能需要${minEstimatedTime}~${maxEstimatedTime}进行初始化，确定要继续吗？`
-          )
-          if (!confirmed) {
-            visible.value = false
-            return
-          }
-        }
-      }
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText.value}生成代码分析报告…`, color: 'info'
-      })
+      store.dispatch('snackbar/showSnackbar', { message: `正在异步${scopeText.value}生成代码分析报告…`, color: 'info' })
       response = await deepResearch(repoID, props.targetPath, without_code, true, props.config)
     } else if (props.api === 'commitsResearch') {
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText.value}生成提交记录分析报告…`, color: 'info'
-      })
+      store.dispatch('snackbar/showSnackbar', { message: `正在异步${scopeText.value}生成提交记录分析报告…`, color: 'info' })
       response = await commitsResearch(repoID, props.commitRecord, true)
     } else if (props.api === 'weeklyReport') {
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText.value}…`, color: 'info'
-      })
-      response = await generateWeeklyReport(repoID, props.startTime, props.endTime, true)
+      store.dispatch('snackbar/showSnackbar', { message: `正在异步${scopeText.value}…`, color: 'info' })
+      response = await generateWeeklyReport(repoID, props.startTime ?? '', props.endTime ?? '', true)
     } else {
-      const saved = loadRepoProgress(repoID);
-      if (saved != null) {
-        console.log('从 localStorage 读取进度', saved);
-        const progress = saved.indexProgress;
-        if (progress < 75 && props.count > MAX_TREE_COUNT) {
-          const confirmed = window.confirm(
-            `当前路径下需要分析${props.count}个代码文件，
-            检测到你对该仓库构建的索引量少于75%，如果从未构建过这个路径的索引，可能需要${minEstimatedTime}~${maxEstimatedTime}进行初始化，确定要继续吗？`
-          )
-          if (!confirmed) {
-            visible.value = false
-            return
-          }
-        }
-      }
-      store.dispatch('snackbar/showSnackbar', {
-        message: `正在异步${scopeText.value}生成流程图…`, color: 'info'
-      })
+      store.dispatch('snackbar/showSnackbar', { message: `正在异步${scopeText.value}生成流程图…`, color: 'info' })
       response = await flowChart(repoID, props.targetPath, without_code, true, props.config)
     }
     if (!response.body) throw new Error('Streaming not supported')
@@ -450,26 +488,25 @@ async function startStreaming() {
           .map(line => line.slice(5)).join('')
         if (!raw) continue
         const data = JSON.parse(raw)
-        if (data.title) {
-          scopeText.value += data.title
-        }
+        if (data.title) { scopeText.value += data.title }
         if (data.answer) {
           markdownContent.value += data.answer
+          if (props.api === 'flowChart') {
+            const { code, explanation } = extractMermaidCodeFromMarkdown(markdownContent.value)
+            mermaidCode.value = code
+            mermaidExplanation.value = explanation
+            const fenceCount = (markdownContent.value.match(/```mermaid|```/g) || []).length
+            streamingClosedFence = fenceCount >= 2 && fenceCount % 2 === 0
+            if (streamingClosedFence) scheduleRenderMermaid()
+          }
         }
         if (data.status === 200) {
           await renderingMermaid()
-          if (data.data.md_file_id !== 0) {
-            console.log('md_file_id', data.data.md_file_id)
-            fileIds.push(data.data.md_file_id)
-          }
-          if (data.data.doc_file_id !== 0) {
-            console.log('doc_file_id', data.data.doc_file_id)
-            fileIds.push(data.data.doc_file_id)
-          }
+          if (data.data && data.data.md_file_id !== 0) { fileIds.push(data.data.md_file_id) }
+          if (data.data && data.data.doc_file_id !== 0) { fileIds.push(data.data.doc_file_id) }
           success.value = true
           isProcessing.value = false
           reader.cancel()
-          console.log('finished!')
           break
         }
       }
@@ -500,14 +537,16 @@ async function startStreaming() {
 
 function close() {
   if (isProcessing.value == true && props.api!== 'flowChart') {
-    store.dispatch('snackbar/showSnackbar', {
-      message: '请等待当前任务完成',
-      color: 'error'
-    })
+    store.dispatch('snackbar/showSnackbar', { message: '请等待当前任务完成', color: 'error' })
     return
   }
   visible.value = false
 }
+
+onUnmounted(() => {
+  if (renderTimer) window.clearTimeout(renderTimer)
+  if (hoverTimer) window.clearTimeout(hoverTimer)
+})
 </script>
 
 <style scoped>
@@ -525,4 +564,171 @@ function close() {
 .mermaid-draggable:active {
   cursor: grabbing !important;
 }
+
+/* Tooltip 已移除 */
+
+
+/* Markdown内容样式 */
+.markdown-content {
+  padding: 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  line-height: 1.6;
+}
+
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3),
+.markdown-content :deep(h4),
+.markdown-content :deep(h5),
+.markdown-content :deep(h6) {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.markdown-content :deep(p) {
+  margin-bottom: 12px;
+}
+
+.markdown-content :deep(ul),
+.markdown-content :deep(ol) {
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+
+.markdown-content :deep(code) {
+  background-color: #eee;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+
+.markdown-content :deep(pre) {
+  background-color: #f0f0f0;
+  padding: 12px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.markdown-content :deep(blockquote) {
+  border-left: 4px solid #ddd;
+  padding-left: 16px;
+  color: #666;
+  margin: 12px 0;
+}
+
+.markdown-content :deep(a) {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.markdown-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.markdown-content :deep(table) {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.markdown-content :deep(th),
+.markdown-content :deep(td) {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+.markdown-content :deep(th) {
+  background-color: #f2f2f2;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* 模块基本信息卡片夜间模式 */
+  .detail-section .v-card.mb-4.pa-3 {
+    background-color: #23272e !important;
+    color: #e6e6e6 !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    border: 1px solid #2d333b;
+  }
+  .detail-section .v-card.mb-4.pa-3 h3 {
+    color: #fff !important;
+  }
+  .detail-section .v-card.mb-4.pa-3 p,
+  .detail-section .v-card.mb-4.pa-3 strong {
+    color: #e6e6e6 !important;
+  }
+  .detail-section .v-card.mb-4.pa-3 .v-icon {
+    filter: brightness(1.1);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .markdown-content {
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(h1),
+  .markdown-content :deep(h2),
+  .markdown-content :deep(h3),
+  .markdown-content :deep(h4),
+  .markdown-content :deep(h5),
+  .markdown-content :deep(h6) {
+    color: #fff;
+  }
+
+  .markdown-content :deep(p) {
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(ul),
+  .markdown-content :deep(ol) {
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(code) {
+    background-color: #2d333b;
+    color: #ffea70;
+  }
+
+  .markdown-content :deep(pre) {
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(blockquote) {
+    border-left: 4px solid #444c56;
+    color: #b3bac5;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .markdown-content :deep(a) {
+    color: #58a6ff;
+  }
+
+  .markdown-content :deep(a:hover) {
+    color: #91caff;
+  }
+
+  .markdown-content :deep(table) {
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(th),
+  .markdown-content :deep(td) {
+    border: 1px solid #444c56;
+    background-color: #23272e;
+    color: #e6e6e6;
+  }
+
+  .markdown-content :deep(th) {
+    background-color: #2d333b;
+    color: #fff;
+  }
+}
+
 </style>

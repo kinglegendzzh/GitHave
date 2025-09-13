@@ -316,7 +316,7 @@
                       outlined
                       @click="openImportDialog('repos')"
                     >
-                      💳 从仓库身份证一键导入
+                      💳 从仓库一键导入
                     </v-btn>
                     <v-btn color="primary" class="mt-3" outlined @click="addRepo"> 添加仓库 </v-btn>
                   </v-expansion-panel-text>
@@ -474,7 +474,7 @@
                 outlined
                 @click="openImportDialog('repos_daily')"
               >
-                💳 从仓库身份证一键订阅周刊
+                💳 从仓库一键订阅周刊
               </v-btn>
               <v-btn color="warning" class="mt-3" outlined @click="addWeeklyRepo"> 手动订阅 </v-btn>
             </v-form>

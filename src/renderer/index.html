@@ -5,30 +5,61 @@
   <title>GitHave</title>
   <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
   <meta
-    http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline';
-    img-src 'self' data: https:;
+  http-equiv="Content-Security-Policy"
+  content="
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: blob: https:;
     connect-src 'self'
-      http://127.0.0.1:19151
-      http://localhost:19151
-      http://127.0.0.1:19150
-      http://localhost:19150
-      http://127.0.0.1:5533
-      http://localhost:5533
-      http://127.0.0.1:5532
-      http://localhost:5532;"
-  />
+      http://127.0.0.1:19151 http://localhost:19151
+      http://127.0.0.1:19150 http://localhost:19150
+      http://127.0.0.1:5533  http://localhost:5533
+      http://127.0.0.1:5532  http://localhost:5532
+      http://127.0.0.1:5202  http://localhost:5202
+      https://githave.com https://www.githave.com https://api.githave.com
+      ws: wss:;
+    worker-src 'self' blob:;
+    frame-ancestors 'self';
+  "
+/>
   <style>
     /* 默认浅色模式 */
-    body {
-      margin: 0;
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
       font-family: sans-serif;
       background-color: #fff;
       color: #000;
+      overflow: hidden !important;
+      overflow-x: hidden !important;
+      overflow-y: hidden !important;
+      height: 100% !important;
+      width: 100% !important;
     }
+    
+    /* 强制隐藏所有滚动条 */
+    * {
+      overflow: visible;
+    }
+    
+    html {
+      overflow: hidden !important;
+    }
+    
+    body {
+      overflow: hidden !important;
+    }
+    
+    #app {
+      overflow: hidden !important;
+      height: 100vh !important;
+      width: 100vw !important;
+    }
+    
     /* 深色模式：使用 prefers-color-scheme 媒体查询自动切换 */
     @media (prefers-color-scheme: dark) {
-      body {
+      html, body {
         background-color: #111;
         color: #fff;
       }

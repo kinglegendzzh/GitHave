@@ -19,7 +19,7 @@ const instance_med = axios.create({
 
 const fm = axios.create({
   baseURL: 'http://127.0.0.1:5532/api',
-  timeout: 6 * 60 * 60 * 1000
+  timeout: 15000
 })
 
 const fm_long = axios.create({
@@ -36,6 +36,11 @@ const faiss = axios.create({
   baseURL: 'http://127.0.0.1:5533',
   timeout: 10000
 })
+
+// 工具函数：将路径转换为Unix格式
+const toUnixPath = (path) => {
+  return path.replace(/\\/g, '/')
+}
 
 export function pullRepo(data) {
   return instance_long.post('/repos/pull', data)
@@ -137,7 +142,7 @@ export function clearCommitsCache(repoID) {
  * @param search_mode
  * @param limit
  */
-export function searchCode(project_dir, query, search_mode, limit, strict = false ) {
+export function searchCode(project_dir, query, search_mode, limit, strict = false) {
   return fm_long.post('/search', {
     project_dir: project_dir,
     query: query,
@@ -166,6 +171,7 @@ export function listFunctions(project_dir, scan = false) {
  * @param relative_dir
  */
 export function buildIndex(project_dir, relative_dir) {
+  relative_dir = toUnixPath(relative_dir)
   return fm_long.post('/index', {
     project_dir: project_dir,
     relative_dir: relative_dir,
@@ -179,7 +185,7 @@ export function buildIndex(project_dir, relative_dir) {
  */
 export function deleteIndexApi(project_dir) {
   // axios.delete 不支持直接传 body，需要使用 data 字段
-  return fm_long.delete('/index', {
+  return fm.delete('/index', {
     data: {
       project_dir: project_dir // 必填
       // relative_dir: 'sub/dir',             // 可选
@@ -188,16 +194,65 @@ export function deleteIndexApi(project_dir) {
 }
 
 /**
+ * 删除部分索引
+ * @param project_dir
+ * @param relative_dir
+ */
+export function deleteIndexSomeApi(project_dir, relative_dir) {
+  relative_dir = toUnixPath(relative_dir)
+  return fm.delete('/index/some', {
+    data: {
+      project_dir: project_dir, // 必填
+      relative_dir: relative_dir // 必填
+    }
+  })
+}
+
+/**
  * 重置AI索引
  * @param project_dir
  */
-export function resetIndexApi(project_dir) {
+export function resetIndexApi(project_dir, relative_dir = '') {
   // axios.delete 不支持直接传 body，需要使用 data 字段
-  return fm_long.delete('/index/reset', {
+  relative_dir = toUnixPath(relative_dir)
+  return fm.delete('/index/reset', {
     data: {
-      project_dir: project_dir // 必填
-      // relative_dir: 'sub/dir',             // 可选
+      project_dir: project_dir, // 必填
+      relative_dir: relative_dir // 可选
     }
+  })
+}
+
+/**
+ * 刷新AI索引
+ * @param project_dir
+ */
+export function refreshIndexApi(project_dir) {
+  return fm.post('/index/refresh', {
+    project_dir: project_dir
+  })
+}
+
+// 检查索引
+export function checkIndexApi(project_dir, relative_dir) {
+  relative_dir = toUnixPath(relative_dir)
+  return fm.post('/index/check', {
+    project_dir: project_dir,
+    relative_dir: relative_dir
+  })
+}
+
+/**
+ * 列出项目的代码图谱信息
+ * POST /api/listGraph
+ * @param {string} project_dir - 项目目录路径
+ * @param {string} sub_path - 子路径（可选）
+ */
+export function listGraph(project_dir, sub_path = '') {
+  sub_path = toUnixPath(sub_path)
+  return fm_long.post('/listGraph', {
+    project_dir: project_dir,
+    sub_path: sub_path
   })
 }
 
@@ -246,12 +301,12 @@ export function deepResearch(repo_id, path, without_code, stream, config) {
     without_code: without_code,
     stream: stream
   }
-  
+
   // 如果提供了 config 参数，则添加到请求体中
   if (config) {
     requestBody.config = config
   }
-  
+
   return fetch('http://127.0.0.1:19151/ai/research', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -266,12 +321,12 @@ export function flowChart(repo_id, path, without_code, stream, config) {
     without_code: without_code,
     stream: stream
   }
-  
+
   // 如果提供了 config 参数，则添加到请求体中
   if (config) {
     requestBody.config = config
   }
-  
+
   return fetch('http://127.0.0.1:19151/ai/flowchart', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -302,11 +357,15 @@ export function commitsResearch(repoID, commitRecords, stream = false) {
  * @param {Array} commitRecords - 提交记录数组
  */
 export function exportCommitDetails(commitRecords) {
-  return instance.post('/ai/commits-details', {
-    commit_records: commitRecords
-  }, {
-    responseType: 'blob' // 用于处理文件下载
-  })
+  return instance.post(
+    '/ai/commits-details',
+    {
+      commit_records: commitRecords
+    },
+    {
+      responseType: 'blob' // 用于处理文件下载
+    }
+  )
 }
 
 /**
@@ -329,7 +388,6 @@ export function generateWeeklyReport(repoId, startTime, endTime, stream = false)
     })
   })
 }
-
 
 /* -------------------------- 文件操作 -------------------------- */
 // 删除文件
@@ -404,14 +462,14 @@ export function generateHeatmap(repoId, authorName, title, width, height, startT
   const data = {
     repo_id: repoId
   }
-  
+
   if (authorName) data.author_name = authorName
   if (title) data.title = title
   if (width) data.width = width
   if (height) data.height = height
   if (startTime) data.start_time = startTime
   if (endTime) data.end_time = endTime
-  
+
   return instance_long.post('/ai/generate-heatmap', data)
 }
 
@@ -426,10 +484,10 @@ export function generateContributionChart(repoId, startTime, endTime) {
   const data = {
     repo_id: repoId
   }
-  
+
   if (startTime) data.start_time = startTime
   if (endTime) data.end_time = endTime
-  
+
   return instance_long.post('/ai/generate-contribution-chart', data)
 }
 
@@ -444,4 +502,88 @@ export function faissHealthCheck() {
 
 export function fmHealthCheck() {
   return fm.get('/health')
+}
+
+/**
+ * 获取模块图谱
+ * POST /api/module-graphs
+ * @param {string} projectDir - 项目目录绝对路径
+ * @param {string} graphType - 图谱类型，可选值：flat/hierarchical/network/sunburst
+ */
+export function getModuleGraphs(projectDir, graphType) {
+  const data = {
+    project_dir: projectDir
+  }
+
+  if (graphType) {
+    data.graph_type = graphType
+  }
+
+  return fm.post('/module-graphs', data)
+}
+
+/**
+ * 更新模块图谱
+ * POST /api/module-graphs/update
+ * @param {string} projectDir - 项目目录绝对路径
+ */
+export function updateModuleGraphs(projectDir, skip_llm = false) {
+  return fm_long.post('/module-graphs/update', {
+    project_dir: projectDir,
+    skip_llm: skip_llm
+  })
+}
+
+/**
+ * 查询模块分析任务状态
+ * POST /api/module-graphs/status
+ * @param {string} task_id - 任务ID
+ */
+export function getModuleGraphTaskStatus(task_id = '', project_dir = '') {
+  return fm.post('/module-graphs/status', {
+    task_id: task_id,
+    project_dir: project_dir
+  })
+}
+
+/**
+ * 删除模块分析记录
+ * POST /api/module-graphs/delete
+ * @param {string} projectDir - 项目目录绝对路径
+ */
+export function deleteModuleGraphs(projectDir) {
+  return fm.post('/module-graphs/delete', {
+    project_dir: projectDir
+  })
+}
+
+/**
+ * 重置模块分析记录
+ * POST /api/module-graphs/reset
+ * @param {string} projectDir - 项目目录绝对路径
+ */
+export function resetModuleGraphs(projectDir) {
+  return fm.post('/module-graphs/reset', {
+    project_dir: projectDir
+  })
+}
+
+/**
+ * 获取函数详细信息
+ * POST /api/function-info
+ * @param {string} projectDir - 项目根目录路径
+ * @param {string} filePath - 文件相对路径
+ * @param {string} packageName - 包名（可选）
+ * @param {string} functionName - 函数名（可选）
+ */
+export function getFunctionInfo(projectDir, filePath, packageName = '', functionName = '') {
+  const data = {
+    project_dir: projectDir,
+    file_path: toUnixPath(filePath)
+  }
+  
+  if (packageName) data.package = packageName
+  if (functionName) data.function_name = functionName
+  
+  return fm.post('/function-info', data)
 }

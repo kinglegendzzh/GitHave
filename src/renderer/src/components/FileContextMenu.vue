@@ -7,15 +7,12 @@
     attach="body"
     :style="{ top: y + 'px', left: x + 'px' }"
     transition="fab-transition"
+    class="fcmenu"
   >
     <v-list dense>
-      <v-list-item
-        v-for="(item, index) in menuItems"
-        :key="index"
-        @click="handleItemClick(item)"
-      >
+      <v-list-item v-for="(item, index) in menuItems" :key="index" @click="handleItemClick(item)">
         <template v-if="item.icon" #prepend>
-          <v-icon>{{ item.icon }}</v-icon>
+          <v-icon :color="item.color">{{ item.icon }}</v-icon>
         </template>
         <v-list-item-title>{{ item.title }}</v-list-item-title>
       </v-list-item>
@@ -76,7 +73,7 @@ export default {
         item.action()
       }
       this.hide()
-    },
+    }
   }
 }
 </script>
@@ -84,5 +81,8 @@ export default {
 <style scoped>
 .v-menu {
   display: inline-block;
+}
+.fcmenu {
+  border-radius: 10px;
 }
 </style>

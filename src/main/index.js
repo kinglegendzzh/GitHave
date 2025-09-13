@@ -78,16 +78,22 @@ function registerProtocol() {
     return
   }
   // 开发态：传入可执行路径和入口脚本路径
-  // 对 electron-vite：argv[1] 通常是 your .js 入口
+  // 修复：只传入主入口文件，避免参数过长导致socket消息错误
   const exe = process.execPath
-  const entry = path.resolve(process.argv[1] || '')
+  const entry = path.resolve(__dirname, '../main/index.js')
+  console.log('[registerProtocol] 开发环境协议注册:', { exe, entry })
   app.setAsDefaultProtocolClient(PROTOCOL, exe, [entry])
 }
 
 // ---- 解析 & 排队
 function queueDeepLink(raw) {
-  if (!raw) return
+  console.log('[queueDeepLink] 收到深链接:', raw)
+  if (!raw) {
+    console.log('[queueDeepLink] 深链接为空，跳过')
+    return
+  }
   pendingDeepLinks.push(raw)
+  console.log('[queueDeepLink] 深链接已入队，当前队列长度:', pendingDeepLinks.length)
   dispatchDeepLinks() // 若窗口已就绪会立即派发
 }
 
@@ -102,6 +108,8 @@ function parseDeepLink(raw) {
       // pathname 可能是 "/open" 或 "/open/xxx"
       route = (u.pathname || '').replace(/^\/+/, '').split('/')[0]
     }
+    
+    // 通用参数
     const repo = u.searchParams.get('repo') || ''
     const tab = u.searchParams.get('tab') || ''
     const token = u.searchParams.get('token') || ''
@@ -110,7 +118,22 @@ function parseDeepLink(raw) {
     const email = u.searchParams.get('email') || ''
     const timestamp = u.searchParams.get('timestamp') || ''
     const verified = u.searchParams.get('verified') || ''
-    return { route, repo, tab, token, user_id, username, email, timestamp, verified, raw }
+    
+    // 导入索引操作参数
+    const github = u.searchParams.get('github') || ''
+    const download = u.searchParams.get('download') || ''
+    const filename = u.searchParams.get('filename') || ''
+    
+    // 克隆仓库操作参数
+     const owner = u.searchParams.get('owner') || ''
+     const branch = u.searchParams.get('branch') || ''
+     const description = u.searchParams.get('description') || ''
+     const isPrivate = u.searchParams.get('private') === 'true'
+     
+     return { 
+       route, repo, tab, token, user_id, username, email, timestamp, verified, 
+       github, download, filename, owner, branch, description, isPrivate, raw 
+     }
   } catch (e) {
     console.error('[deeplink] invalid url:', raw, e)
     return {
@@ -123,20 +146,45 @@ function parseDeepLink(raw) {
       email: '',
       timestamp: '',
       verified: '',
-      raw
+      github: '',
+       download: '',
+       filename: '',
+       owner: '',
+       branch: '',
+       description: '',
+       isPrivate: false,
+       raw
     }
   }
 }
 
 function dispatchDeepLinks() {
+  console.log('[dispatchDeepLinks] 开始派发深链接，待处理数量:', pendingDeepLinks.length)
   const win = BrowserWindow.getAllWindows()[0]
-  if (!win) return // 等窗口创建好再派发
+  if (!win) {
+    console.log('[dispatchDeepLinks] 窗口未创建，等待窗口创建后再派发')
+    return // 等窗口创建好再派发
+  }
 
-  if (pendingDeepLinks.length === 0) return
+  if (pendingDeepLinks.length === 0) {
+    console.log('[dispatchDeepLinks] 没有待处理的深链接')
+    return
+  }
+  
   const batch = pendingDeepLinks.splice(0, pendingDeepLinks.length)
+  console.log('[dispatchDeepLinks] 准备派发深链接批次:', batch)
+  
   for (const raw of batch) {
     const payload = parseDeepLink(raw)
-    win.webContents.send('protocol-url', payload)
+    console.log('[dispatchDeepLinks] 发送协议回调到前端:', payload)
+    
+    // 检查webContents是否可用
+    if (win.webContents && !win.webContents.isDestroyed()) {
+      win.webContents.send('protocol-url', payload)
+      console.log('[dispatchDeepLinks] 协议回调已发送')
+    } else {
+      console.error('[dispatchDeepLinks] webContents不可用或已销毁')
+    }
   }
   focusMainWindow()
 }

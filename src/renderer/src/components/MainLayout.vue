@@ -4,35 +4,14 @@
     <v-navigation-drawer
       v-model="drawer"
       app
-      :rail="isRailMode"
+      rail
       :dark="isDark"
       :color="isDark ? 'black' : 'white'"
       :style="isWindows ? '' : 'padding-top: 20px'"
-      width="250"
-      class="drag-region"
+      width="72"
+      class="drag-region app-drawer"
     >
       <v-list dense>
-        <v-list-item class="no-drag-region" @click="toggleDrawer">
-          <v-tooltip activator="parent" location="end">
-            {{ isRailMode ? '点我展开' : '点我折叠' }}
-          </v-tooltip>
-          <template #prepend>
-            <v-avatar>
-              <v-img :src="bannerSrc"></v-img>
-            </v-avatar>
-          </template>
-          <v-list-item-title
-            :class="{ 'text-white': isDark, 'text-black': !isDark }"
-            style="font-size: 1rem; user-select: none; pointer-events: none"
-          >
-            <span v-if="!isDark">
-              <v-img style="width: 110px; height: auto" :src="titleSrc"></v-img>
-            </span>
-            <span v-else>
-              <v-img style="width: 110px; height: auto" :src="titleNSrc"></v-img>
-            </span>
-          </v-list-item-title>
-        </v-list-item>
 
         <v-divider></v-divider>
 
@@ -42,7 +21,6 @@
             v-if="!item.children"
             class="no-drag-region"
             :prepend-icon="item.icon"
-            :title="item.title"
             :class="{ 'text-white': isDark, 'text-black': !isDark }"
             size="medium"
             active-class="active-link"
@@ -55,130 +33,168 @@
             </v-tooltip>
           </v-list-item>
 
-          <!-- 有子菜单时的处理 -->
-          <template v-if="item.children">
-            <!-- rail模式下使用悬浮菜单 -->
-            <v-menu
-              v-if="isRailMode"
-              :key="`${item.title}-menu-${index}`"
-              :close-on-content-click="false"
-              location="end"
-              offset="10"
-              :disabled="item.disabled"
-            >
-              <template #activator="{ props }">
-                <v-list-item
-                  class="no-drag-region"
-                  v-bind="props"
-                  :prepend-icon="item.icon"
-                  :title="''"
-                  :class="{ 'text-white': isDark, 'text-black': !isDark }"
-                  size="medium"
-                  active-class="active-link"
-                  :active="isParentMenuActive(item)"
-                  :disabled="item.disabled"
-                >
-                  <v-tooltip activator="parent" location="end">
-                    {{ item.title }}
-                  </v-tooltip>
-                </v-list-item>
-              </template>
-              <v-list
-                :bg-color="isDark ? 'black' : 'white'"
+          <!-- 有子菜单时使用悬浮菜单 -->
+          <v-menu
+            v-if="item.children"
+            :key="`${item.title}-menu-${index}`"
+            :close-on-content-click="false"
+            location="end"
+            offset="10"
+            :disabled="item.disabled"
+          >
+            <template #activator="{ props }">
+              <v-list-item
+                class="no-drag-region"
+                v-bind="props"
+                :prepend-icon="item.icon"
                 :class="{ 'text-white': isDark, 'text-black': !isDark }"
-                density="compact"
+                size="medium"
+                active-class="active-link"
+                :active="isParentMenuActive(item)"
+                :disabled="item.disabled"
               >
-                <v-list-item
-                  v-for="(child, i) in item.children"
-                  :key="`${item.title}-${i}`"
-                  :prepend-icon="child.icon"
-                  :title="child.title"
-                  :class="{ 'text-white': isDark, 'text-black': !isDark }"
-                  size="small"
-                  active-class="active-link"
-                  :active="$route.path === child.to"
-                  :disabled="child.disabled"
-                  @click="handleNav(child)"
-                ></v-list-item>
-              </v-list>
-            </v-menu>
-            <!-- 非rail模式下使用原来的v-list-group -->
-            <v-list-group
-              v-else
-              :id="`group-${item.title}-${index}`"
-              :key="`${item.title}-group-${index}`"
-              class="no-drag-region"
-              :prepend-icon="item.icon"
-              @update:value="updateGroupState(item, $event)"
+                <v-tooltip activator="parent" location="end">
+                  {{ item.title }}
+                </v-tooltip>
+              </v-list-item>
+            </template>
+            <v-list
+              :bg-color="isDark ? 'black' : 'white'"
+              :class="{ 'text-white': isDark, 'text-black': !isDark }"
+              density="compact"
             >
-              <template #activator="{ props }">
-                <v-list-item
-                  class="no-drag-region"
-                  v-bind="props"
-                  :title="item.title"
-                  :class="{ 'text-white': isDark, 'text-black': !isDark }"
-                ></v-list-item>
-              </template>
-              <!-- 遍历子菜单 -->
               <v-list-item
                 v-for="(child, i) in item.children"
                 :key="`${item.title}-${i}`"
-                class="no-drag-region"
                 :prepend-icon="child.icon"
                 :title="child.title"
                 :class="{ 'text-white': isDark, 'text-black': !isDark }"
-                size="medium"
+                size="small"
                 active-class="active-link"
                 :active="$route.path === child.to"
                 :disabled="child.disabled"
                 @click="handleNav(child)"
               ></v-list-item>
-            </v-list-group>
-          </template>
+            </v-list>
+          </v-menu>
         </template>
+
+        <v-divider class="my-2"></v-divider>
+
+        <!-- 功能按钮区域 -->
+        <!-- 环境状态 -->
+        <v-list-item class="no-drag-region" @click="goToConfig">
+          <v-tooltip activator="parent" location="end"> 环境配置 </v-tooltip>
+          <template #prepend>
+            <v-icon :color="healthChipColor" size="small">{{ healthChipIcon }}</v-icon>
+          </template>
+        </v-list-item>
+
+        <!-- 核心服务 -->
+        <v-list-item class="no-drag-region" :disabled="isTogglingApp" @click="coreDialog = true">
+          <v-tooltip activator="parent" location="end"> 核心服务管理 </v-tooltip>
+          <template #prepend>
+            <v-icon :color="chipColor" size="small">{{ chipIcon }}</v-icon>
+          </template>
+        </v-list-item>
+
+        <!-- 索引服务 -->
+        <v-list-item class="no-drag-region" :disabled="isTogglingFm" @click="fmDialog = true">
+          <v-tooltip activator="parent" location="end"> 索引服务管理 </v-tooltip>
+          <template #prepend>
+            <v-icon :color="fmHttpChipColor" size="small">{{ fmHttpChipIcon }}</v-icon>
+          </template>
+        </v-list-item>
+
+        <!-- 重新加载 -->
+        <v-list-item class="no-drag-region" @click="reloadPage">
+          <v-tooltip activator="parent" location="end"> 重新加载 </v-tooltip>
+          <template #prepend>
+            <v-icon size="small">mdi-refresh</v-icon>
+          </template>
+        </v-list-item>
+
+        <!-- 重启所有服务 -->
+        <v-list-item
+          class="no-drag-region"
+          :disabled="isRestarting"
+          @click="handleRestartService('both')"
+        >
+          <v-tooltip activator="parent" location="end"> 重启所有服务 </v-tooltip>
+          <template #prepend>
+            <v-icon size="small">mdi-laptop</v-icon>
+          </template>
+        </v-list-item>
+
+        <!-- 切换显示模式 -->
+        <v-list-item class="no-drag-region" @click="toggleCompactMode">
+          <v-tooltip activator="parent" location="end">
+            {{ isCompactMode ? '切换到标准显示' : '切换到紧凑显示' }}
+          </v-tooltip>
+          <template #prepend>
+            <v-icon size="small">{{
+              isCompactMode ? 'mdi-magnify-plus' : 'mdi-magnify-minus'
+            }}</v-icon>
+          </template>
+        </v-list-item>
+
+        <!-- 控制台 -->
+        <v-list-item class="no-drag-region" @click="toggleLogConsole">
+          <v-tooltip activator="parent" location="end"> 打开控制台 </v-tooltip>
+          <template #prepend>
+            <v-icon size="small">mdi-console</v-icon>
+          </template>
+        </v-list-item>
       </v-list>
     </v-navigation-drawer>
 
-    <!-- 顶部工具栏 - 自定义紧凑版 -->
-    <div class="custom-toolbar drag-region" :class="{ 'dark-toolbar': isDark }">
-      <!-- 中间区域：状态指示器 -->
-      <div class="toolbar-center">
-        <div class="toolbar-nav-buttons no-drag-region">
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-btn
-                variant="flat"
-                density="compact"
-                class="toolbar-btn"
-                v-bind="props"
-                @click="goBack"
-              >
-                <v-icon size="small">mdi-arrow-left</v-icon>
-              </v-btn>
-            </template>
-            <span>返回上一步</span>
-          </v-tooltip>
-          <div class="toolbar-title ml-2 mr-2">{{ currentTitle }}</div>
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-btn
-                variant="flat"
-                density="compact"
-                class="toolbar-btn"
-                v-bind="props"
-                @click="goNext"
-              >
-                <v-icon size="small">mdi-arrow-right</v-icon>
-              </v-btn>
-            </template>
-            <span>下一步</span>
-          </v-tooltip>
+    <!-- 顶部标签栏 -->
+    <div class="tabs-toolbar drag-region" :class="{ 'dark-toolbar': isDark }">
+      <div class="tabs-container no-drag-region">
+        <!-- 导航：返回 / 前进 -->
+        <div class="toolbar-nav-buttons mr-2">
+          <v-btn size="small" variant="text" :disabled="!canGoBack" @click="goBackCurrentTab">
+            <v-icon size="small">mdi-arrow-left</v-icon>
+          </v-btn>
+          <v-btn size="small" variant="text" :disabled="!canGoForward" @click="goForwardCurrentTab">
+            <v-icon size="small">mdi-arrow-right</v-icon>
+          </v-btn>
+        </div>
+        <v-tabs
+          v-if="openTabs.length > 0"
+          v-model="activeTabIndex"
+          density="compact"
+          height="40"
+          show-arrows
+          class="tabs-wrapper"
+        >
+          <v-tab
+            v-for="(tab, index) in openTabs"
+            :key="tab.id"
+            :value="index"
+            class="tab-item"
+            @click="switchToTab(tab)"
+          >
+            <v-icon v-if="tab.icon" size="small" class="mr-2">{{ tab.icon }}</v-icon>
+            <span class="tab-text">{{ tab.title }}</span>
+            <v-btn
+              v-if="tab.closable && openTabs.length > 1"
+              size="x-small"
+              variant="text"
+              class="tab-close-btn ml-2"
+              @click.stop="closeTab(index)"
+            >
+              <v-icon size="12">mdi-close</v-icon>
+            </v-btn>
+          </v-tab>
+        </v-tabs>
+        <div v-else class="empty-tabs">
+          <span class="text-caption text-medium-emphasis">暂无打开的页面</span>
         </div>
       </div>
 
-      <!-- 右侧区域 -->
+      <!-- 右侧主题指示器 -->
       <div class="toolbar-right no-drag-region">
-        <!-- 显示当前主题状态（只读） -->
         <v-chip
           class="theme-chip"
           :color="isDark ? 'grey-darken-2' : 'grey-lighten-2'"
@@ -190,130 +206,6 @@
           </v-icon>
           <span class="theme-chip-text text-caption">{{ isDark ? '晚上好' : '天亮了' }}</span>
         </v-chip>
-        <!-- 状态指示器 -->
-        <div class="status-chips ml-2">
-          <!-- 健康状态显示 -->
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-chip
-                v-bind="props"
-                :color="healthChipColor"
-                text-color="white"
-                density="compact"
-                class="status-chip no-drag-region"
-                @click="goToConfig"
-              >
-                <v-icon size="x-small">{{ healthChipIcon }}</v-icon>
-                <span class="chip-text">环境</span>
-              </v-chip>
-            </template>
-            <span>点我配置环境</span>
-          </v-tooltip>
-
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-chip
-                v-bind="props"
-                :color="chipColor"
-                text-color="white"
-                density="compact"
-                class="status-chip no-drag-region"
-                :disabled="isTogglingApp"
-                @click="coreDialog = true"
-              >
-                <v-icon size="x-small">{{ chipIcon }}</v-icon>
-                <span class="chip-text">核心</span>
-              </v-chip>
-            </template>
-            <span>点我操作核心服务</span>
-          </v-tooltip>
-
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-chip
-                v-bind="props"
-                :color="fmHttpChipColor"
-                text-color="white"
-                density="compact"
-                class="status-chip no-drag-region"
-                :disabled="isTogglingFm"
-                @click="fmDialog = true"
-              >
-                <v-icon size="x-small">{{ fmHttpChipIcon }}</v-icon>
-                <span class="chip-text">索引</span>
-              </v-chip>
-            </template>
-            <span>点我操作索引服务</span>
-          </v-tooltip>
-        </div>
-
-        <!-- 工具按钮组 -->
-        <div class="toolbar-actions">
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                variant="tonal"
-                density="compact"
-                class="toolbar-btn"
-                @click="reloadPage"
-              >
-                <v-icon size="small">mdi-refresh</v-icon>
-              </v-btn>
-            </template>
-            <span>重新加载</span>
-          </v-tooltip>
-
-          <!-- 核心服务和索引服务按钮已移至中间状态指示区域 -->
-
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                density="compact"
-                class="toolbar-btn"
-                :disabled="isRestarting"
-                variant="tonal"
-                @click="handleRestartService('both')"
-              >
-                <v-icon size="small">mdi-laptop</v-icon>
-              </v-btn>
-            </template>
-            <span>重启所有服务</span>
-          </v-tooltip>
-
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                density="compact"
-                class="toolbar-btn"
-                variant="tonal"
-                @click="toggleCompactMode"
-              >
-                <v-icon v-if="isCompactMode" size="small">mdi-magnify-plus</v-icon>
-                <v-icon v-else size="small">mdi-magnify-minus</v-icon>
-              </v-btn>
-            </template>
-            <span>{{ isCompactMode ? '切换到标准显示' : '切换到紧凑显示' }}</span>
-          </v-tooltip>
-
-          <!-- 控制台按钮 -->
-          <v-tooltip bottom>
-            <template #activator="{ props }">
-              <v-btn
-                v-bind="props"
-                density="compact"
-                class="toolbar-btn"
-                variant="tonal"
-                @click="toggleLogConsole"
-              >
-                <v-icon size="small">mdi-console</v-icon>
-              </v-btn>
-            </template>
-            <span>打开控制台</span>
-          </v-tooltip>
-        </div>
       </div>
     </div>
     <!-- 主体区域：条件渲染 router-view 或加载状态 -->
@@ -424,7 +316,7 @@
               'IDE'
             ]"
           >
-            <component :is="Component" />
+            <component :is="Component" :key="viewCacheKey" />
           </keep-alive>
         </Suspense>
       </RouterView>
@@ -708,7 +600,7 @@
     />
 
     <!-- 导入索引确认弹窗 -->
-    <v-dialog v-model="importDialog" :key="'import-'+dialogNonce" max-width="600px" persistent>
+    <v-dialog :key="'import-' + dialogNonce" v-model="importDialog" max-width="600px" persistent>
       <v-card>
         <v-card-title class="d-flex align-center pa-4">
           <v-icon class="mr-2" color="primary">mdi-download</v-icon>
@@ -754,7 +646,7 @@
     </v-dialog>
 
     <!-- 克隆仓库确认弹窗 -->
-    <v-dialog v-model="cloneDialog" :key="'clone-'+dialogNonce" max-width="600px" persistent>
+    <v-dialog :key="'clone-' + dialogNonce" v-model="cloneDialog" max-width="600px" persistent>
       <v-card>
         <v-card-title class="d-flex align-center pa-4">
           <v-icon class="mr-2" color="success">mdi-git</v-icon>
@@ -792,7 +684,7 @@
               <strong>描述：</strong>
               <p class="text-body-2 mt-1">{{ operationData.description }}</p>
             </div>
-            
+
             <!-- 路径选择选项 -->
             <div class="mb-3">
               <v-radio-group v-model="cloneMode" inline>
@@ -800,14 +692,14 @@
                 <v-radio label="自定义目录" value="custom"></v-radio>
               </v-radio-group>
             </div>
-            
+
             <!-- 默认路径显示 -->
             <div v-if="cloneMode === 'quick'" class="mb-2">
               <p class="text-body-2 text-grey-600">
                 <strong>本地路径：</strong> 你的用户根目录/githave/{{ operationData.repo }}
               </p>
             </div>
-            
+
             <!-- 自定义目录选择 -->
             <div v-if="cloneMode === 'custom'" class="mb-2">
               <v-text-field
@@ -817,9 +709,9 @@
                 variant="outlined"
                 density="compact"
                 append-inner-icon="mdi-folder-open"
+                placeholder="点击选择目录"
                 @click:append-inner="selectCloneDirectory"
                 @click="selectCloneDirectory"
-                placeholder="点击选择目录"
               ></v-text-field>
               <p v-if="customClonePath" class="text-body-2 text-grey-600 mt-1">
                 <strong>完整路径：</strong> {{ customClonePath }}/{{ operationData.repo }}
@@ -858,7 +750,7 @@
               rounded
             ></v-progress-linear>
             <p class="text-caption mt-2">{{ progressValue }}%</p>
-            
+
             <!-- 网络速度显示 -->
             <div v-if="networkSpeed.show" class="mt-3 pa-2 bg-grey-lighten-5 rounded">
               <div class="d-flex justify-space-between align-center mb-1">
@@ -917,7 +809,12 @@
     </v-dialog>
 
     <!-- 仓库选择弹窗 -->
-    <v-dialog v-model="repoSelectionDialog" :key="'repo-select-'+dialogNonce" max-width="600px" persistent>
+    <v-dialog
+      :key="'repo-select-' + dialogNonce"
+      v-model="repoSelectionDialog"
+      max-width="600px"
+      persistent
+    >
       <v-card>
         <v-card-title class="d-flex align-center pa-4">
           <v-icon class="mr-2" color="primary">mdi-source-repository</v-icon>
@@ -999,7 +896,11 @@ export default {
       isTogglingApp: false, // 核心服务按钮防连点
       isTogglingFm: false, // 索引服务按钮防连点
       isCompactMode: true, // 紧凑模式开关
-      isRailMode: true, // 侧边栏rail模式开关
+      // 标签页管理
+      openTabs: [], // 打开的标签页列表
+      lastNavigatedTabId: null, // 记录最近一次导航的标签ID，用于重复路由时定位激活标签
+      activeTabIndex: 0, // 当前激活的标签页索引
+      tabIdCounter: 0, // 标签页ID计数器
       // 健康状态枚举：支持 "正在重启"、"已关闭"、"已启动"
       toggleAppTip: '强制关闭核心服务',
       appHealthState: '正在重启',
@@ -1108,6 +1009,22 @@ export default {
     }
   },
   computed: {
+    canGoBack() {
+      const tab = this.openTabs[this.activeTabIndex]
+      if (!tab || !tab.history) return false
+      return tab.history.index > 0
+    },
+    canGoForward() {
+      const tab = this.openTabs[this.activeTabIndex]
+      if (!tab || !tab.history) return false
+      return tab.history.index < tab.history.stack.length - 1
+    },
+    // 当前活动标签的唯一缓存键（标签ID + 路由完整路径）
+    viewCacheKey() {
+      const tabId = this.openTabs[this.activeTabIndex]?.id || 0
+      const routeKey = this.$route.fullPath || this.$route.path
+      return `${tabId}:${routeKey}`
+    },
     antStepStatusMap() {
       return { pending: 'wait', running: 'process', completed: 'finish', error: 'error' }
     },
@@ -1218,43 +1135,20 @@ export default {
     omitDesc(str, limit) {
       return omit(str, limit)
     },
-    loadSidebarState() {
-      try {
-        const savedState = localStorage.getItem('githave-sidebar-state')
-        if (savedState) {
-          const state = JSON.parse(savedState)
-          this.drawer = state.drawer !== undefined ? state.drawer : true
-          this.isRailMode = state.isRailMode !== undefined ? state.isRailMode : false
+    // 初始化默认标签页
+    initializeDefaultTab() {
+      // 如果没有打开的标签页，创建默认的首页标签
+      if (this.openTabs.length === 0) {
+        const defaultTab = {
+          id: ++this.tabIdCounter,
+          title: '快速开始',
+          to: '/start',
+          icon: 'mdi-home',
+          closable: false // 默认标签页不可关闭
         }
-      } catch (error) {
-        console.warn('Failed to load sidebar state from localStorage:', error)
-        // 使用默认值
-        this.drawer = true
-        this.isRailMode = false
+        this.openTabs.push(defaultTab)
+        this.activeTabIndex = 0
       }
-    },
-    saveSidebarState() {
-      try {
-        const state = {
-          drawer: this.drawer,
-          isRailMode: this.isRailMode
-        }
-        localStorage.setItem('githave-sidebar-state', JSON.stringify(state))
-      } catch (error) {
-        console.warn('Failed to save sidebar state to localStorage:', error)
-      }
-    },
-    toggleDrawer() {
-      if (!this.isRailMode) {
-        this.drawer = true
-        this.isRailMode = true
-      } else {
-        // 如果当前是关闭状态，直接展开
-        this.drawer = true
-        this.isRailMode = false
-      }
-      // 保存状态到localStorage
-      this.saveSidebarState()
     },
     goBack() {
       // 保存当前操作到导航历史
@@ -1415,8 +1309,84 @@ export default {
         this.saveNavigationToHistory(item)
       }
 
-      // 其他路由，使用 Vue Router 正常跳转
+      // 创建新标签页（允许重复路由）
+      this.openTab(item)
+    },
+
+    // 打开新标签页（允许重复路由）
+    openTab(item) {
+      const newTab = {
+        id: ++this.tabIdCounter,
+        title: item.title,
+        to: item.to,
+        icon: item.icon,
+        closable: true,
+        history: { stack: [item.to], index: 0 }
+      }
+
+      this.openTabs.push(newTab)
+      this.activeTabIndex = this.openTabs.length - 1
+      this.lastNavigatedTabId = newTab.id
+
+      // 跳转到新页面（路由相同也可重复打开）
       this.$router.push(item.to)
+    },
+
+    // 切换到指定标签页
+    switchToTab(tab) {
+      this.lastNavigatedTabId = tab.id
+      const target = tab.history?.stack?.[tab.history.index] || tab.to
+      tab.to = target
+      this.$router.push(target)
+    },
+
+    // 当前标签返回
+    goBackCurrentTab() {
+      const tab = this.openTabs[this.activeTabIndex]
+      if (!tab || !tab.history) return
+      if (tab.history.index > 0) {
+        tab.history.index -= 1
+        const target = tab.history.stack[tab.history.index]
+        tab.to = target
+        this.lastNavigatedTabId = tab.id
+        this.$router.push(target)
+      }
+    },
+    // 当前标签前进
+    goForwardCurrentTab() {
+      const tab = this.openTabs[this.activeTabIndex]
+      if (!tab || !tab.history) return
+      if (tab.history.index < tab.history.stack.length - 1) {
+        tab.history.index += 1
+        const target = tab.history.stack[tab.history.index]
+        tab.to = target
+        this.lastNavigatedTabId = tab.id
+        this.$router.push(target)
+      }
+    },
+
+    // 关闭标签页
+    closeTab(index) {
+      if (this.openTabs.length <= 1) {
+        return // 至少保留一个标签页
+      }
+
+      this.openTabs.splice(index, 1)
+
+      // 如果关闭的是当前激活的标签页
+      if (index === this.activeTabIndex) {
+        // 如果关闭的是最后一个标签页，激活前一个
+        if (index >= this.openTabs.length) {
+          this.activeTabIndex = this.openTabs.length - 1
+        }
+        // 切换到新的激活标签页
+        if (this.openTabs[this.activeTabIndex]) {
+          this.switchToTab(this.openTabs[this.activeTabIndex])
+        }
+      } else if (index < this.activeTabIndex) {
+        // 如果关闭的标签页在当前激活标签页之前，调整索引
+        this.activeTabIndex--
+      }
     },
     async toggleCompactMode() {
       this.isCompactMode = !this.isCompactMode
@@ -2061,7 +2031,7 @@ export default {
         dialogNonce: this.dialogNonce,
         operationData: this.operationData
       })
-      
+
       // 关闭所有相关对话框
       this.importDialog = false
       this.cloneDialog = false
@@ -2084,7 +2054,7 @@ export default {
 
       // bump 一个 key，强制下次对话框重挂载
       this.dialogNonce++
-      
+
       console.log('🔄 [DEBUG] 重置后状态:', {
         importDialog: this.importDialog,
         cloneDialog: this.cloneDialog,
@@ -2159,7 +2129,7 @@ export default {
       // 只负责赋值 + 打开
       this.operationData = data
       this.importDialog = true
-      
+
       console.log('📥 [DEBUG] 设置操作数据后状态:', {
         operationData: this.operationData,
         importDialog: this.importDialog
@@ -2175,13 +2145,13 @@ export default {
         operationData: this.operationData,
         importDialog: this.importDialog
       })
-      
+
       if (this.__busyConfirmImport) {
         console.log('✅ [DEBUG] 操作正在进行中，跳过')
         return
       }
       this.__busyConfirmImport = true
-      
+
       try {
         console.log('✅ [DEBUG] 开始确认导入操作')
         this.importDialog = false
@@ -2301,7 +2271,7 @@ export default {
       // 只负责赋值 + 打开
       this.operationData = data
       this.cloneDialog = true
-      
+
       console.log('📦 [DEBUG] 设置操作数据后状态:', {
         operationData: this.operationData,
         cloneDialog: this.cloneDialog
@@ -2319,13 +2289,13 @@ export default {
         cloneMode: this.cloneMode,
         customClonePath: this.customClonePath
       })
-      
+
       if (this.__busyConfirmClone) {
         console.log('✅ [DEBUG] 克隆操作正在进行中，跳过')
         return
       }
       this.__busyConfirmClone = true
-      
+
       try {
         console.log('✅ [DEBUG] 开始确认克隆操作')
         // 检查自定义模式下是否选择了目录
@@ -2337,7 +2307,7 @@ export default {
           })
           return
         }
-        
+
         console.log('✅ [DEBUG] 关闭克隆弹窗，开始执行克隆操作')
         this.cloneDialog = false
         await this.executeCloneOperation(this.operationData)
@@ -2385,17 +2355,25 @@ export default {
         this.progressValue = 30
 
         // 2. 执行实际克隆操作
-        return await this.performCloneOperation(github, owner, repo, branch, description, isPrivate, token)
+        return await this.performCloneOperation(
+          github,
+          owner,
+          repo,
+          branch,
+          description,
+          isPrivate,
+          token
+        )
       } catch (error) {
         console.error('克隆仓库失败:', error)
-        
+
         // 停止网络监控
         await this.stopNetworkMonitoring()
-        
+
         this.operationProgress = false
         this.progressValue = 0
         this.progressText = '正在处理...'
-        
+
         // 重置克隆相关状态
         this.cloneMode = 'quick'
         this.customClonePath = ''
@@ -2466,20 +2444,28 @@ export default {
       } = this.operationData
 
       this.operationProgress = true
-      
+
       try {
         // 执行实际克隆操作
-        return await this.performCloneOperation(github, owner, repo, branch, description, isPrivate, token)
+        return await this.performCloneOperation(
+          github,
+          owner,
+          repo,
+          branch,
+          description,
+          isPrivate,
+          token
+        )
       } catch (error) {
         console.error('克隆仓库失败:', error)
-        
+
         // 停止网络监控
         await this.stopNetworkMonitoring()
-        
+
         this.operationProgress = false
         this.progressValue = 0
         this.progressText = '正在处理...'
-        
+
         // 重置克隆相关状态
         this.cloneMode = 'quick'
         this.customClonePath = ''
@@ -2500,7 +2486,7 @@ export default {
       const { download, filename, token } = this.operationData
 
       this.operationProgress = true
-      
+
       try {
         // 执行下载和解压操作
         await this.downloadAndExtractIndex(existingRepo, download, filename, token)
@@ -2524,12 +2510,12 @@ export default {
           defaultPath: this.customClonePath,
           properties: ['openDirectory']
         })
-        
+
         if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
           const selectedPath = result.filePaths[0]
           const fs = window.electron.fs
           const path = window.electron.path
-          
+
           // 判断选中文件夹是否为空
           const folderContent = fs.readdirSync(selectedPath)
           if (folderContent.length === 0) {
@@ -2566,10 +2552,10 @@ export default {
       try {
         // 启动网络监控
         await window.electron.startNetworkMonitor()
-        
+
         // 显示网络速度区域
         this.networkSpeed.show = true
-        
+
         // 监听网络速度更新
         window.electron.onNetworkSpeedUpdate((data) => {
           this.networkSpeed.downloadSpeed = data.downloadSpeed
@@ -2601,7 +2587,15 @@ export default {
     },
 
     // 执行克隆仓库的公共方法
-    async performCloneOperation(github, owner, repo, branch = 'main', description, isPrivate, token) {
+    async performCloneOperation(
+      github,
+      owner,
+      repo,
+      branch = 'main',
+      description,
+      isPrivate,
+      token
+    ) {
       // 检查自定义模式下是否选择了目录
       if (this.cloneMode === 'custom' && !this.customClonePath) {
         this.$store?.dispatch('snackbar/showSnackbar', {
@@ -2610,14 +2604,14 @@ export default {
         })
         throw new Error('请先选择保存目录')
       }
-      
+
       // 启动网络监控
       await this.startNetworkMonitoring()
-      
+
       // 确定本地路径
       this.progressText = '正在准备本地路径...'
       this.progressValue = 40
-      
+
       let localPath
       if (this.cloneMode === 'quick') {
         // 快速克隆：使用默认路径
@@ -2660,7 +2654,7 @@ export default {
 
         this.progressValue = 100
         this.progressText = '克隆完成！'
-        
+
         // 停止网络监控
         await this.stopNetworkMonitoring()
 
@@ -2668,7 +2662,7 @@ export default {
           this.operationProgress = false
           this.progressValue = 0
           this.progressText = '正在处理...'
-          
+
           // 重置克隆相关状态
           this.cloneMode = 'quick'
           this.customClonePath = ''
@@ -2685,7 +2679,7 @@ export default {
             detail: { repoName: repo, repoUrl: github }
           })
         )
-        
+
         // 延迟跳转到仓库页面
         setTimeout(() => {
           this.$router.push('/repo')
@@ -2860,7 +2854,7 @@ export default {
         this.showConfigSnackbar = true
       }
     },
-    // 监听路由变化，自动保存导航历史
+    // 监听路由变化，自动保存导航历史和更新标签页状态
     $route(to, from) {
       // 避免初始化时的重复记录
       if (!from.name) {
@@ -2879,11 +2873,39 @@ export default {
 
       // 保存到导航历史（会自动过滤不需要保存的路由）
       this.saveNavigationToHistory(navigationItem)
+
+      // 更新当前激活的标签页索引（支持重复路由：优先匹配最近导航的tab，否则选择最后一个匹配项）
+      const matches = this.openTabs
+        .map((t, i) => ({ t, i }))
+        .filter((x) => x.t.to === to.path)
+      if (matches.length > 0) {
+        const byLast = matches.find((m) => m.t.id === this.lastNavigatedTabId)
+        this.activeTabIndex = (byLast ? byLast.i : matches[matches.length - 1].i)
+      }
+
+      // 将本次路由变更记录到当前活动标签的历史堆栈（确保实例内导航可被后退/前进）
+      const activeTab = this.openTabs[this.activeTabIndex]
+      if (activeTab) {
+        if (!activeTab.history) {
+          activeTab.history = { stack: [], index: -1 }
+        }
+        const full = to.fullPath || to.path
+        const currentLast = activeTab.history.stack[activeTab.history.stack.length - 1]
+        if (currentLast !== full) {
+          // 如果存在前进分支，先截断
+          if (activeTab.history.index < activeTab.history.stack.length - 1) {
+            activeTab.history.stack = activeTab.history.stack.slice(0, activeTab.history.index + 1)
+          }
+          activeTab.history.stack.push(full)
+          activeTab.history.index = activeTab.history.stack.length - 1
+          activeTab.to = full
+        }
+      }
     }
   },
   async mounted() {
-    // 从localStorage恢复侧边栏状态
-    this.loadSidebarState()
+    // 初始化标签页系统
+    this.initializeDefaultTab()
 
     // 初始化导航历史
     this.initializeFromSavedNavigation()
@@ -3008,21 +3030,75 @@ export default {
   margin-left: 6px !important;
 }
 
-/* 顶部工具栏整体紧凑化 */
-.v-app-bar {
-  padding-left: 8px !important;
-  padding-right: 8px !important;
+/* 标签栏样式 */
+.tabs-toolbar {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.12);
+  background-color: rgba(var(--v-theme-surface), 1);
+  padding-left: 200px;
+  position: sticky;
+  top: 0;
+  z-index: 200; /* 保证覆盖侧边抽屉 */
 }
 
-.v-toolbar-title {
-  font-size: 1rem !important;
-  margin-left: 8px !important;
+.tabs-toolbar.dark-toolbar {
+  background-color: rgba(var(--v-theme-surface), 1);
+  border-bottom-color: rgba(var(--v-theme-outline), 0.2);
 }
 
-:deep(.v-toolbar__content) {
-  /* height: 48px !important; */
-  padding-bottom: 0px !important;
-  margin-bottom: 0px !important;
+.tabs-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.tabs-wrapper {
+  flex: 1;
+}
+
+.tab-item {
+  min-width: 120px;
+  max-width: 200px;
+  height: 32px !important;
+}
+
+.tab-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  font-size: 0.875rem;
+}
+
+.tab-close-btn {
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.tab-close-btn:hover {
+  opacity: 1;
+}
+
+.empty-tabs {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-chip {
+  font-size: 0.75rem !important;
+}
+
+.theme-chip-text {
+  margin-left: 4px;
 }
 
 /* 加载页面样式 */
@@ -3220,6 +3296,11 @@ export default {
   z-index: 100;
 }
 
+/* 侧边抽屉层级略低于顶部标签栏 */
+:deep(.app-drawer) {
+  z-index: 150 !important;
+}
+
 .dark-toolbar {
   background-color: #1e1e1e;
   border-bottom: 1px solid #333;
@@ -3292,11 +3373,6 @@ export default {
 .chip-text {
   font-size: 0.7rem;
   margin-left: 2px;
-}
-
-/* Main content positioning to account for custom toolbar */
-.custom-main {
-  padding-top: 36px !important;
 }
 :deep(.v-chip) {
   .theme-chip-text {
