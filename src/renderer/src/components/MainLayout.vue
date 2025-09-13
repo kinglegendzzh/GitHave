@@ -7,7 +7,7 @@
       :rail="isRailMode"
       :dark="isDark"
       :color="isDark ? 'black' : 'white'"
-:style="isWindows ? '' : 'padding-top: 20px'"
+      :style="isWindows ? '' : 'padding-top: 20px'"
       width="250"
       class="drag-region"
     >
@@ -640,7 +640,16 @@
             <LoadingOutlined v-if="step.status === 'running'" />
             <CheckCircleTwoTone v-else-if="step.status === 'completed'" two-tone-color="#52c41a" />
             <CloseCircleTwoTone v-else-if="step.status === 'error'" two-tone-color="#ff4d4f" />
-            <span v-else style="display:inline-block;width:14px;height:14px;border:1px solid #d9d9d9;border-radius:50%;"></span>
+            <span
+              v-else
+              style="
+                display: inline-block;
+                width: 14px;
+                height: 14px;
+                border: 1px solid #d9d9d9;
+                border-radius: 50%;
+              "
+            ></span>
           </template>
         </a-step>
       </a-steps>
@@ -649,7 +658,11 @@
       <div v-if="showServiceLogs && serviceLogs.length > 0" class="service-logs-container mt-3">
         <div class="service-logs-header">
           <span class="service-logs-title">服务日志</span>
-          <a-tag :color="serviceLogListening ? 'success' : 'default'" class="ml-2" style="height: 18px; line-height: 18px;">
+          <a-tag
+            :color="serviceLogListening ? 'success' : 'default'"
+            class="ml-2"
+            style="height: 18px; line-height: 18px"
+          >
             {{ serviceLogListening ? '监听中' : '已停止' }}
           </a-tag>
         </div>
@@ -661,14 +674,24 @@
             :class="`log-${log.type}`"
           >
             <span class="log-time">{{ formatLogTime(log.timestamp) }}</span>
-            <span class="log-icon" :style="{ color: log.type === 'error' ? '#ff4d4f' : log.type === 'success' ? '#52c41a' : '#1677ff' }">●</span>
+            <span
+              class="log-icon"
+              :style="{
+                color:
+                  log.type === 'error' ? '#ff4d4f' : log.type === 'success' ? '#52c41a' : '#1677ff'
+              }"
+              >●</span
+            >
             <span class="log-message">{{ log.message }}</span>
           </div>
         </div>
       </div>
 
       <div class="mt-3">
-        <a-progress :percent="restartPercent" :status="restartHasError ? 'exception' : isRestarting ? 'active' : 'normal'" />
+        <a-progress
+          :percent="restartPercent"
+          :status="restartHasError ? 'exception' : isRestarting ? 'active' : 'normal'"
+        />
       </div>
 
       <div v-if="!isRestarting" style="text-align: right; margin-top: 8px">
@@ -683,6 +706,265 @@
       @clear-logs="clearServiceLogs"
       @add-log="addServiceLogEntry"
     />
+
+    <!-- 导入索引确认弹窗 -->
+    <v-dialog v-model="importDialog" :key="'import-'+dialogNonce" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" color="primary">mdi-download</v-icon>
+          <span class="text-h6">导入索引文件</span>
+        </v-card-title>
+
+        <v-card-text v-if="operationData" class="pa-4">
+          <div class="mb-4">
+            <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+              检测到索引文件导入请求
+            </v-alert>
+
+            <div class="mb-3">
+              <strong>仓库地址：</strong>
+              <v-chip color="primary" variant="outlined" size="small" class="ml-2">
+                {{ operationData.github }}
+              </v-chip>
+            </div>
+
+            <div class="mb-3">
+              <strong>索引文件：</strong>
+              <v-chip color="secondary" variant="outlined" size="small" class="ml-2">
+                {{ operationData.filename }}
+              </v-chip>
+            </div>
+
+            <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+              <strong>注意：</strong>此操作将覆盖目标仓库的现有索引内容！
+            </v-alert>
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" size="small" @click="cancelImportOperation">
+            取消
+          </v-btn>
+          <v-btn color="primary" variant="elevated" size="small" @click="confirmImportOperation">
+            确认导入
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 克隆仓库确认弹窗 -->
+    <v-dialog v-model="cloneDialog" :key="'clone-'+dialogNonce" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" color="success">mdi-git</v-icon>
+          <span class="text-h6">克隆仓库</span>
+        </v-card-title>
+
+        <v-card-text v-if="operationData" class="pa-4">
+          <div class="mb-4">
+            <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+              检测到仓库克隆请求
+            </v-alert>
+
+            <div class="mb-3">
+              <strong>仓库地址：</strong>
+              <v-chip color="primary" variant="outlined" size="small" class="ml-2">
+                {{ operationData.github }}
+              </v-chip>
+            </div>
+
+            <div class="mb-3">
+              <strong>仓库名称：</strong>
+              <v-chip color="secondary" variant="outlined" size="small" class="ml-2">
+                {{ operationData.owner }}/{{ operationData.repo }}
+              </v-chip>
+            </div>
+
+            <div class="mb-3">
+              <strong>分支：</strong>
+              <v-chip color="info" variant="outlined" size="small" class="ml-2">
+                {{ operationData.branch || 'main' }}
+              </v-chip>
+            </div>
+
+            <div v-if="operationData.description" class="mb-3">
+              <strong>描述：</strong>
+              <p class="text-body-2 mt-1">{{ operationData.description }}</p>
+            </div>
+            
+            <!-- 路径选择选项 -->
+            <div class="mb-3">
+              <v-radio-group v-model="cloneMode" inline>
+                <v-radio label="快速克隆（默认目录）" value="quick"></v-radio>
+                <v-radio label="自定义目录" value="custom"></v-radio>
+              </v-radio-group>
+            </div>
+            
+            <!-- 默认路径显示 -->
+            <div v-if="cloneMode === 'quick'" class="mb-2">
+              <p class="text-body-2 text-grey-600">
+                <strong>本地路径：</strong> 你的用户根目录/githave/{{ operationData.repo }}
+              </p>
+            </div>
+            
+            <!-- 自定义目录选择 -->
+            <div v-if="cloneMode === 'custom'" class="mb-2">
+              <v-text-field
+                v-model="customClonePath"
+                label="选择保存目录"
+                readonly
+                variant="outlined"
+                density="compact"
+                append-inner-icon="mdi-folder-open"
+                @click:append-inner="selectCloneDirectory"
+                @click="selectCloneDirectory"
+                placeholder="点击选择目录"
+              ></v-text-field>
+              <p v-if="customClonePath" class="text-body-2 text-grey-600 mt-1">
+                <strong>完整路径：</strong> {{ customClonePath }}/{{ operationData.repo }}
+              </p>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" size="small" @click="cancelCloneOperation">
+            取消
+          </v-btn>
+          <v-btn color="success" variant="elevated" size="small" @click="confirmCloneOperation">
+            确认克隆
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 操作进度弹窗 -->
+    <v-dialog v-model="operationProgress" max-width="500px" persistent>
+      <v-card>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" color="primary">mdi-progress-clock</v-icon>
+          <span class="text-h6">操作进行中</span>
+        </v-card-title>
+
+        <v-card-text class="pa-4">
+          <div class="text-center mb-4">
+            <p class="text-body-1 mb-3">{{ progressText }}</p>
+            <v-progress-linear
+              :model-value="progressValue"
+              color="primary"
+              height="8"
+              rounded
+            ></v-progress-linear>
+            <p class="text-caption mt-2">{{ progressValue }}%</p>
+            
+            <!-- 网络速度显示 -->
+            <div v-if="networkSpeed.show" class="mt-3 pa-2 bg-grey-lighten-5 rounded">
+              <div class="d-flex justify-space-between align-center mb-1">
+                <span class="text-caption text-grey-darken-1">
+                  <v-icon size="small" class="mr-1">mdi-download</v-icon>
+                  下载速度
+                </span>
+                <span class="text-caption font-weight-bold text-primary">
+                  {{ networkSpeed.downloadSpeedFormatted }}
+                </span>
+              </div>
+              <div class="text-center mt-1">
+                <span class="text-caption text-grey-darken-2">
+                  网络接口: {{ networkSpeed.interface }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" size="small" @click="hideProgressDialog">
+            <v-icon left size="small">mdi-eye-off</v-icon>
+            隐藏并后台运行
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 重复克隆确认弹窗 -->
+    <v-dialog v-model="duplicateCloneDialog" max-width="500px" persistent>
+      <v-card>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" color="warning">mdi-alert</v-icon>
+          <span class="text-h6">重复仓库提醒</span>
+        </v-card-title>
+
+        <v-card-text v-if="operationData" class="pa-4">
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+            你已经克隆过 <strong>{{ operationData.github }}</strong> 了
+          </v-alert>
+          <p class="text-body-1">是否还要新增一个？</p>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" size="small" @click="cancelDuplicateClone">
+            取消
+          </v-btn>
+          <v-btn color="warning" variant="elevated" size="small" @click="confirmDuplicateClone">
+            仍要新增
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 仓库选择弹窗 -->
+    <v-dialog v-model="repoSelectionDialog" :key="'repo-select-'+dialogNonce" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon class="mr-2" color="primary">mdi-source-repository</v-icon>
+          <span class="text-h6">选择目标仓库</span>
+        </v-card-title>
+
+        <v-card-text class="pa-4">
+          <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+            发现多个相同URL的仓库，请选择要导入索引的目标仓库
+          </v-alert>
+
+          <v-radio-group v-model="selectedRepo">
+            <v-radio v-for="repo in duplicateRepos" :key="repo.id" :value="repo" class="mb-2">
+              <template #label>
+                <div class="d-flex flex-column">
+                  <span class="font-weight-medium">{{ repo.name }}</span>
+                  <span class="text-caption text-grey"
+                    >ID: {{ repo.id }} | 路径: {{ repo.local_path }}</span
+                  >
+                  <span class="text-caption text-grey"
+                    >创建时间: {{ new Date(repo.created_at).toLocaleString() }} | 描述：{{
+                      omitDesc(repo.desc, 20)
+                    }}</span
+                  >
+                </div>
+              </template>
+            </v-radio>
+          </v-radio-group>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" size="small" @click="cancelRepoSelection">
+            取消
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="elevated"
+            size="small"
+            :disabled="!selectedRepo"
+            @click="confirmRepoSelection"
+          >
+            确认选择
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -694,7 +976,13 @@ import titleNSrc from '../assets/title-night.svg'
 import { RouterView } from 'vue-router'
 import { fmHealthCheck, appHealthCheck, faissHealthCheck } from '../service/api'
 import LogConsole from './LogConsole.vue'
-import { SyncOutlined, LoadingOutlined, CheckCircleTwoTone, CloseCircleTwoTone } from '@ant-design/icons-vue'
+import {
+  SyncOutlined,
+  LoadingOutlined,
+  CheckCircleTwoTone,
+  CloseCircleTwoTone
+} from '@ant-design/icons-vue'
+import { omit } from '../service/str'
 
 export default {
   name: 'MainLayout',
@@ -764,7 +1052,7 @@ export default {
             { title: '模型', to: '/model', icon: 'mdi-cards-playing-club-multiple-outline' },
             { title: '智能体', to: '/agent', icon: 'mdi-robot-happy-outline' }
           ]
-        },
+        }
         // { title: 'IDE (研究预览版)', to: '/ide', icon: 'mdi-code-greater-than', standalone: true }
       ],
       isDark: false,
@@ -790,7 +1078,33 @@ export default {
       serviceLogs: [], // 服务启动日志
       serviceLogListener: null, // 日志监听器清理函数
       maxLogEntries: 50, // 最大日志条目数
-      showLogConsole: false // 控制日志控制台显示
+      showLogConsole: false, // 控制日志控制台显示
+      // 协议操作弹窗相关
+      importDialog: false, // 导入索引确认弹窗
+      cloneDialog: false, // 克隆仓库确认弹窗
+      operationData: null, // 当前操作数据
+      operationProgress: false, // 操作进度弹窗
+      progressText: '正在处理...',
+      progressValue: 0,
+      // 重复仓库处理弹窗
+      duplicateCloneDialog: false, // 重复克隆确认弹窗
+      repoSelectionDialog: false, // 仓库选择弹窗
+      duplicateRepos: [], // 重复的仓库列表
+      selectedRepo: null, // 用户选择的仓库
+      // 克隆路径选择
+      cloneMode: 'quick', // 'quick' 或 'custom'
+      customClonePath: '', // 自定义克隆路径
+      // 网络速度监控
+      networkSpeed: {
+        show: false,
+        downloadSpeed: 0,
+        uploadSpeed: 0,
+        downloadSpeedFormatted: '0 B/s',
+        uploadSpeedFormatted: '0 B/s',
+        interface: ''
+      },
+      // 弹窗强制重挂载计数器
+      dialogNonce: 0
     }
   },
   computed: {
@@ -901,6 +1215,9 @@ export default {
     }
   },
   methods: {
+    omitDesc(str, limit) {
+      return omit(str, limit)
+    },
     loadSidebarState() {
       try {
         const savedState = localStorage.getItem('githave-sidebar-state')
@@ -1732,6 +2049,796 @@ export default {
       } catch (error) {
         console.error('停止服务日志监听失败:', error)
       }
+    },
+
+    // 重置操作UI状态
+    resetOperationUI() {
+      console.log('🔄 [DEBUG] resetOperationUI 开始执行')
+      console.log('🔄 [DEBUG] 重置前状态:', {
+        importDialog: this.importDialog,
+        cloneDialog: this.cloneDialog,
+        operationProgress: this.operationProgress,
+        dialogNonce: this.dialogNonce,
+        operationData: this.operationData
+      })
+      
+      // 关闭所有相关对话框
+      this.importDialog = false
+      this.cloneDialog = false
+      this.repoSelectionDialog = false
+      this.duplicateCloneDialog = false
+      this.operationProgress = false
+      this.showRestartDialog = false
+
+      // 清空一次性状态
+      this.operationData = null
+      this.selectedRepo = null
+      this.duplicateRepos = []
+      this.progressText = '正在处理...'
+      this.progressValue = 0
+      this.cloneMode = 'quick'
+      this.customClonePath = ''
+
+      // 网络监控确保停掉
+      this.stopNetworkMonitoring?.().catch(() => {})
+
+      // bump 一个 key，强制下次对话框重挂载
+      this.dialogNonce++
+      
+      console.log('🔄 [DEBUG] 重置后状态:', {
+        importDialog: this.importDialog,
+        cloneDialog: this.cloneDialog,
+        operationProgress: this.operationProgress,
+        dialogNonce: this.dialogNonce,
+        operationData: this.operationData
+      })
+      console.log('🔄 [DEBUG] resetOperationUI 执行完成')
+    },
+
+    // 处理协议回调
+    async handleProtocolCallback(data) {
+      console.log('🚀 [DEBUG] 收到协议回调:', data)
+      console.log('🚀 [DEBUG] 当前组件状态:', {
+        importDialog: this.importDialog,
+        cloneDialog: this.cloneDialog,
+        operationProgress: this.operationProgress,
+        dialogNonce: this.dialogNonce
+      })
+
+      try {
+        console.log('🚀 [DEBUG] 开始重置UI状态')
+        // 关键：先把上一次可能残留的 UI/状态全部复位
+        this.resetOperationUI()
+        await this.$nextTick()
+        console.log('🚀 [DEBUG] UI状态重置完成，开始处理具体操作')
+
+        switch (data.route) {
+          case 'import':
+            console.log('🚀 [DEBUG] 处理导入操作')
+            await this.handleImportOperation(data)
+            break
+          case 'clone':
+            console.log('🚀 [DEBUG] 处理克隆操作')
+            await this.handleCloneOperation(data)
+            break
+          case 'auth-success':
+          case 'auth':
+            console.log('🚀 [DEBUG] 处理登录回调')
+            // 处理登录回调（保持现有逻辑）
+            this.handleAuthCallback(data)
+            break
+          default:
+            console.log('🚀 [DEBUG] 未知的协议操作:', data.route)
+        }
+      } catch (error) {
+        console.error('🚀 [DEBUG] 处理协议回调失败:', error)
+        this.resetOperationUI()
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: `操作失败: ${error.message}`,
+          color: 'error'
+        })
+      }
+    },
+
+    // 处理导入索引操作
+    async handleImportOperation(data) {
+      console.log('📥 [DEBUG] handleImportOperation 开始执行')
+      const { github, download, filename } = data
+
+      if (!github || !download || !filename) {
+        console.log('📥 [DEBUG] 导入参数不完整:', { github, download, filename })
+        throw new Error('导入参数不完整')
+      }
+
+      console.log('📥 [DEBUG] 开始导入索引:', { github, filename })
+      console.log('📥 [DEBUG] 设置操作数据前状态:', {
+        operationData: this.operationData,
+        importDialog: this.importDialog
+      })
+
+      // 只负责赋值 + 打开
+      this.operationData = data
+      this.importDialog = true
+      
+      console.log('📥 [DEBUG] 设置操作数据后状态:', {
+        operationData: this.operationData,
+        importDialog: this.importDialog
+      })
+      console.log('📥 [DEBUG] handleImportOperation 执行完成')
+    },
+
+    // 确认导入操作
+    async confirmImportOperation() {
+      console.log('✅ [DEBUG] confirmImportOperation 被调用')
+      console.log('✅ [DEBUG] 当前状态:', {
+        busyFlag: this.__busyConfirmImport,
+        operationData: this.operationData,
+        importDialog: this.importDialog
+      })
+      
+      if (this.__busyConfirmImport) {
+        console.log('✅ [DEBUG] 操作正在进行中，跳过')
+        return
+      }
+      this.__busyConfirmImport = true
+      
+      try {
+        console.log('✅ [DEBUG] 开始确认导入操作')
+        this.importDialog = false
+        this.operationProgress = true
+        this.progressText = '正在检查仓库状态...'
+        this.progressValue = 10
+        console.log('✅ [DEBUG] 弹窗状态更新完成')
+
+        const { github, download, filename, token, owner, repo } = this.operationData
+
+        // 1. 检查仓库是否已存在
+        const { listRepos } = await import('../service/api')
+        const reposResponse = await listRepos()
+        let existingRepo = null
+
+        if (reposResponse.status === 200) {
+          // 按repo.id降序排序，选择最新的仓库
+          const matchingRepos = reposResponse.data.filter((r) => r.repo_url === github)
+          if (matchingRepos.length > 1) {
+            // 多个仓库，让用户选择
+            this.operationProgress = false
+            this.duplicateRepos = matchingRepos.sort((a, b) => b.id - a.id)
+            this.selectedRepo = this.duplicateRepos[0] // 默认选择最新的
+            this.repoSelectionDialog = true
+            return // 等待用户选择
+          } else if (matchingRepos.length === 1) {
+            existingRepo = matchingRepos[0]
+          }
+        }
+
+        this.progressValue = 20
+
+        // 2. 如果仓库不存在，先克隆仓库
+        if (!existingRepo) {
+          console.log('仓库不存在，开始克隆...')
+          this.progressText = '仓库不存在，正在克隆仓库...'
+          this.progressValue = 30
+
+          const repoName = repo || github.split('/').pop().replace('.git', '')
+          const ownerName = owner || github.split('/').slice(-2, -1)[0]
+
+          // 执行克隆操作
+          await this.executeCloneOperation({
+            github,
+            owner: ownerName,
+            repo: repoName,
+            branch: 'main',
+            description: `通过索引导入自动克隆的仓库: ${ownerName}/${repoName}`,
+            isPrivate: false,
+            token
+          })
+
+          this.progressValue = 50
+
+          // 重新获取仓库列表
+          const updatedReposResponse = await listRepos()
+          if (updatedReposResponse.status === 200) {
+            // 按repo.id降序排序，选择最新的仓库
+            const matchingRepos = updatedReposResponse.data.filter((r) => r.repo_url === github)
+            if (matchingRepos.length > 0) {
+              existingRepo = matchingRepos.sort((a, b) => b.id - a.id)[0]
+            }
+          }
+
+          if (!existingRepo) {
+            throw new Error('仓库克隆失败，无法继续导入索引')
+          }
+        }
+        console.log('仓库信息:', existingRepo)
+
+        // 3. 执行下载和解压操作
+        await this.downloadAndExtractIndex(existingRepo, download, filename, token)
+      } catch (error) {
+        console.error('导入索引失败:', error)
+        this.resetOperationUI()
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: `导入索引失败: ${error.message}`,
+          color: 'error'
+        })
+      } finally {
+        this.__busyConfirmImport = false
+        // 如果还开着进度条，1.5s 后收尾并复位一次
+        setTimeout(() => {
+          if (this.operationProgress) {
+            this.operationProgress = false
+          }
+          // 不打断成功提示和自动跳转，只清理状态
+          this.operationData = null
+          this.progressText = '正在处理...'
+          this.progressValue = 0
+        }, 1500)
+      }
+    },
+
+    // 取消导入操作
+    cancelImportOperation() {
+      this.importDialog = false
+      this.operationData = null
+    },
+
+    // 处理克隆仓库操作
+    async handleCloneOperation(data) {
+      console.log('📦 [DEBUG] handleCloneOperation 开始执行')
+      const { github, owner, repo } = data
+
+      if (!github || !owner || !repo) {
+        console.log('📦 [DEBUG] 克隆参数不完整:', { github, owner, repo })
+        throw new Error('克隆参数不完整')
+      }
+
+      console.log('📦 [DEBUG] 开始克隆仓库:', { github, owner, repo })
+      console.log('📦 [DEBUG] 设置操作数据前状态:', {
+        operationData: this.operationData,
+        cloneDialog: this.cloneDialog
+      })
+
+      // 只负责赋值 + 打开
+      this.operationData = data
+      this.cloneDialog = true
+      
+      console.log('📦 [DEBUG] 设置操作数据后状态:', {
+        operationData: this.operationData,
+        cloneDialog: this.cloneDialog
+      })
+      console.log('📦 [DEBUG] handleCloneOperation 执行完成')
+    },
+
+    // 确认克隆操作
+    async confirmCloneOperation() {
+      console.log('✅ [DEBUG] confirmCloneOperation 被调用')
+      console.log('✅ [DEBUG] 当前状态:', {
+        busyFlag: this.__busyConfirmClone,
+        operationData: this.operationData,
+        cloneDialog: this.cloneDialog,
+        cloneMode: this.cloneMode,
+        customClonePath: this.customClonePath
+      })
+      
+      if (this.__busyConfirmClone) {
+        console.log('✅ [DEBUG] 克隆操作正在进行中，跳过')
+        return
+      }
+      this.__busyConfirmClone = true
+      
+      try {
+        console.log('✅ [DEBUG] 开始确认克隆操作')
+        // 检查自定义模式下是否选择了目录
+        if (this.cloneMode === 'custom' && !this.customClonePath) {
+          console.log('✅ [DEBUG] 自定义模式下未选择目录')
+          this.$store?.dispatch('snackbar/showSnackbar', {
+            message: '请先选择保存目录',
+            color: 'warning'
+          })
+          return
+        }
+        
+        console.log('✅ [DEBUG] 关闭克隆弹窗，开始执行克隆操作')
+        this.cloneDialog = false
+        await this.executeCloneOperation(this.operationData)
+      } finally {
+        this.__busyConfirmClone = false
+        console.log('✅ [DEBUG] confirmCloneOperation 执行完成')
+      }
+    },
+
+    // 取消克隆操作
+    cancelCloneOperation() {
+      this.cloneDialog = false
+      this.operationData = null
+    },
+
+    // 执行克隆仓库操作
+    async executeCloneOperation(data) {
+      const { github, owner, repo, branch = 'main', description, isPrivate, token } = data
+
+      this.operationProgress = true
+      this.progressText = '正在检查仓库状态...'
+      this.progressValue = 10
+
+      try {
+        // 1. 检查仓库是否已存在
+        const { listRepos } = await import('../service/api')
+        const reposResponse = await listRepos()
+
+        if (reposResponse.status === 200) {
+          // 按repo.id降序排序，选择最新的仓库
+          const matchingRepos = reposResponse.data.filter((r) => r.repo_url === github)
+          if (matchingRepos.length > 0) {
+            console.log('发现重复仓库，显示确认弹窗:', github)
+            this.operationProgress = false
+            this.progressValue = 0
+            this.progressText = '正在处理...'
+
+            // 显示重复克隆确认弹窗
+            this.duplicateRepos = matchingRepos.sort((a, b) => b.id - a.id)
+            this.duplicateCloneDialog = true
+            return // 等待用户选择
+          }
+        }
+
+        this.progressValue = 30
+
+        // 2. 执行实际克隆操作
+        return await this.performCloneOperation(github, owner, repo, branch, description, isPrivate, token)
+      } catch (error) {
+        console.error('克隆仓库失败:', error)
+        
+        // 停止网络监控
+        await this.stopNetworkMonitoring()
+        
+        this.operationProgress = false
+        this.progressValue = 0
+        this.progressText = '正在处理...'
+        
+        // 重置克隆相关状态
+        this.cloneMode = 'quick'
+        this.customClonePath = ''
+
+        // 显示详细错误信息
+        const errorMsg = error.response?.data?.message || error.message || '克隆仓库失败'
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: `克隆仓库失败: ${errorMsg}`,
+          color: 'error'
+        })
+
+        throw new Error(`克隆仓库失败: ${errorMsg}`)
+      }
+    },
+
+    // 隐藏进度弹窗
+    hideProgressDialog() {
+      this.operationProgress = false
+      this.$store?.dispatch('snackbar/showSnackbar', {
+        message: '操作已转入后台运行',
+        color: 'info'
+      })
+    },
+
+    // 取消重复克隆
+    cancelDuplicateClone() {
+      this.duplicateCloneDialog = false
+      this.duplicateRepos = []
+      this.operationData = null
+    },
+
+    // 确认重复克隆
+    async confirmDuplicateClone() {
+      this.duplicateCloneDialog = false
+      // 继续执行克隆操作
+      await this.proceedWithClone()
+    },
+
+    // 取消仓库选择
+    cancelRepoSelection() {
+      this.repoSelectionDialog = false
+      this.duplicateRepos = []
+      this.selectedRepo = null
+      this.operationData = null
+    },
+
+    // 确认仓库选择
+    async confirmRepoSelection() {
+      this.repoSelectionDialog = false
+      const selectedRepo = this.selectedRepo
+      this.duplicateRepos = []
+      this.selectedRepo = null
+
+      // 继续执行导入操作
+      await this.proceedWithImport(selectedRepo)
+    },
+
+    // 继续执行克隆操作
+    async proceedWithClone() {
+      const {
+        github,
+        owner,
+        repo,
+        branch = 'main',
+        description,
+        isPrivate,
+        token
+      } = this.operationData
+
+      this.operationProgress = true
+      
+      try {
+        // 执行实际克隆操作
+        return await this.performCloneOperation(github, owner, repo, branch, description, isPrivate, token)
+      } catch (error) {
+        console.error('克隆仓库失败:', error)
+        
+        // 停止网络监控
+        await this.stopNetworkMonitoring()
+        
+        this.operationProgress = false
+        this.progressValue = 0
+        this.progressText = '正在处理...'
+        
+        // 重置克隆相关状态
+        this.cloneMode = 'quick'
+        this.customClonePath = ''
+
+        // 显示详细错误信息
+        const errorMsg = error.response?.data?.message || error.message || '克隆仓库失败'
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: `克隆仓库失败: ${errorMsg}`,
+          color: 'error'
+        })
+
+        throw new Error(`克隆仓库失败: ${errorMsg}`)
+      }
+    },
+
+    // 继续执行导入操作
+    async proceedWithImport(existingRepo) {
+      const { download, filename, token } = this.operationData
+
+      this.operationProgress = true
+      
+      try {
+        // 执行下载和解压操作
+        await this.downloadAndExtractIndex(existingRepo, download, filename, token)
+      } catch (error) {
+        console.error('导入索引失败:', error)
+        this.operationProgress = false
+        this.progressValue = 0
+        this.progressText = '正在处理...'
+
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: `导入索引失败: ${error.message}`,
+          color: 'error'
+        })
+      }
+    },
+
+    // 选择克隆目录
+    async selectCloneDirectory() {
+      try {
+        const result = await window.electron.invoke('dialog:openDirectory', {
+          defaultPath: this.customClonePath,
+          properties: ['openDirectory']
+        })
+        
+        if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
+          const selectedPath = result.filePaths[0]
+          const fs = window.electron.fs
+          const path = window.electron.path
+          
+          // 判断选中文件夹是否为空
+          const folderContent = fs.readdirSync(selectedPath)
+          if (folderContent.length === 0) {
+            this.customClonePath = selectedPath
+            this.$store?.dispatch('snackbar/showSnackbar', {
+              message: '选中的文件夹为空，直接使用该目录。',
+              color: 'info'
+            })
+          } else {
+            // 文件夹不为空，自动创建子文件夹
+            const safeName = this.operationData.repo.replace(/\./g, '').replace(/\.git$/, '')
+            const newFolderPath = path.join(selectedPath, safeName)
+            if (!fs.existsSync(newFolderPath)) {
+              fs.mkdirSync(newFolderPath)
+              this.$store?.dispatch('snackbar/showSnackbar', {
+                message: `已自动创建 ${newFolderPath} 文件夹`,
+                color: 'info'
+              })
+            }
+            this.customClonePath = newFolderPath
+          }
+        }
+      } catch (error) {
+        console.error('选择目录失败:', error)
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: '选择目录失败',
+          color: 'error'
+        })
+      }
+    },
+
+    // 启动网络监控
+    async startNetworkMonitoring() {
+      try {
+        // 启动网络监控
+        await window.electron.startNetworkMonitor()
+        
+        // 显示网络速度区域
+        this.networkSpeed.show = true
+        
+        // 监听网络速度更新
+        window.electron.onNetworkSpeedUpdate((data) => {
+          this.networkSpeed.downloadSpeed = data.downloadSpeed
+          this.networkSpeed.uploadSpeed = data.uploadSpeed
+          this.networkSpeed.downloadSpeedFormatted = data.downloadSpeedFormatted
+          this.networkSpeed.uploadSpeedFormatted = data.uploadSpeedFormatted
+          this.networkSpeed.interface = data.interface
+        })
+      } catch (error) {
+        console.error('启动网络监控失败:', error)
+      }
+    },
+
+    // 停止网络监控
+    async stopNetworkMonitoring() {
+      try {
+        await window.electron.stopNetworkMonitor()
+        window.electron.removeNetworkSpeedListener()
+        this.networkSpeed.show = false
+        // 重置网络速度数据
+        this.networkSpeed.downloadSpeed = 0
+        this.networkSpeed.uploadSpeed = 0
+        this.networkSpeed.downloadSpeedFormatted = '0 B/s'
+        this.networkSpeed.uploadSpeedFormatted = '0 B/s'
+        this.networkSpeed.interface = ''
+      } catch (error) {
+        console.error('停止网络监控失败:', error)
+      }
+    },
+
+    // 执行克隆仓库的公共方法
+    async performCloneOperation(github, owner, repo, branch = 'main', description, isPrivate, token) {
+      // 检查自定义模式下是否选择了目录
+      if (this.cloneMode === 'custom' && !this.customClonePath) {
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: '请先选择保存目录',
+          color: 'warning'
+        })
+        throw new Error('请先选择保存目录')
+      }
+      
+      // 启动网络监控
+      await this.startNetworkMonitoring()
+      
+      // 确定本地路径
+      this.progressText = '正在准备本地路径...'
+      this.progressValue = 40
+      
+      let localPath
+      if (this.cloneMode === 'quick') {
+        // 快速克隆：使用默认路径
+        const homeDir = window.electron.homeDir || (await window.electron.homeDir)
+        const path = window.electron.path
+        localPath = path.join(homeDir, 'githave', repo)
+      } else {
+        // 自定义目录：使用用户选择的路径
+        const path = window.electron.path
+        localPath = path.join(this.customClonePath)
+      }
+
+      this.progressValue = 50
+
+      // 构建仓库数据
+      const repoData = {
+        name: repo,
+        repo_url: github,
+        branch: branch,
+        local_path: localPath,
+        username: isPrivate && token ? 'token' : '',
+        password: isPrivate && token ? token : '',
+        desc: description || `${owner}/${repo}`,
+        pull: true // 执行克隆
+      }
+
+      console.log('准备克隆仓库:', repoData)
+
+      // 执行克隆
+      this.progressText = `正在克隆仓库 ${owner}/${repo}...`
+      this.progressValue = 60
+
+      const { createRepo } = await import('../service/api')
+      const result = await createRepo(repoData)
+
+      this.progressValue = 90
+
+      if (result.status === 200 || result.status === 201) {
+        console.log('仓库克隆成功:', result.data)
+
+        this.progressValue = 100
+        this.progressText = '克隆完成！'
+        
+        // 停止网络监控
+        await this.stopNetworkMonitoring()
+
+        setTimeout(() => {
+          this.operationProgress = false
+          this.progressValue = 0
+          this.progressText = '正在处理...'
+          
+          // 重置克隆相关状态
+          this.cloneMode = 'quick'
+          this.customClonePath = ''
+        }, 1500)
+
+        this.$store?.dispatch('snackbar/showSnackbar', {
+          message: `仓库 ${owner}/${repo} 克隆成功`,
+          color: 'success'
+        })
+
+        // 发出仓库导入成功事件
+        window.dispatchEvent(
+          new CustomEvent('repo-imported', {
+            detail: { repoName: repo, repoUrl: github }
+          })
+        )
+        
+        // 延迟跳转到仓库页面
+        setTimeout(() => {
+          this.$router.push('/repo')
+        }, 2000)
+
+        return result.data
+      } else {
+        throw new Error(result.message || '克隆仓库失败')
+      }
+    },
+
+    // 下载和解压索引文件的公共方法
+    async downloadAndExtractIndex(existingRepo, download, filename, token) {
+      // 下载索引文件
+      this.progressText = '正在下载索引文件...'
+      this.progressValue = 60
+
+      console.log('开始下载索引文件...')
+
+      // 获取API基础URL
+      const { getFmConfig } = await import('../service/api')
+      const configResponse = await getFmConfig()
+      if (configResponse.status !== 200) {
+        throw new Error('获取API配置失败')
+      }
+
+      const apiBaseUrl = configResponse.data.api_url_simple
+      const fullDownloadUrl = `${apiBaseUrl}${download}`
+      console.log('完整下载地址:', fullDownloadUrl)
+
+      const headers = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const response = await fetch(fullDownloadUrl, { headers })
+      if (!response.ok) {
+        throw new Error(`下载失败: ${response.status} ${response.statusText}`)
+      }
+
+      const blob = await response.blob()
+      console.log('下载完成，文件大小:', blob.size, 'bytes')
+
+      this.progressValue = 75
+
+      // 保存文件到临时目录
+      this.progressText = '正在处理文件...'
+      const arrayBuffer = await blob.arrayBuffer()
+      const uint8Array = new Uint8Array(arrayBuffer)
+      const path = window.electron.path
+      const tempDir = window.electron.tmpdir || (await window.electron.homeDir)
+      const tempFilePath = path.join(tempDir, filename)
+
+      await window.electron.fs.writeFileSync(tempFilePath, uint8Array)
+      console.log('文件已保存到临时目录:', tempFilePath)
+
+      // 验证文件格式
+      const fileContent = new TextDecoder().decode(uint8Array.slice(0, 100))
+      console.log('文件头部内容:', fileContent)
+
+      // 检查是否为HTML错误页面
+      if (
+        fileContent.toLowerCase().includes('<html') ||
+        fileContent.toLowerCase().includes('<!doctype')
+      ) {
+        throw new Error('下载的文件是HTML页面，可能是访问权限问题或链接错误')
+      }
+
+      // 检查tar.gz文件头
+      const magicBytes = uint8Array.slice(0, 3)
+      const isGzip = magicBytes[0] === 0x1f && magicBytes[1] === 0x8b && magicBytes[2] === 0x08
+      if (!isGzip) {
+        throw new Error(
+          `文件格式错误：期望tar.gz格式，但检测到的文件头为 [${Array.from(magicBytes)
+            .map((b) => '0x' + b.toString(16).padStart(2, '0'))
+            .join(', ')}]`
+        )
+      }
+
+      this.progressValue = 85
+
+      // 解压到仓库的.gitgo目录
+      this.progressText = '正在解压索引文件...'
+      const targetDir = path.join(existingRepo.local_path)
+
+      // 确保目标目录存在
+      if (!window.electron.fs.existsSync(targetDir)) {
+        window.electron.fs.mkdirSync(targetDir, { recursive: true })
+      }
+      console.log('目标目录:', targetDir)
+
+      // 解压文件
+      const { success, message } = await window.electron.extractTarGz(tempFilePath, targetDir)
+
+      if (!success) {
+        throw new Error(`解压失败: ${message}`)
+      }
+
+      this.progressValue = 95
+
+      // 清理临时文件
+      try {
+        window.electron.fs.unlinkSync(tempFilePath)
+      } catch (cleanupError) {
+        console.warn('清理临时文件失败:', cleanupError)
+      }
+
+      this.progressValue = 100
+      this.progressText = '导入完成！'
+
+      setTimeout(() => {
+        this.operationProgress = false
+        this.progressValue = 0
+        this.progressText = '正在处理...'
+      }, 1500)
+
+      this.$store?.dispatch('snackbar/showSnackbar', {
+        message: `索引文件 ${filename} 导入成功，已解压到 ${existingRepo.name} 仓库`,
+        color: 'success'
+      })
+
+      // 跳转到上下文索引页面
+      setTimeout(() => {
+        this.$router.push('/scan')
+      }, 2000)
+    },
+
+    // 处理登录回调
+    handleAuthCallback(data) {
+      if (data.route === 'auth-success' || (data.route === 'auth' && data.repo === 'success')) {
+        const { token, user_id, username, email, verified } = data
+        const isVerified = verified === 'true'
+
+        if (token) {
+          const loginData = {
+            token: token,
+            user_id: user_id,
+            username: username,
+            email: email,
+            expires: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            loginTime: Date.now(),
+            verified: isVerified
+          }
+          localStorage.setItem('githave_login_data', JSON.stringify(loginData))
+
+          this.$store?.dispatch('snackbar/showSnackbar', {
+            message: username ? `欢迎回来，${username}！` : 'GitHave登录成功！',
+            color: 'success'
+          })
+
+          console.log('GitHave登录成功，用户信息:', { user_id, username, email })
+        }
+      }
     }
   },
   watch: {
@@ -1803,6 +2910,11 @@ export default {
     if (storedCompact !== null) {
       this.isCompactMode = storedCompact === 'true'
       await window.electron.setZoomFactor(this.isCompactMode ? 0.8 : 0.92)
+    }
+
+    // 监听协议回调
+    if (window.electron && window.electron.onProtocolUrl) {
+      window.electron.onProtocolUrl(this.handleProtocolCallback)
     }
   }
 }
