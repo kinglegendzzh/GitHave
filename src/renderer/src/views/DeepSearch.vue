@@ -751,6 +751,11 @@ export default {
           } else {
             this.selectedRepo = this.repositories[0]
           }
+          try {
+            if (this.selectedRepo) {
+              this.$store.dispatch('tabs/setActiveTabTitle', `深度搜索·${this.selectedRepo.name || this.selectedRepo.show}`)
+            }
+          } catch (e) {}
           console.log('repositories:', this.repositories)
         }
       })
@@ -1024,6 +1029,7 @@ export default {
       if (this.selectedRepo === repo) return
       this.selectedRepo = repo
       localStorage.setItem('selectedRepo', repo.local_path)
+      
       this.dropdownOpen = false
       this.selectedResult = {}
       this.searchResults = []

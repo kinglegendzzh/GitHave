@@ -2755,6 +2755,8 @@ const applyLensPath = async () => {
   }
 }
 
+
+
 const onLegendItemClick = async (event, item) => {
   if (currentFocus.value && currentFocus.value.children) {
     const childNode = currentFocus.value.children.find((child) => child.data.name === item.name)
@@ -3073,7 +3075,8 @@ const loadPathSuggestions = async () => {
       return {
         value: repo.local_path,
         title: repo.desc ? `${omit(repo.desc, 25)}(${repo.name})` : repo.name,
-        id: repo.id
+        id: repo.id,
+        name: repo.name
       }
     })
   } catch (err) {

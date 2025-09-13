@@ -1740,6 +1740,13 @@ function resetRoot() {
 function onPathSelectionChanged(newPath) {
   // 如果用户选择了路径（新路径或者已有路径）
   if (newPath !== null && newPath !== undefined && newPath !== '') {
+    // 更新标签页标题：代码视窗·{repo.name}
+    try {
+      const matched = pathSuggestions.value.find((i) => i.value === newPath)
+      if (matched) {
+        store.dispatch('tabs/setActiveTabTitle', `代码视窗·${matched.name || matched.title}`)
+      }
+    } catch (e) {}
     // 更新目录树
     resetTree(newPath).then(() => {
       handleNodeSelection([newPath])
@@ -2511,7 +2518,6 @@ const openInIDE = async (filePath) => {
   window.electron.openNewWindowIDE(url)
 }
 
-// 监听 props 和响应式数据变化
 watch(
   () => props.localPath,
   (newPath) => {

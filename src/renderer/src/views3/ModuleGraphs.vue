@@ -754,8 +754,11 @@ export default {
     const handlePathSelect = (item) => {
       if (item && item.value) {
         projectDir.value = item.value
+        
       }
     }
+
+    
 
     // 获取模块描述信息
     const fetchModuleDescription = async (nodePath) => {

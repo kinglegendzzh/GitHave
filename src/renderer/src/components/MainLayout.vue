@@ -7,7 +7,7 @@
       rail
       :dark="isDark"
       :color="isDark ? 'black' : 'white'"
-      :style="isWindows ? '' : 'padding-top: 20px'"
+      :style="isWindows ? 'padding-top: 30px' : 'padding-top: 30px'"
       width="72"
       class="drag-region app-drawer"
     >
@@ -160,35 +160,64 @@
             <v-icon size="small">mdi-arrow-right</v-icon>
           </v-btn>
         </div>
-        <v-tabs
-          v-if="openTabs.length > 0"
-          v-model="activeTabIndex"
-          density="compact"
-          height="40"
-          show-arrows
-          class="tabs-wrapper"
-        >
-          <v-tab
-            v-for="(tab, index) in openTabs"
-            :key="tab.id"
-            :value="index"
-            class="tab-item"
-            @click="switchToTab(tab)"
+        <div class="tabs-scroll-wrapper">
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            class="mr-1"
+            :disabled="!tabsCanScrollPrev"
+            @click="pageTabs('prev')"
           >
-            <v-icon v-if="tab.icon" size="small" class="mr-2">{{ tab.icon }}</v-icon>
-            <span class="tab-text">{{ tab.title }}</span>
-            <v-btn
-              v-if="tab.closable && openTabs.length > 1"
-              size="x-small"
-              variant="text"
-              class="tab-close-btn ml-2"
-              @click.stop="closeTab(index)"
+            <v-icon size="small">mdi-chevron-left</v-icon>
+          </v-btn>
+          <div class="tabs-viewport">
+            <v-tabs
+              ref="tabsRef"
+              v-if="openTabs.length > 0"
+              v-model="activeTabIndex"
+              density="compact"
+              height="40"
+              show-arrows
+              class="tabs-wrapper"
             >
-              <v-icon size="12">mdi-close</v-icon>
-            </v-btn>
-          </v-tab>
-        </v-tabs>
-        <div v-else class="empty-tabs">
+              <v-tab
+                v-for="(tab, index) in openTabs"
+                :key="tab.id"
+                :value="index"
+                class="tab-item"
+                :draggable="true"
+                @dragstart="onTabDragStart(index)"
+                @dragover.prevent
+                @drop="onTabDrop(index)"
+                @click="switchToTab(tab)"
+              >
+                <v-icon v-if="tab.icon" size="small" class="mr-2">{{ tab.icon }}</v-icon>
+                <span class="tab-text">{{ tab.title }}</span>
+                <v-btn
+                  v-if="tab.closable"
+                  size="x-small"
+                  variant="text"
+                  class="tab-close-btn ml-2"
+                  @click.stop="closeTab(index)"
+                >
+                  <v-icon size="12">mdi-close</v-icon>
+                </v-btn>
+              </v-tab>
+            </v-tabs>
+          </div>
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            class="ml-1"
+            :disabled="!tabsCanScrollNext"
+            @click="pageTabs('next')"
+          >
+            <v-icon size="small">mdi-chevron-right</v-icon>
+          </v-btn>
+        </div>
+        <div v-if="openTabs.length === 0" class="empty-tabs">
           <span class="text-caption text-medium-emphasis">暂无打开的页面</span>
         </div>
       </div>
@@ -306,18 +335,7 @@
       <!-- 服务准备就绪或独立页面时显示正常内容 -->
       <RouterView v-else v-slot="{ Component }">
         <Suspense>
-          <keep-alive
-            :exclude="[
-              'MemoryCard',
-              'AgentConfig',
-              'ModelConfig',
-              // 'GitResearch',
-              // 'CommitHistory',
-              'IDE'
-            ]"
-          >
-            <component :is="Component" :key="viewCacheKey" />
-          </keep-alive>
+          <component :is="Component" :key="viewCacheKey" />
         </Suspense>
       </RouterView>
       <v-snackbar
@@ -899,6 +917,10 @@ export default {
       // 标签页管理
       openTabs: [], // 打开的标签页列表
       lastNavigatedTabId: null, // 记录最近一次导航的标签ID，用于重复路由时定位激活标签
+      draggingTabIndex: null, // 当前正在拖拽的标签索引
+      tabTitleUnwatch: null,
+      tabsCanScrollPrev: false,
+      tabsCanScrollNext: false,
       activeTabIndex: 0, // 当前激活的标签页索引
       tabIdCounter: 0, // 标签页ID计数器
       // 健康状态枚举：支持 "正在重启"、"已关闭"、"已启动"
@@ -1130,8 +1152,47 @@ export default {
     if (this.serviceLogListener) {
       this.serviceLogListener()
     }
+    // 无需清理 tabTitleUnwatch
+    window.removeEventListener('resize', this.updateTabsScrollState)
   },
   methods: {
+    // 根据当前路由动态生成标签标题
+    buildTabTitleFromRoute(route) {
+      try {
+        const base = route.meta?.title || route.name || '页面'
+        // 优先从 params 中提取有意义的尾段
+        const getLast = (p) => {
+          if (!p) return ''
+          try {
+            const s = decodeURIComponent(p)
+            const segs = s.split(/[/\\]/).filter(Boolean)
+            return segs[segs.length - 1] || s
+          } catch (e) {
+            return p
+          }
+        }
+
+        let extra = ''
+        if (route.params && route.params.localPath) {
+          extra = getLast(route.params.localPath)
+        } else if (route.query && route.query.repoPath) {
+          extra = getLast(route.query.repoPath)
+        } else if (route.query && route.query.rootPath) {
+          extra = getLast(route.query.rootPath)
+        }
+
+        // 针对常见页面优化标题
+        if (route.name === 'finder' || route.name === 'ide' || route.name === 'space') {
+          return extra ? `${base} · ${extra}` : base
+        }
+        if (route.name === 'moduleGraphs') {
+          return extra ? `${base} · ${extra}` : base
+        }
+        return base
+      } catch (e) {
+        return route.meta?.title || route.name || '页面'
+      }
+    },
     omitDesc(str, limit) {
       return omit(str, limit)
     },
@@ -1139,12 +1200,14 @@ export default {
     initializeDefaultTab() {
       // 如果没有打开的标签页，创建默认的首页标签
       if (this.openTabs.length === 0) {
+        const currentPath = this.$route?.fullPath || this.$route?.path || '/start'
         const defaultTab = {
           id: ++this.tabIdCounter,
           title: '快速开始',
-          to: '/start',
+          to: currentPath,
           icon: 'mdi-home',
-          closable: false // 默认标签页不可关闭
+          closable: true, // 默认标签页可关闭
+          history: { stack: [currentPath], index: 0 }
         }
         this.openTabs.push(defaultTab)
         this.activeTabIndex = 0
@@ -1367,25 +1430,45 @@ export default {
 
     // 关闭标签页
     closeTab(index) {
-      if (this.openTabs.length <= 1) {
-        return // 至少保留一个标签页
-      }
-
       this.openTabs.splice(index, 1)
 
       // 如果关闭的是当前激活的标签页
       if (index === this.activeTabIndex) {
-        // 如果关闭的是最后一个标签页，激活前一个
-        if (index >= this.openTabs.length) {
-          this.activeTabIndex = this.openTabs.length - 1
-        }
-        // 切换到新的激活标签页
-        if (this.openTabs[this.activeTabIndex]) {
+        // 计算新的激活索引
+        this.activeTabIndex = Math.min(index, this.openTabs.length - 1)
+        // 切换到新的激活标签页（若仍存在）
+        if (this.openTabs.length > 0 && this.openTabs[this.activeTabIndex]) {
           this.switchToTab(this.openTabs[this.activeTabIndex])
         }
       } else if (index < this.activeTabIndex) {
         // 如果关闭的标签页在当前激活标签页之前，调整索引
         this.activeTabIndex--
+      }
+    },
+
+    // —— 标签拖拽排序 ——
+    onTabDragStart(index) {
+      this.draggingTabIndex = index
+    },
+    onTabDrop(targetIndex) {
+      const from = this.draggingTabIndex
+      const to = targetIndex
+      this.draggingTabIndex = null
+      if (from === null || from === undefined) return
+      if (from === to) return
+
+      // 记录当前激活标签的ID，重排后再恢复激活索引
+      const activeId = this.openTabs[this.activeTabIndex]?.id
+
+      const moved = this.openTabs.splice(from, 1)[0]
+      // 计算插入位置（如果从左往右拖并且越过目标，新的索引需-1）
+      const insertAt = from < to ? to - 1 : to
+      this.openTabs.splice(insertAt, 0, moved)
+
+      // 恢复激活索引
+      const newActiveIndex = this.openTabs.findIndex((t) => t.id === activeId)
+      if (newActiveIndex !== -1) {
+        this.activeTabIndex = newActiveIndex
       }
     },
     async toggleCompactMode() {
@@ -2886,13 +2969,16 @@ export default {
       // 将本次路由变更记录到当前活动标签的历史堆栈（确保实例内导航可被后退/前进）
       const activeTab = this.openTabs[this.activeTabIndex]
       if (activeTab) {
+        // 动态更新当前标签的标题（统一按路由规则）
+        activeTab.title = this.buildTabTitleFromRoute(to)
         if (!activeTab.history) {
           activeTab.history = { stack: [], index: -1 }
         }
         const full = to.fullPath || to.path
-        const currentLast = activeTab.history.stack[activeTab.history.stack.length - 1]
-        if (currentLast !== full) {
-          // 如果存在前进分支，先截断
+        const currentEntry = activeTab.history.stack[activeTab.history.index] || null
+        // 如果路由等于当前索引指向的条目，则说明是切换标签/后退/前进导致的渲染，不记录
+        if (currentEntry !== full) {
+          // 若存在前进分支，先截断
           if (activeTab.history.index < activeTab.history.stack.length - 1) {
             activeTab.history.stack = activeTab.history.stack.slice(0, activeTab.history.index + 1)
           }
@@ -2938,6 +3024,15 @@ export default {
     if (window.electron && window.electron.onProtocolUrl) {
       window.electron.onProtocolUrl(this.handleProtocolCallback)
     }
+
+    // 取消通过全局 store 同步标题的逻辑，改由路由自身管理
+
+    // 初始化 tabs 翻页可用状态
+    this.$nextTick(() => {
+      this.updateTabsScrollState()
+      // 监听窗口大小变化以更新可用状态
+      window.addEventListener('resize', this.updateTabsScrollState)
+    })
   }
 }
 </script>
@@ -3045,7 +3140,6 @@ export default {
 
 .tabs-toolbar.dark-toolbar {
   background-color: rgba(var(--v-theme-surface), 1);
-  border-bottom-color: rgba(var(--v-theme-outline), 0.2);
 }
 
 .tabs-container {
@@ -3058,17 +3152,32 @@ export default {
   flex: 1;
 }
 
+/* Tabs总宽度限制与滚动翻页区域 */
+.tabs-scroll-wrapper {
+  display: flex;
+  align-items: center;
+  max-width: 70vw; /* 限制总宽度，可按需调整 */
+  overflow: hidden;
+}
+.tabs-viewport {
+  overflow: hidden;
+  max-width: 68vw;
+}
+
 .tab-item {
-  min-width: 120px;
-  max-width: 200px;
+  /* 自适应内容宽度：不强制最小/最大宽度，按内容伸缩 */
+  min-width: 0 !important;
+  max-width: none !important;
   height: 32px !important;
+  padding: 0 8px;
+  flex: 0 0 auto; /* 不占据剩余空间，按内容渲染 */
 }
 
 .tab-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 0 0 auto; /* 跟随内容宽度 */
   font-size: 0.875rem;
 }
 
@@ -3386,3 +3495,26 @@ export default {
   }
 }
 </style>
+    // Tabs 翻页按钮：触发 v-tabs 内部左右滑动
+    pageTabs(direction) {
+      const host = this.$refs.tabsRef && this.$refs.tabsRef.$el
+      if (!host) return
+      const selector = direction === 'prev' ? '.v-slide-group__prev' : '.v-slide-group__next'
+      const btn = host.querySelector(selector)
+      if (!btn) return
+      for (let i = 0; i < 3; i++) btn.click()
+      setTimeout(() => this.updateTabsScrollState(), 150)
+    },
+    updateTabsScrollState() {
+      try {
+        const host = this.$refs.tabsRef && this.$refs.tabsRef.$el
+        if (!host) return
+        const prevBtn = host.querySelector('.v-slide-group__prev')
+        const nextBtn = host.querySelector('.v-slide-group__next')
+        this.tabsCanScrollPrev = prevBtn ? !prevBtn.hasAttribute('disabled') : false
+        this.tabsCanScrollNext = nextBtn ? !nextBtn.hasAttribute('disabled') : false
+      } catch (e) {
+        this.tabsCanScrollPrev = false
+        this.tabsCanScrollNext = false
+      }
+    },
