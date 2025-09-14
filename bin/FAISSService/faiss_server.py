@@ -14,16 +14,42 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# 配置日志
+# ========= 日志配置（安全可写 + 滚动）=========
+from pathlib import Path
+import tempfile
+import logging
+import logging.handlers
+
+APP_DIR = Path(__file__).resolve().parent
+# 可通过环境变量覆盖默认目录：GITHAVE_DATA_DIR / FAISS_LOG_DIR
+DATA_DIR = Path(os.getenv("GITHAVE_DATA_DIR", APP_DIR / "data"))
+LOG_DIR  = Path(os.getenv("FAISS_LOG_DIR", DATA_DIR / "logs"))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+LOG_FILE = LOG_DIR / "faiss_server.log"
+
+handlers = [logging.StreamHandler()]
+
+try:
+    # 10MB/卷，保留5卷；按需调整
+    handlers.append(
+        logging.handlers.RotatingFileHandler(
+            LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        )
+    )
+except OSError:
+    # 若 LOG_DIR 仍不可写，回退到系统临时目录
+    fallback = Path(tempfile.gettempdir()) / "faiss_server.log"
+    handlers.append(logging.FileHandler(fallback, encoding="utf-8"))
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('faiss_server.log')
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=handlers,
 )
-logger = logging.getLogger('faiss_server')
+logger = logging.getLogger("faiss_server")
+# ============================================
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/health": {"origins": "*"}})
@@ -589,6 +615,38 @@ def auto_save_indices():
                     }, f)
                 
                 logger.info(f"自动保存索引 {index_id} 到 {save_path} 成功")
+                
+                # 清理该index_id之前时间戳的所有文件
+                try:
+                    import glob
+                    # 查找所有该index_id的文件
+                    pattern = os.path.join(CONFIG['DEFAULT_SAVE_DIR'], f"{safe_index_id}_*.index")
+                    existing_files = glob.glob(pattern)
+                    
+                    # 按修改时间排序，保留最新的文件
+                    existing_files.sort(key=os.path.getmtime, reverse=True)
+                    
+                    # 删除除了刚保存的文件之外的所有旧文件
+                    files_to_delete = [f for f in existing_files if f != save_path]
+                    
+                    for old_file in files_to_delete:
+                        # 删除索引文件
+                        if os.path.exists(old_file):
+                            os.remove(old_file)
+                            logger.info(f"删除旧索引文件: {old_file}")
+                        
+                        # 删除对应的元数据文件
+                        old_meta_file = old_file + '.meta'
+                        if os.path.exists(old_meta_file):
+                            os.remove(old_meta_file)
+                            logger.info(f"删除旧元数据文件: {old_meta_file}")
+                    
+                    if files_to_delete:
+                        logger.info(f"清理完成，删除了 {len(files_to_delete)} 个旧版本的索引文件")
+                        
+                except Exception as cleanup_error:
+                    logger.error(f"清理旧文件时出错: {cleanup_error}")
+                    
             except Exception as e:
                 logger.error(f"自动保存索引 {index_id} 时出错: {e}")
         

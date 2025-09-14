@@ -59,7 +59,7 @@
               </v-icon>
             </template>
             <span
-              >开启全量扫描可获得更精确的文件类型分布信息，<br />但会增加扫描时间和性能消耗</span
+            >开启全量扫描可获得更精确的文件类型分布信息，<br />但会增加扫描时间和性能消耗</span
             >
           </v-tooltip>
         </div>
@@ -238,7 +238,7 @@
                   <div class="legend-color" :style="{ backgroundColor: getTypeColor(index) }"></div>
                   <span class="legend-text text-caption">{{ type.extension }}</span>
                   <span class="legend-percentage text-caption font-weight-bold"
-                    >{{ type.percentage }}%</span
+                  >{{ type.percentage }}%</span
                   >
                 </div>
               </div>
@@ -282,7 +282,7 @@
                         <v-avatar size="32" class="mr-3">
                           <v-icon :color="getTypeColorName(index)" size="20">{{
                             type.icon
-                          }}</v-icon>
+                            }}</v-icon>
                         </v-avatar>
                         <div class="file-type-details">
                           <div class="file-type-name">{{ type.extension }}</div>
@@ -426,7 +426,7 @@
                 variant="outlined"
                 class="mr-2"
                 @click="showPaletteDialog = true"
-                >配色</v-btn
+              >配色</v-btn
               >
               <input
                 v-model="colorRange[0]"
@@ -503,7 +503,7 @@
                     @mouseenter="onItemMouseEnter($event, item)"
                     @mouseleave="onItemMouseLeave"
                     @mousemove="onItemMouseMove($event, item)"
-                    >{{ item.name }}</v-list-item-title
+                  >{{ item.name }}</v-list-item-title
                   >
                   <v-list-item-subtitle
                     class="text-caption"
@@ -512,15 +512,15 @@
                     @mousemove="onItemMouseMove($event, item)"
                   >
                     {{
-                      renderMode === 'size'
-                        ? item.size
-                          ? item.size >= 1024
-                            ? (item.size / 1024).toFixed(1) + ' MB'
-                            : item.size + ' KB'
-                          : '0 KB'
-                        : item.count && item.isDirectory
-                          ? item.count + ' 项'
-                          : ''
+                    renderMode === 'size'
+                    ? item.size
+                    ? item.size >= 1024
+                    ? (item.size / 1024).toFixed(1) + ' MB'
+                    : item.size + ' KB'
+                    : '0 KB'
+                    : item.count && item.isDirectory
+                    ? item.count + ' 项'
+                    : ''
                     }}
                   </v-list-item-subtitle>
                   <template #append>
@@ -856,24 +856,24 @@
                     class="mt-2"
                   >
                     权重总和：{{
-                      (
-                        (weightConfig.alpha +
-                          weightConfig.beta +
-                          weightConfig.gamma +
-                          weightConfig.delta) *
-                        100
-                      ).toFixed(1)
+                    (
+                    (weightConfig.alpha +
+                    weightConfig.beta +
+                    weightConfig.gamma +
+                    weightConfig.delta) *
+                    100
+                    ).toFixed(1)
                     }}%
                     {{
-                      Math.abs(
-                        weightConfig.alpha +
-                          weightConfig.beta +
-                          weightConfig.gamma +
-                          weightConfig.delta -
-                          1
-                      ) < 0.01
-                        ? '✓'
-                        : '(需要等于100%)'
+                    Math.abs(
+                    weightConfig.alpha +
+                    weightConfig.beta +
+                    weightConfig.gamma +
+                    weightConfig.delta -
+                    1
+                    ) < 0.01
+                    ? '✓'
+                    : '(需要等于100%)'
                     }}
                   </v-alert>
                 </div>
@@ -946,14 +946,14 @@
           </div>
           <div v-if="indexProgressData.remainingFiles" class="mt-3">
             <small class="text-grey"
-              >剩余索引文件数：{{ indexProgressData.remainingFiles }} /
+            >剩余索引文件数：{{ indexProgressData.remainingFiles }} /
               {{ indexProgressData.totalFiles }}</small
             >
           </div>
           <div v-if="indexProgressData.totalFunctions" class="mt-3">
             <small class="text-grey"
-              >已索引的函数量：<strong style="color: #1976d2">{{
-                indexProgressData.totalFunctions
+            >已索引的函数量：<strong style="color: #1976d2">{{
+              indexProgressData.totalFunctions
               }}</strong></small
             >
           </div>
@@ -1243,8 +1243,8 @@ const checkIndexStatus4Toolbar = async (targetPath) => {
 
       const confirmed = window.confirm(
         `检测到当前路径下有 ${unindexedFiles} 个文件未建立索引，\n` +
-          `预计需要 ${minTimeFormatted}-${maxTimeFormatted}进行初始化索引。\n\n` +
-          `确认继续吗？`
+        `预计需要 ${minTimeFormatted}-${maxTimeFormatted}进行初始化索引。\n\n` +
+        `确认继续吗？`
       )
 
       if (!confirmed) {
@@ -1318,8 +1318,8 @@ const checkIndexStatus = async (targetPath) => {
 
       const confirmed = window.confirm(
         `检测到当前路径下有 ${unindexedFiles} 个文件未建立索引，\n` +
-          `预计需要 ${minTimeFormatted}~${maxTimeFormatted} 进行初始化索引。\n\n` +
-          `确认继续吗？`
+        `预计需要 ${minTimeFormatted}~${maxTimeFormatted} 进行初始化索引。\n\n` +
+        `确认继续吗？`
       )
 
       if (!confirmed) {
@@ -2697,6 +2697,12 @@ const applyLensPath = async () => {
       // 规范路径格式
       lensPath.value = window.electron.normalize(lensPath.value)
       const parts = lensPath.value.split(window.electron.sep).filter(Boolean)
+      
+      // 更新标签页标题
+      const selectedRepo = pathSuggestions.value.find(item => item.value === lensPath.value)
+      if (selectedRepo) {
+        updateTabTitle(selectedRepo)
+      }
       const pathDepth = parts.length
 
       let scanDepth
@@ -3084,6 +3090,27 @@ const loadPathSuggestions = async () => {
   }
 }
 
+// 更新标签页标题
+const updateTabTitle = (selectedRepo) => {
+  // 检查当前路由是否为space，避免影响其他路由的标签页
+  const currentRoute = window.location.pathname || window.location.hash
+  if (!currentRoute.includes('/space')) {
+    return
+  }
+  
+  if (selectedRepo) {
+    try {
+      // 使用自定义事件更新标签页标题
+      const title = `空间透镜·${selectedRepo.name}`
+      window.dispatchEvent(new CustomEvent('tabs:set-title', { 
+        detail: { title } 
+      }))
+    } catch (e) {
+      console.log('更新标签页标题失败:', e)
+    }
+  }
+}
+
 // 绘制图表并添加动画与交互
 const chart = ref(null)
 const renderMode = ref('count') // 'size' 或 'count'
@@ -3338,7 +3365,7 @@ const drawChartWithAnimation = () => {
       .exit()
       .transition()
       .duration(750)
-      .attrTween('d', function (d) {
+      .attrTween('d', function(d) {
         const current = this._current ? getArcData(this._current) : getArcData(d)
         const target = { x0: d.x0, x1: d.x0, y0: d.y0, y1: d.y1 }
         const i = d3.interpolate(current, target)
@@ -3348,7 +3375,7 @@ const drawChartWithAnimation = () => {
     arcs
       .transition()
       .duration(750)
-      .attrTween('d', function (d) {
+      .attrTween('d', function(d) {
         const current = this._current ? getArcData(this._current) : getArcData(d)
         const target = getArcData(d)
         const i = d3.interpolate(current, target)
@@ -3390,7 +3417,7 @@ const drawChartWithAnimation = () => {
       .attr('fill', (d) => d.data._color)
       .attr('stroke', 'none')
       .attr('stroke-width', 1)
-      .each(function (d) {
+      .each(function(d) {
         this._current = getArcData(d)
       })
       .on('click', async (event, d) => {
@@ -3426,7 +3453,7 @@ const drawChartWithAnimation = () => {
     newArcs
       .transition()
       .duration(750)
-      .attrTween('d', function (d) {
+      .attrTween('d', function(d) {
         const current = this._current
         const target = getArcData(d)
         const i = d3.interpolate(current, target)
@@ -3665,9 +3692,9 @@ const drawFileTypeChart = () => {
     .transition()
     .duration(800)
     .style('opacity', 0.8)
-    .attrTween('d', function (d) {
+    .attrTween('d', function(d) {
       const interpolate = d3.interpolate({ startAngle: 0, endAngle: 0 }, d)
-      return function (t) {
+      return function(t) {
         return arc(interpolate(t))
       }
     })
@@ -3748,6 +3775,7 @@ watch(selectedPreset, () => {
   background-color: #eeefef;
   border-radius: 4px;
 }
+
 @keyframes slide-in {
   from {
     transform: translateY(-20px);
@@ -3758,6 +3786,7 @@ watch(selectedPreset, () => {
     opacity: 1;
   }
 }
+
 :deep(.bg-surface-variant) {
   background-color: rgb(var(--v-theme-on-surface-variant)) !important;
 }
@@ -3777,14 +3806,14 @@ watch(selectedPreset, () => {
 
 /* Autocomplete and Buttons */
 .v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line
-  .v-field {
+.v-field {
   border-radius: 20px !important; /* Rounded like DeepSearch input */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .v-autocomplete.v-input--density-dense.v-text-field--solo-filled.v-text-field--single-line
-  .v-field:focus-within {
+.v-field:focus-within {
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
   border: 1px solid rgba(var(--v-theme-primary), 0.6) !important;
 }
@@ -3845,9 +3874,8 @@ watch(selectedPreset, () => {
 }
 
 .modern-list-item {
-  transition:
-    background-color 0.2s ease,
-    transform 0.2s ease;
+  transition: background-color 0.2s ease,
+  transform 0.2s ease;
   border-radius: 8px;
   margin: 4px 0; /* Add some spacing */
 }
@@ -3959,7 +3987,8 @@ watch(selectedPreset, () => {
 
 /* Ensure initial state for animations if not handled by v-if */
 .v-row:first-child, /* Top controls row */
-.v-row:nth-child(2) /* Breadcrumbs row */ {
+.v-row:nth-child(2) /* Breadcrumbs row */
+{
   animation: slideDown 0.5s ease-out;
 }
 
@@ -3991,13 +4020,12 @@ watch(selectedPreset, () => {
 }
 
 .bubble-text {
-  font-family:
-    'SF Pro Text',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  font-family: 'SF Pro Text',
+  -apple-system,
+  BlinkMacSystemFont,
+  'Segoe UI',
+  Roboto,
+  sans-serif;
   font-size: 0.875rem;
   line-height: 1.5;
   margin: 0;
@@ -4182,41 +4210,49 @@ watch(selectedPreset, () => {
   max-width: 600px;
   margin: 0 auto;
 }
+
 .chart {
   text-align: center;
   min-height: 600px;
   position: relative;
 }
+
 .legend-list {
   list-style: none;
   padding: 0;
   margin: 16px 0 0;
 }
+
 .legend-list li {
   display: flex;
   align-items: center;
   margin-bottom: 4px;
 }
+
 .legend-color-block {
   display: inline-block;
   width: 12px;
   height: 12px;
   margin-right: 8px;
 }
+
 .tooltip-card {
   background-color: #fff;
   padding: 8px;
   border-radius: 16px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
 .tooltip-card span {
   color: #454545 !important;
 }
+
 @media (min-width: 1280px) {
   .v-container {
     max-width: 1200px;
   }
 }
+
 @media (min-width: 960px) {
   .v-container {
     max-width: 1500px;

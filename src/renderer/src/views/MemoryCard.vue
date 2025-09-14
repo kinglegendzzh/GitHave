@@ -914,7 +914,7 @@ const dialogBuildButton = ref('确认构建');
 const excludeShow = ref(false);
 const currentRepo = ref<Repository | null>(null);
 // 点击齿轮时调用
-async function openExclude(item: Repository) {
+async function openExclude(item) {
   if (!Array.isArray(item.excludeRule)) {
     item.excludeRule = [];
   }
@@ -937,52 +937,50 @@ async function openExclude(item: Repository) {
 watch(excludeShow, val => {
   if (!val) currentRepo.value = null;
 });
-interface TaskData {
-  percent: number
-  completed: number
-  total: number
-  status: string
-}
+// TaskData 结构定义（注释形式）
+// {
+//   percent: number
+//   completed: number
+//   total: number
+//   status: string
+// }
 
-interface MessageItem {
-  date: string
-  message: string
-  href: string
-}
+// MessageItem 结构定义（注释形式）
+// {
+//   date: string
+//   message: string
+//   href: string
+// }
 
-// 定义 Repository 类型
-interface Repository {
-  id: number;
-  repo_url: string;
-  branch: string;
-  local_path: string;
-  created_at: string;
-  username: string;
-  password: string;
-  name: string;
-  desc: string;
-  hasMemoryFlash: boolean;
-  indexing : boolean;
-  functionsTotal: number;
-  scannedCount: number;
-  indexProgress: number; // 百分比
-  loading: boolean;
-  excludeRule: string[];
-  resetIcon: string;
-  resetText: string;
-  estimating?: boolean; // 是否正在进行索引量估算
-  hasFullIndex?: boolean; // 是否已全量构建
-  moduleAnalyzing?: boolean; // 是否正在构建模块分析
-  taskData?: TaskData;
-  totalFileCount?: number | 0;
-}
+// Repository 结构定义（注释形式）
+// {
+//   id: number;
+//   repo_url: string;
+//   branch: string;
+//   local_path: string;
+//   created_at: string;
+//   username: string;
+//   password: string;
+//   name: string;
+//   desc: string;
+//   hasMemoryFlash: boolean;
+//   indexing : boolean;
+//   functionsTotal: number;
+//   scannedCount: number;
+//   indexProgress: number; // 百分比
+//   loading: boolean;
+//   excludeRule: string[];
+//   resetIcon: string;
+//   resetText: string;
+//   estimating?: boolean; // 是否正在进行索引量估算
+//   hasFullIndex?: boolean; // 是否已全量构建
+//   moduleAnalyzing?: boolean; // 是否正在构建模块分析
+//   taskData?: TaskData;
+//   totalFileCount?: number | 0;
+// }
 
-// 声明全局window类型
-declare global {
-  interface Window {
-    electron: any;
-  }
-}
+// 声明全局window类型（注释形式）
+// window.electron
 
 // 表头定义
 // const headers = [
@@ -1404,10 +1402,26 @@ async function deleteClick(repo: Repository) {
 
 // 跳转到仓库身份证页面
 const jumpToRepo = async () => {
-  // 跳转到仓库身份证页面
-  router.push({
-    path: '/repo'
-  })
+  // 通过新增标签页的形式跳转到仓库身份证页面
+  try {
+    const event = new CustomEvent('addNewTab', {
+      detail: {
+        route: '/repo',
+        title: '仓库'
+      }
+    })
+    window.dispatchEvent(event)
+  } catch (error) {
+    console.error('新增标签页失败:', error)
+    // 降级处理：使用普通路由跳转
+    router.push({
+      path: '/repo'
+    }).catch((err) => {
+      if (err.name !== 'NavigationDuplicated') {
+        console.error(err)
+      }
+    })
+  }
 }
 
 

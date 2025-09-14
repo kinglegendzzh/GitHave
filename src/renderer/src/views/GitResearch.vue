@@ -1208,36 +1208,20 @@ export default {
   },
   beforeUnmount() {
     // 清理所有定时器，防止内存泄漏
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer)
-      this.refreshTimer = null
-    }
-
-    if (this.resizeTimer) {
-      clearTimeout(this.resizeTimer)
-    }
-
-    // 清理搜索任务
-    if (this.searchTask) {
-      clearTimeout(this.searchTask)
-      this.searchTask = null
-    }
+    this.clearAllTimers()
   },
   beforeRouteEnter(to, from, next) {
     // 路由进入时的处理
     next((vm) => {
-      // 启动定时刷新，每5秒刷新一次
-      vm.refreshTimer = setInterval(() => {
-        vm.refreshAllReports()
-      }, 2000)
+      console.log('GitResearch 路由进入，开启定时任务')
+      // 启动定时刷新文件列表任务，每5秒刷新一次
+      vm.startRefreshTimer()
     })
   },
   beforeRouteLeave(to, from, next) {
-    // 离开路由时清理定时器
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer)
-      this.refreshTimer = null
-    }
+    // 离开路由时清理所有定时器
+    console.log('GitResearch 路由离开，清除定时任务')
+    this.clearAllTimers()
     next()
   },
   methods: {
@@ -2685,6 +2669,48 @@ export default {
           }
         }, 50)
       })
+    },
+
+    // 启动定时刷新任务
+    startRefreshTimer() {
+      // 先清理之前的定时器，避免重复启动
+      this.clearRefreshTimer()
+      
+      // 启动定时刷新，每5秒刷新一次文件列表
+      this.refreshTimer = setInterval(() => {
+        this.refreshAllReports()
+      }, 5000)
+      
+      console.log('文件列表自动刷新定时任务已启动')
+    },
+
+    // 清理刷新定时器
+    clearRefreshTimer() {
+      if (this.refreshTimer) {
+        clearInterval(this.refreshTimer)
+        this.refreshTimer = null
+        console.log('文件列表自动刷新定时任务已清除')
+      }
+    },
+
+    // 清理所有定时器
+    clearAllTimers() {
+      // 清理刷新定时器
+      this.clearRefreshTimer()
+      
+      // 清理调整大小定时器
+      if (this.resizeTimer) {
+        clearTimeout(this.resizeTimer)
+        this.resizeTimer = null
+      }
+
+      // 清理搜索任务定时器
+      if (this.searchTask) {
+        clearTimeout(this.searchTask)
+        this.searchTask = null
+      }
+      
+      console.log('GitResearch 所有定时任务已清理完毕')
     }
   }
 }

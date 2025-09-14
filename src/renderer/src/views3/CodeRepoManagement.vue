@@ -821,9 +821,26 @@ const previewRepo = (item) => {
 
 const jumpToFm = () => {
   closeDialog()
-  router.push({
-    name: 'scan'
-  })
+  // 通过新增标签页的形式跳转到构建索引页面
+  try {
+    const event = new CustomEvent('addNewTab', {
+      detail: {
+        route: '/scan',
+        title: '上下文索引'
+      }
+    })
+    window.dispatchEvent(event)
+  } catch (error) {
+    console.error('新增标签页失败:', error)
+    // 降级处理：使用普通路由跳转
+    router.push({
+      name: 'scan'
+    }).catch((err) => {
+      if (err.name !== 'NavigationDuplicated') {
+        console.error(err)
+      }
+    })
+  }
 }
 
 // 打开本地路径

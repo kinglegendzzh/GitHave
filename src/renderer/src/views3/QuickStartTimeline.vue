@@ -924,11 +924,12 @@ function selectSubStep(step, subStep) {
 }
 
 /**
- * 使用 vue-router 进行路由跳转
+ * 使用新增标签页的方式进行路由跳转
  * @param {String|Object} route - 跳转的路由
  */
 async function jumpToRoute(route) {
-  console.log('跳转路由:', route)
+  console.log('新增标签页跳转:', route)
+  
   if (route === '/ide') {
     console.log('跳转IDE')
     // 构造要打开的完整 URL
@@ -937,17 +938,39 @@ async function jumpToRoute(route) {
     await window.electron.openNewWindowIDE(url)
     return
   }
+  
   if (route === '/onboarding') {
     console.log('跳转新手引导时，清除相关localStorage')
     localStorage.removeItem('onboarding_completed')
     localStorage.removeItem('index_service_started')
+    // 新手引导使用路由跳转而不是新增标签页
+    router.push(route).catch((err) => {
+      if (err.name !== 'NavigationDuplicated') {
+        console.error(err)
+      }
+    })
+    return
   }
-  router.push(route).catch((err) => {
-    // 忽略重复导航错误
-    if (err.name !== 'NavigationDuplicated') {
-      console.error(err)
-    }
-  })
+  
+  // 其他路由使用新增标签页的方式
+  try {
+    // 触发自定义事件来新增标签页
+    const event = new CustomEvent('addNewTab', {
+      detail: {
+        route: route,
+        title: getRouteTitle(route)
+      }
+    })
+    window.dispatchEvent(event)
+  } catch (error) {
+    console.error('新增标签页失败:', error)
+    // 降级处理：使用普通路由跳转
+    router.push(route).catch((err) => {
+      if (err.name !== 'NavigationDuplicated') {
+        console.error(err)
+      }
+    })
+  }
 }
 
 /**
@@ -996,6 +1019,28 @@ function jumpToFeatureRoute() {
     featureDetailVisible.value = false
     jumpToRoute(selectedFeature.value.route)
   }
+}
+
+/**
+ * 根据路由获取标签页标题
+ * @param {String} route - 路由路径
+ * @returns {String} 标签页标题
+ */
+function getRouteTitle(route) {
+  const routeTitleMap = {
+    '/space': '空间透镜',
+    '/search': '深度搜索',
+    '/report': '文件枢纽',
+    '/commits/history': '提交审查',
+    '/finder': '代码视窗',
+    '/sender': '推送机器人',
+    '/model': '模型管理',
+    '/scan': '智能索引',
+    '/agent': '智能体中心',
+    '/repo': '项目仓库',
+    '/term': '终端功能'
+  }
+  return routeTitleMap[route] || route
 }
 
 /**

@@ -3,13 +3,19 @@ productName: GitHave
 directories:
   buildResources: build
 
+# ✅ 自定义协议注册（打包安装后生效）
+protocols:
+  - name: GitHave URL
+    schemes:
+      - githave
+
 files:
   - 'bin/watermark.png'
   - 'bin/watermark.svg'
   - 'bin/static/**/*'
   - 'bin/FAISSService/**/*'
-  - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
-  - '!bin/FAISSService/.env'        # 同时排除空目录
+  - '!bin/FAISSService/.env/**'
+  - '!bin/FAISSService/.env'
   - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - '!**/.vscode/*'
   - '!**/.idea/*'
@@ -18,8 +24,10 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - 'out/**/*'  # 包括 out 目录下的所有文件
+  - 'out/**/*'
   - 'public/**/*'
+
+asar: true
 
 asarUnpack:
   - resources/**
@@ -27,11 +35,10 @@ asarUnpack:
   - 'bin/watermark.svg'
   - 'bin/static/**/*'
   - 'bin/FAISSService/**/*'
-  - '!bin/FAISSService/.env/**'     # 排除 .env 目录及其所有子文件
-  - '!bin/FAISSService/.env'        # 同时排除空目录
+  - '!bin/FAISSService/.env/**'
+  - '!bin/FAISSService/.env'
   - 'bin/NotoSerifSC-VariableFont_wght.ttf'
   - 'public/**/*'
-#  - out/renderer/**  # 确保本地服务能读取 html、js、css 等 win.loadURL时启动
 
 win:
   target:
@@ -47,7 +54,6 @@ win:
     - 'bin/config.yaml'
     - 'bin/fm.yaml'
     - 'bin/fm_http.exe'
-
   asarUnpack:
     - 'bin/app.exe'
     - 'bin/bot.exe'
@@ -60,6 +66,8 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  # （可选）如果你想让注册表写在 HKLM 以覆盖所有用户，可启用 perMachine
+  # perMachine: true
 
 mac:
   # ⚠ 如需三份产物请写三种架构
@@ -71,6 +79,7 @@ mac:
       # arch: [ x64, arm64, universal ]
       arch: [ x64, arm64 ]
   compression: maximum
+  category: public.app-category.developer-tools
   files:
     - 'bin/app'
     - 'bin/bot'
@@ -78,7 +87,6 @@ mac:
     - 'bin/fm'
     - 'bin/fm.yaml'
     - 'bin/fm_http'
-
   asarUnpack:
     - 'bin/app'
     - 'bin/bot'
@@ -86,17 +94,20 @@ mac:
     - 'bin/fm'
     - 'bin/fm.yaml'
     - 'bin/fm_http'
-
-  entitlementsInherit: build/entitlements.mac.plist
+  # ✅ 修正：extendInfo 必须是字典（不是数组），否则可能导致 Info.plist 写入异常，从而影响 URL 处理
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  entitlementsInherit: build/entitlements.mac.plist
   notarize: false
+  # （如要更稳，建议后续开启硬化+公证）
+  # hardenedRuntime: true
+  # gatekeeperAssess: false
+  # notarize: true
 
 dmg:
-  # 根据不同架构添加标识
   artifactName: ${name}-${version}-${arch}.${ext}
 
 linux:
@@ -118,8 +129,6 @@ publish:
 
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-
-asar: true
 
 extraResources:
   - from: "src/renderer/skeleton.html"

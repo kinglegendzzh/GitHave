@@ -133,6 +133,12 @@ const router = createRouter({
       name: 'antDesignDemo',
       meta: { title: 'Ant Design 组件演示' },
       component: () => import('../components/AntDesignDemo.vue')
+    },
+    {
+      path: '/monaco-demo',
+      name: 'monacoDemo',
+      meta: { title: 'Monaco编辑器测试' },
+      component: () => import('../views3/MonacoDemo.vue')
     }
   ]
 })

@@ -489,14 +489,14 @@
                     :class="{ 'elevation-2': hoveredFunction === functionItem.name }"
                     style="cursor: pointer; transition: all 0.2s"
                     @mouseenter="
-                      hoveredFunction = functionItem.name,
-                      hoveredFilePath = filePath,
-                      handleFunctionMouseEnter($event, functionItem, filePath)
+                      ((hoveredFunction = functionItem.name),
+                      (hoveredFilePath = filePath),
+                      handleFunctionMouseEnter($event, functionItem, filePath))
                     "
                     @mouseleave="
-                      hoveredFunction = null,
-                      hoveredFilePath = null,
-                      handleFunctionMouseLeave()
+                      ((hoveredFunction = null),
+                      (hoveredFilePath = null),
+                      handleFunctionMouseLeave())
                     "
                   >
                     <div class="d-flex align-center mb-1">
@@ -765,7 +765,12 @@
           <div class="d-flex align-center mb-2">
             <v-icon size="small" color="primary" class="mr-2">mdi-function-variant</v-icon>
             <span class="font-weight-bold text-primary">{{ functionTooltip.data.name }}</span>
-            <v-chip v-if="functionTooltip.data.function_type" size="x-small" class="ml-2" color="info">
+            <v-chip
+              v-if="functionTooltip.data.function_type"
+              size="x-small"
+              class="ml-2"
+              color="info"
+            >
               {{ functionTooltip.data.function_type }}
             </v-chip>
           </div>
@@ -782,7 +787,10 @@
 
           <div class="text-caption text-medium-emphasis mb-2">
             <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>
-            行 {{ functionTooltip.data.start_line }} - {{ functionTooltip.data.end_line }} ({{ functionTooltip.data.lines }} 行)
+            行 {{ functionTooltip.data.start_line }} - {{ functionTooltip.data.end_line }} ({{
+              functionTooltip.data.lines
+            }}
+            行)
           </div>
 
           <div v-if="functionTooltip.data.description" class="text-caption mb-2">
@@ -803,30 +811,49 @@
 
           <div class="text-caption mb-2">
             <strong>重要性评分：</strong>
-            <v-chip size="x-small" :color="functionTooltip.data.score > 2 ? 'error' : functionTooltip.data.score > 1 ? 'warning' : 'success'">
+            <v-chip
+              size="x-small"
+              :color="
+                functionTooltip.data.score > 2
+                  ? 'error'
+                  : functionTooltip.data.score > 1
+                    ? 'warning'
+                    : 'success'
+              "
+            >
               {{ functionTooltip.data.score ? functionTooltip.data.score.toFixed(2) : 'N/A' }}
             </v-chip>
           </div>
 
-          <div v-if="functionTooltip.data.imports && functionTooltip.data.imports.length > 0" class="mb-2">
+          <div
+            v-if="functionTooltip.data.imports && functionTooltip.data.imports.length > 0"
+            class="mb-2"
+          >
             <div class="text-caption font-weight-medium mb-1">
               <v-icon size="x-small" class="mr-1">mdi-import</v-icon>
               导入模块：
             </div>
             <div class="text-caption text-medium-emphasis">
               {{ functionTooltip.data.imports.slice(0, 3).join(', ') }}
-              <span v-if="functionTooltip.data.imports.length > 3">等{{ functionTooltip.data.imports.length }}个</span>
+              <span v-if="functionTooltip.data.imports.length > 3"
+                >等{{ functionTooltip.data.imports.length }}个</span
+              >
             </div>
           </div>
 
-          <div v-if="functionTooltip.data.calls && functionTooltip.data.calls.length > 0" class="mt-2">
+          <div
+            v-if="functionTooltip.data.calls && functionTooltip.data.calls.length > 0"
+            class="mt-2"
+          >
             <div class="text-caption font-weight-medium mb-1">
               <v-icon size="x-small" class="mr-1">mdi-call-made</v-icon>
               调用函数：
             </div>
             <div class="text-caption text-medium-emphasis">
               {{ functionTooltip.data.calls.slice(0, 3).join(', ') }}
-              <span v-if="functionTooltip.data.calls.length > 3">等{{ functionTooltip.data.calls.length }}个</span>
+              <span v-if="functionTooltip.data.calls.length > 3"
+                >等{{ functionTooltip.data.calls.length }}个</span
+              >
             </div>
           </div>
         </div>
@@ -1738,6 +1765,7 @@ function resetRoot() {
 
 // 处理路径选择变更，只在用户实际选择或清除路径时触发重置
 function onPathSelectionChanged(newPath) {
+  console.log('[FileBrowser] 路径选择变更：', newPath)
   // 如果用户选择了路径（新路径或者已有路径）
   if (newPath !== null && newPath !== undefined && newPath !== '') {
     // 更新标签页标题：代码视窗·{repo.name}
@@ -1745,8 +1773,15 @@ function onPathSelectionChanged(newPath) {
       const matched = pathSuggestions.value.find((i) => i.value === newPath)
       if (matched) {
         store.dispatch('tabs/setActiveTabTitle', `代码视窗·${matched.name || matched.title}`)
+        // 使用正确的事件方式更新标签页标题
+        const title = `代码视窗·${matched.name || matched.title}`
+        window.dispatchEvent(new CustomEvent('tabs:set-title', { 
+          detail: { title } 
+        }))
       }
-    } catch (e) {}
+    } catch {
+      // 忽略错误
+    }
     // 更新目录树
     resetTree(newPath).then(() => {
       handleNodeSelection([newPath])
@@ -1975,7 +2010,7 @@ async function searchFileAndFolders(dir, query, maxDepth = 100, currentDepth = 0
         results = results.concat(subResults)
       }
     }
-  } catch (e) {
+  } catch {
     // 权限或其他错误跳过
   }
   return results
@@ -2305,7 +2340,7 @@ async function getDirectoryTree(targetPath) {
   let root
   try {
     root = await window.electron.readDirectory(targetPath)
-  } catch (e) {
+  } catch {
     return [] // 目录不可读
   }
   console.log('[DEBUG] getDirectoryTree 原始子项数量:', root.length, '路径:', targetPath)
@@ -2549,6 +2584,17 @@ watch(activeTab, (newIndex) => {
       console.log('Loading code index for:', tabs.value[newIndex].path)
       loadCodeIndex(tabs.value[newIndex].path)
     }
+  }
+})
+
+// 监听 newRootPath 变化，更新标签页标题
+watch(newRootPath, (newPath) => {
+  if (newPath) {
+    // 调用原有的onPathSelectionChanged逻辑
+    onPathSelectionChanged(newPath)
+  } else {
+    // 如果路径被清空，也需要调用onPathSelectionChanged
+    onPathSelectionChanged(null)
   }
 })
 // Filter tree data based on search query
@@ -3149,13 +3195,13 @@ async function fetchFunctionDetails(functionName, packageName, filePath) {
     functionTooltip.value.loading = true
     const repoPath = newRootPath.value
     // filePath 已经是相对路径，直接使用
-    
+
     console.log('[DEBUG] 获取函数详情:', { functionName, packageName, filePath, repoPath })
-    
+
     const response = await getFunctionInfo(repoPath, filePath, packageName, functionName)
-    
+
     console.log('[DEBUG] 函数详情响应:', response)
-    
+
     if (response && response.data && response.data.code === 0) {
       functionTooltip.value.data = response.data.data.functions[0] || null
       console.log('[DEBUG] 设置函数详情数据:', functionTooltip.value.data)
@@ -3178,26 +3224,31 @@ function handleFunctionMouseEnter(event, functionItem, filePath) {
   const tooltipWidth = 400 // 气泡浮窗最大宽度
   let x = rect.right + 10
   let y = rect.top
-  
+
   // 如果右侧空间不够，显示在左侧
   if (x + tooltipWidth > window.innerWidth) {
     x = rect.left - tooltipWidth - 10
   }
-  
+
   // 如果下方空间不够，向上调整
   if (y + 200 > window.innerHeight) {
     y = Math.max(10, y - 200)
   }
-  
+
   functionTooltip.value.x = x
   functionTooltip.value.y = y
   functionTooltip.value.functionName = functionItem.name
   functionTooltip.value.packageName = functionItem.package || ''
   functionTooltip.value.show = true
-  
+
   console.log('[DEBUG] 鼠标进入函数卡片:', { functionItem, filePath })
   console.log('[DEBUG] 设置气泡浮窗显示:', functionTooltip.value)
-  console.log('[DEBUG] 气泡浮窗位置:', { x, y, rect, windowSize: { width: window.innerWidth, height: window.innerHeight } })
+  console.log('[DEBUG] 气泡浮窗位置:', {
+    x,
+    y,
+    rect,
+    windowSize: { width: window.innerWidth, height: window.innerHeight }
+  })
 
   // 延迟获取详细信息，避免频繁请求
   setTimeout(() => {
