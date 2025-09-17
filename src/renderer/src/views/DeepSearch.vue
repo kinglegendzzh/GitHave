@@ -6,7 +6,7 @@
     <div v-cloak class="search-container">
       <div class="search-header">
         <h2 style="user-select: none">
-          搜索关于
+          问一问关于
           <span class="repo-selector text-grey" @click="toggleRepoDropdown">
             {{ selectedRepo.show }}
             <v-icon size="small" right>{{

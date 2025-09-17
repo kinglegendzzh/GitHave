@@ -203,6 +203,18 @@
                 class="mb-2"
                 @input="filterTree"
               />
+              <!-- 搜索进度显示 -->
+              <div v-if="searchConfig.isSearching" class="search-progress-container">
+                <div class="search-progress-bar">
+                  <div
+                    class="search-progress-fill"
+                    :style="{ width: searchConfig.searchProgress + '%' }"
+                  ></div>
+                </div>
+                <span class="search-progress-text">
+                  搜索中... {{ Math.round(searchConfig.searchProgress) }}%
+                </span>
+              </div>
 
               <!-- 添加路径导航输入框 -->
               <!-- <div class="path-navigation mt-2">
@@ -219,6 +231,7 @@
               </div> -->
             </div>
             <el-tree
+              :key="treeKey"
               ref="treeRef"
               style="height: 78vh; overflow-y: scroll"
               :data="filteredTreeData"
@@ -240,12 +253,23 @@
               @node-contextmenu="handleNodeContextMenu"
             >
               <template #default="{ data }">
-                <div class="custom-tree-node">
+                <div
+                  class="custom-tree-node"
+                  :class="{ 'search-result-folder': data.isDirectory && data.hasSearchResults }"
+                  @mouseenter="debouncedHoverHandler(data.path, $event)"
+                  @mouseleave="hideHoverTooltip"
+                  @click="handleSearchResultClick(data, $event)"
+                >
                   <el-icon class="mr-1">
                     <Folder v-if="data.isDirectory" />
                     <Document v-else />
                   </el-icon>
                   <span class="node-label">{{ data.name }}</span>
+                  <span v-if="data.isDirectory && data.hasSearchResults" class="search-expand-hint">
+                    <el-icon class="ml-1" size="12">
+                      <ArrowRight />
+                    </el-icon>
+                  </span>
                 </div>
               </template>
             </el-tree>
@@ -324,29 +348,66 @@
                   <!-- 快速代码查找和函数操作按钮 -->
                   <div class="d-flex justify-space-between align-center mb-2">
                     <!-- 原有的函数操作按钮 -->
-                    <div class="d-flex gap-2">
-                      <v-btn
+                    <div style="display: flex; gap: 8px">
+                      <a-button
                         v-if="isCodeFile && codeIndex && codeIndex.functions"
                         size="small"
-                        variant="outlined"
-                        color="info"
-                        prepend-icon="mdi-function"
+                        type="link"
+                        ghost
                       >
-                        <span class="text-caption"
-                          >{{ codeIndex.total_function_count }} 个索引</span
-                        >
-                      </v-btn>
-                      <!-- <v-btn
-                        class="ml-2"
-                        color="success"
+                        <template #icon>
+                          <function-outlined />
+                        </template>
+                        {{ codeIndex.total_function_count }} 个索引
+                      </a-button>
+                      <!-- 文件锁按钮 -->
+                      <a-button
+                        v-if="isCodeFile"
                         size="small"
-                        prepend-icon="mdi-code-braces"
-                        @click="openInIDE(selectedFileUrl)"
+                        :danger="fileEditLocked"
+                        @click="toggleFileLock"
                       >
-                        <span style="text-transform: none" class="text-caption ml-1 mr-1">
-                          在IDE中编辑
-                        </span>
-                      </v-btn> -->
+                        <template #icon>
+                          <lock-outlined v-if="fileEditLocked" />
+                          <unlock-outlined v-else />
+                        </template>
+                        {{ fileEditLocked ? '只读模式' : '编辑模式' }}
+                      </a-button>
+                      <!-- 时间线按钮 -->
+                      <a-button
+                        v-if="isCodeFile && !fileEditLocked"
+                        size="small"
+                        type="text"
+                        ghost
+                        @click="toggleTimeline"
+                      >
+                        <template #icon>
+                          <history-outlined />
+                        </template>
+                        时间线
+                      </a-button>
+                      <!-- <a-button size="small" variant="outlined" ghost @click="openInIDE">
+                        从IDE编辑
+                      </a-button> -->
+
+                      <!-- 编辑操作按钮组 -->
+                      <template v-if="isCodeFile && !fileEditLocked">
+                        <a-divider type="vertical" />
+
+                        <!-- 保存按钮 -->
+                        <a-button
+                          size="small"
+                          :type="hasUnsavedChanges ? 'primary' : 'default'"
+                          :loading="isAutoSaving"
+                          :title="'保存文件 (Ctrl+S)'"
+                          @click="saveCurrentFile"
+                        >
+                          <template #icon>
+                            <save-outlined />
+                          </template>
+                          {{ isAutoSaving ? '保存中...' : hasUnsavedChanges ? '保存*' : '保存' }}
+                        </a-button>
+                      </template>
                     </div>
                   </div>
 
@@ -383,7 +444,7 @@
                       :language="getFileLanguage(selectedFileName)"
                       :theme="currentTheme"
                       :options="monacoOptions"
-                      @editor-mounted="onEditorMounted"
+                      @mount="onEditorMounted"
                     />
                   </div>
                   <!-- 其他文本文件预览 -->
@@ -408,157 +469,369 @@
             <!-- 代码索引侧边栏 -->
             <v-card
               v-if="
-                showRightPanel &&
-                isCodeFile &&
-                codeIndex &&
-                Object.keys(codeIndex.functions || {}).length > 0
+                (showRightPanel &&
+                  isCodeFile &&
+                  codeIndex &&
+                  Object.keys(codeIndex.functions || {}).length > 0) ||
+                showTimeline
               "
               class="mt-1 mb-1 code-index-sidebar"
               :style="{ width: rightPanelWidth + 'px', maxWidth: rightPanelWidth + 'px' }"
             >
-              <div class="text-subtitle-2 mb-2 text-primary font-weight-bold">
-                <v-icon size="small" class="mr-1">mdi-function</v-icon>
-                代码结构 ({{ codeIndex.total_function_count }} 个索引)
-              </div>
-              <!-- 代码结构搜索框 -->
-              <div class="d-flex align-center mb-2" style="position: relative">
-                <div class="code-search-container" :class="{ 'dark-theme': isDarkTheme }">
-                  <v-icon
-                    size="small"
-                    style="
-                      position: absolute;
-                      left: 22px;
-                      top: 50%;
-                      transform: translateY(-50%);
-                      z-index: 1;
-                    "
-                    >mdi-magnify</v-icon
-                  >
-                  <input
-                    v-model="codeStructureSearch"
-                    type="text"
-                    class="custom-search-input"
-                    :placeholder="'搜索函数...'"
-                    :style="{
-                      paddingLeft: '32px',
-                      width: '100%',
-                      height: '36px',
-                      border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
-                      borderRadius: '6px',
-                      outline: 'none',
-                      color: isDarkTheme ? '#e2e8f0' : 'inherit',
-                      background: isDarkTheme ? '#1e1e1e' : 'white'
-                    }"
-                  />
-                  <v-icon
-                    v-if="codeStructureSearch"
-                    size="small"
-                    color="grey"
-                    style="
-                      position: absolute;
-                      right: 24px;
-                      top: 50%;
-                      transform: translateY(-50%);
-                      cursor: pointer;
-                      z-index: 2;
-                    "
-                    @click="codeStructureSearch = ''"
-                  >
-                    mdi-close-circle
-                  </v-icon>
-                </div>
-              </div>
-              <v-divider class="mb-3"></v-divider>
-
-              <!-- 遍历每个文件 -->
-              <div v-for="(functions, filePath) in codeIndex.functions" :key="filePath">
-                <div class="text-caption text-medium-emphasis mb-2">
-                  <v-icon size="small" class="mr-1">mdi-file-code</v-icon>
-                  {{ filePath }}
-                </div>
-
-                <!-- 遍历文件中的每个函数 (带搜索过滤) -->
+              <!-- 时间线面板 -->
+              <div v-if="showTimeline" class="timeline-panel" style="padding: 16px">
                 <div
-                  v-for="functionItem in filterFunctions(functions)"
-                  :key="`${filePath}-${functionItem.name}`"
-                  class="mb-3"
+                  style="
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 16px;
+                  "
                 >
+                  <div style="font-size: 16px; font-weight: 600; color: #1890ff">
+                    <history-outlined style="margin-right: 8px" />
+                    文件历史
+                  </div>
+                  <a-button size="small" type="text" @click="showTimeline = false">
+                    <template #icon>
+                      <close-outlined />
+                    </template>
+                  </a-button>
+                </div>
+
+                <!-- 历史统计信息 -->
+                <div
+                  v-if="historyStats"
+                  style="
+                    margin-bottom: 12px;
+                    padding: 8px;
+                    background: rgba(0, 0, 0, 0.02);
+                    border-radius: 4px;
+                  "
+                >
+                  <div style="font-size: 12px; color: #666; margin-bottom: 4px">
+                    <strong>历史统计:</strong> 总计 {{ historyStats.totalVersions }} 个版本
+                    <span v-if="historyStats.totalVersions > 0">
+                      | 平均大小: {{ formatFileSize(historyStats.averageSize) }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- 历史版本列表 -->
+                <div class="timeline-list" style="max-height: 300px; overflow-y: auto">
+                  <a-list v-if="fileHistory.length > 0" size="small">
+                    <a-list-item
+                      v-for="(item, index) in fileHistory"
+                      :key="item.id"
+                      :class="{ 'ant-list-item-selected': index === currentHistoryIndex }"
+                      style="cursor: pointer; padding: 8px 12px"
+                      @click="viewHistoryVersion(index)"
+                    >
+                      <a-list-item-meta>
+                        <template #avatar>
+                          <file-text-outlined v-if="item.isCurrent" style="color: #52c41a" />
+                          <history-outlined v-else style="color: #1890ff" />
+                        </template>
+                        <template #title>
+                          <span style="font-size: 12px">{{ item.description }}</span>
+                        </template>
+                        <template #description>
+                          <div style="font-size: 12px; color: #666">
+                            {{ new Date(item.timestamp).toLocaleString() }}
+                            <a-tag size="small" style="margin-left: 8px">
+                              {{ formatFileSize(item.size) }}
+                            </a-tag>
+                          </div>
+                        </template>
+                      </a-list-item-meta>
+
+                      <template #actions>
+                        <div v-if="!item.isCurrent" style="display: flex; gap: 4px">
+                          <a-tooltip title="恢复到此版本">
+                            <a-button
+                              size="small"
+                              type="text"
+                              @click.stop="restoreToHistoryVersion(index)"
+                            >
+                              <template #icon>
+                                <redo-outlined />
+                              </template>
+                            </a-button>
+                          </a-tooltip>
+                          <a-tooltip title="删除此版本">
+                            <a-button
+                              size="small"
+                              type="text"
+                              danger
+                              @click.stop="deleteHistoryVersion(index)"
+                            >
+                              <template #icon>
+                                <delete-outlined />
+                              </template>
+                            </a-button>
+                          </a-tooltip>
+                        </div>
+                      </template>
+                    </a-list-item>
+                  </a-list>
+
+                  <div v-else style="text-align: center; padding: 24px">
+                    <history-outlined style="font-size: 48px; color: #d9d9d9" />
+                    <p style="font-size: 12px; color: #999; margin-top: 8px">暂无历史记录</p>
+                  </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div style="display: flex; gap: 8px; margin-top: 16px">
+                  <a-button size="small" type="primary" ghost @click="restoreCurrentVersion">
+                    <template #icon>
+                      <file-text-outlined />
+                    </template>
+                    当前版本
+                  </a-button>
+
+                  <a-button
+                    v-if="selectedHistoryItem && !selectedHistoryItem.isCurrent"
+                    size="small"
+                    type="default"
+                    @click="openDiffModal"
+                  >
+                    <template #icon>
+                      <diff-outlined />
+                    </template>
+                    差异视图
+                  </a-button>
+                </div>
+
+                <a-divider style="margin: 12px 0" />
+              </div>
+
+              <!-- 函数索引面板 -->
+              <div
+                v-if="codeIndex && Object.keys(codeIndex.functions || {}).length > 0"
+                class="pa-3"
+              >
+                <!-- AI 描述区域 -->
+                <div v-if="currentFileAiDescription" class="ai-description-section mb-3">
+                  <div class="d-flex align-center mb-2">
+                    <v-icon size="small" color="primary" class="mr-2">mdi-robot</v-icon>
+                    <span class="text-subtitle-2 font-weight-medium">AI 描述</span>
+                    <v-spacer></v-spacer>
+                    <v-btn
+                      v-if="isAiDescriptionOverflow"
+                      size="x-small"
+                      variant="text"
+                      color="primary"
+                      class="text-caption"
+                      @click="toggleAiDescription"
+                    >
+                      <v-icon size="small" class="mr-1">
+                        {{ aiDescriptionExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                      </v-icon>
+                      {{ aiDescriptionExpanded ? '收起' : '展开' }}
+                    </v-btn>
+                  </div>
                   <v-card
                     variant="outlined"
-                    class="pa-2 function-card"
-                    :class="{ 'elevation-2': hoveredFunction === functionItem.name }"
-                    style="cursor: pointer; transition: all 0.2s"
-                    @mouseenter="
-                      ((hoveredFunction = functionItem.name),
-                      (hoveredFilePath = filePath),
-                      handleFunctionMouseEnter($event, functionItem, filePath))
-                    "
-                    @mouseleave="
-                      ((hoveredFunction = null),
-                      (hoveredFilePath = null),
-                      handleFunctionMouseLeave())
-                    "
+                    class="pa-3"
+                    style="background-color: rgba(var(--v-theme-primary), 0.05)"
                   >
-                    <div class="d-flex align-center mb-1">
-                      <v-icon size="small" color="primary" class="mr-2"
-                        >mdi-function-variant</v-icon
-                      >
-                      <span class="font-weight-medium text-primary">{{ functionItem.name }}</span>
-                    </div>
-
-                    <div class="text-caption text-medium-emphasis mb-1">
-                      <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>
-                      行 {{ functionItem.start_line }} - {{ functionItem.end_line }}
-                    </div>
-
-                    <!-- 函数描述 -->
-                    <template v-if="functionItem.description">
-                      <div
-                        v-if="getParsedDescription(functionItem.description).description"
-                        class="text-caption description-text mb-2"
-                      >
-                        <strong>描述：</strong>
-                        {{ getParsedDescription(functionItem.description).description }}
-                      </div>
-
-                      <!-- 处理流程 -->
-                      <div
-                        v-if="
-                          getParsedDescription(functionItem.description).process &&
-                          getParsedDescription(functionItem.description).process.length > 0
-                        "
-                        class="text-caption process-text"
-                      >
-                        <strong>处理流程：</strong>
-                        <div
-                          v-for="(step, index) in getParsedDescription(functionItem.description)
-                            .process"
-                          :key="index"
-                          class="ml-2 mt-1"
-                        >
-                          <div class="d-flex">
-                            <div class="mr-1">{{ index + 1 }}.</div>
-                            <div>{{ step }}</div>
-                          </div>
-                        </div>
-                      </div>
-                    </template>
-
-                    <div v-if="functionItem.package" class="text-caption text-success mt-1">
-                      <v-icon size="x-small" class="mr-1">mdi-package-variant</v-icon>
-                      {{ functionItem.package }}
-                    </div>
+                    <div
+                      ref="aiDescriptionRef"
+                      class="ai-description-content markdown-content"
+                      :class="{
+                        'ai-description-collapsed':
+                          !aiDescriptionExpanded && isAiDescriptionOverflow
+                      }"
+                      :style="{
+                        lineHeight: '1.5',
+                        height:
+                          !aiDescriptionExpanded && isAiDescriptionOverflow ? '200px' : 'auto',
+                        overflow:
+                          !aiDescriptionExpanded && isAiDescriptionOverflow ? 'hidden' : 'visible',
+                        textOverflow: 'unset',
+                        whiteSpace: 'normal',
+                        transition: 'height 0.3s ease-in-out'
+                      }"
+                      v-html="
+                        renderMarkdown(
+                          aiDescriptionExpanded
+                            ? currentFileAiDescription
+                            : currentFileAiDescription.substring(0, aiDescriptionMaxLength) + '...'
+                        )
+                      "
+                    ></div>
                   </v-card>
                 </div>
-                <v-divider
-                  v-if="Object.keys(codeIndex.functions).length > 1"
-                  class="my-3"
-                ></v-divider>
+
+                <!-- 代码结构搜索框 -->
+                <div class="d-flex align-center mb-2" style="position: relative">
+                  <div class="code-search-container" :class="{ 'dark-theme': isDarkTheme }">
+                    <v-icon
+                      size="small"
+                      style="
+                        position: absolute;
+                        left: 22px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        z-index: 1;
+                      "
+                      >mdi-magnify</v-icon
+                    >
+                    <input
+                      v-model="codeStructureSearch"
+                      type="text"
+                      class="custom-search-input"
+                      :placeholder="'搜索函数...'"
+                      :style="{
+                        paddingLeft: '32px',
+                        width: '100%',
+                        height: '36px',
+                        border: '1px solid ' + (isDarkTheme ? '#4a5568' : '#d1d5db'),
+                        borderRadius: '6px',
+                        outline: 'none',
+                        color: isDarkTheme ? '#e2e8f0' : 'inherit',
+                        background: isDarkTheme ? '#1e1e1e' : 'white'
+                      }"
+                    />
+                    <v-icon
+                      v-if="codeStructureSearch"
+                      size="small"
+                      color="grey"
+                      style="
+                        position: absolute;
+                        right: 24px;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        cursor: pointer;
+                        z-index: 2;
+                      "
+                      @click="codeStructureSearch = ''"
+                    >
+                      mdi-close-circle
+                    </v-icon>
+                  </div>
+                </div>
+                <v-divider class="mb-3"></v-divider>
+
+                <!-- 遍历每个文件 -->
+                <div v-for="(functions, filePath) in codeIndex.functions" :key="filePath">
+                  <div class="text-caption text-medium-emphasis mb-2">
+                    <v-icon size="small" class="mr-1">mdi-file-code</v-icon>
+                    {{ filePath }}
+                  </div>
+
+                  <!-- 遍历文件中的每个函数 (带搜索过滤) -->
+                  <div
+                    v-for="functionItem in filterFunctions(functions)"
+                    :key="`${filePath}-${functionItem.name}`"
+                    class="mb-3"
+                  >
+                    <v-card
+                      variant="outlined"
+                      class="pa-2 function-card"
+                      :class="{ 'elevation-2': hoveredFunction === functionItem.name }"
+                      style="cursor: pointer; transition: all 0.2s"
+                      @mouseenter="
+                        ((hoveredFunction = functionItem.name),
+                        (hoveredFilePath = filePath),
+                        handleFunctionMouseEnter($event, functionItem, filePath))
+                      "
+                      @mouseleave="
+                        ((hoveredFunction = null),
+                        (hoveredFilePath = null),
+                        handleFunctionMouseLeave())
+                      "
+                    >
+                      <div class="d-flex align-center mb-1">
+                        <v-icon size="small" color="primary" class="mr-2"
+                          >mdi-function-variant</v-icon
+                        >
+                        <span class="font-weight-medium text-primary">{{ functionItem.name }}</span>
+                      </div>
+
+                      <div class="text-caption text-medium-emphasis mb-1">
+                        <v-icon size="x-small" class="mr-1">mdi-map-marker</v-icon>
+                        行 {{ functionItem.start_line }} - {{ functionItem.end_line }}
+                      </div>
+
+                      <!-- 函数描述 -->
+                      <template v-if="functionItem.description">
+                        <div
+                          v-if="getParsedDescription(functionItem.description).description"
+                          class="text-caption description-text mb-2"
+                        >
+                          <strong>描述：</strong>
+                          {{ getParsedDescription(functionItem.description).description }}
+                        </div>
+
+                        <!-- 处理流程 -->
+                        <div
+                          v-if="
+                            getParsedDescription(functionItem.description).process &&
+                            getParsedDescription(functionItem.description).process.length > 0
+                          "
+                          class="text-caption process-text"
+                        >
+                          <strong>处理流程：</strong>
+                          <div
+                            v-for="(step, index) in getParsedDescription(functionItem.description)
+                              .process"
+                            :key="index"
+                            class="ml-2 mt-1"
+                          >
+                            <div class="d-flex">
+                              <div class="mr-1">{{ index + 1 }}.</div>
+                              <div>{{ step }}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+
+                      <div v-if="functionItem.package" class="text-caption text-success mt-1">
+                        <v-icon size="x-small" class="mr-1">mdi-package-variant</v-icon>
+                        {{ functionItem.package }}
+                      </div>
+                    </v-card>
+                  </div>
+                  <v-divider
+                    v-if="Object.keys(codeIndex.functions).length > 1"
+                    class="my-3"
+                  ></v-divider>
+                </div>
               </div>
             </v-card>
           </div>
         </div>
       </div>
+
+      <!-- 悬停提示气泡 -->
+      <div
+        v-if="hoverTooltip.show"
+        class="hover-tooltip"
+        :style="{
+          position: 'fixed',
+          left: hoverTooltip.x + 'px',
+          top: hoverTooltip.y + 'px',
+          zIndex: 9999,
+          pointerEvents: 'none'
+        }"
+      >
+        <v-card
+        variant="elevated"
+        class="pa-3 hover-tooltip-card"
+        style="max-width: 500px"
+        >
+          <div v-if="hoverTooltip.loading" class="d-flex align-center">
+            <v-progress-circular indeterminate size="16" class="mr-2"></v-progress-circular>
+            <span class="text-caption">{{ hoverTooltip.content }}</span>
+          </div>
+          <div v-else class="text-caption hover-tooltip-content" style="line-height: 1.4">
+            <div v-html="renderMarkdown(hoverTooltip.content)"></div>
+          </div>
+        </v-card>
+      </div>
+
       <v-snackbar v-model="snackbar.show" :color="snackbar.color" :timeout="3000" class="ma-0">
         {{ snackbar.message }}
       </v-snackbar>
@@ -750,6 +1023,59 @@
       @contextmenu.prevent="hideContextMenu"
     ></div>
 
+    <!-- 差异视图弹窗 -->
+    <a-modal
+      v-model:open="showDiffModal"
+      title="文件差异对比"
+      width="90%"
+      :footer="null"
+      class="diff-modal"
+      @cancel="closeDiffModal"
+    >
+      <template #title>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <diff-outlined style="color: #1890ff" />
+          <span>文件差异对比</span>
+          <a-tag v-if="selectedHistoryItem" color="blue" size="small">
+            {{ selectedHistoryItem.description }}
+          </a-tag>
+        </div>
+      </template>
+
+      <div class="diff-container">
+        <!-- 差异编辑器容器 -->
+        <div
+          ref="diffModalContainer"
+          class="diff-editor-container"
+          style="height: 70vh; width: 100%; border: 1px solid #d9d9d9; border-radius: 6px"
+        ></div>
+
+        <!-- 操作按钮栏 -->
+        <div class="diff-actions" style="margin-top: 16px; text-align: center">
+          <a-space>
+            <a-button
+              v-if="selectedHistoryItem && !selectedHistoryItem.isCurrent"
+              type="primary"
+              :loading="isRestoringHistory"
+              @click="restoreFromDiff"
+            >
+              <template #icon>
+                <redo-outlined />
+              </template>
+              恢复到此版本
+            </a-button>
+
+            <a-button @click="closeDiffModal">
+              <template #icon>
+                <close-outlined />
+              </template>
+              关闭
+            </a-button>
+          </a-space>
+        </div>
+      </div>
+    </a-modal>
+
     <!-- 函数详情气泡浮窗 -->
     <div
       v-if="functionTooltip.show"
@@ -889,11 +1215,25 @@ import { isFilePath } from '../service/file'
 import mammoth from 'mammoth'
 // 使用 window.electron.path 替代 path-browserify
 import { ElInput, ElIcon } from 'element-plus'
-import { Folder, Document, Search } from '@element-plus/icons-vue'
+import { Folder, Document, Search, ArrowRight } from '@element-plus/icons-vue'
+// Ant Design Vue 图标
+import {
+  FunctionOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  HistoryOutlined,
+  CloseOutlined,
+  FileTextOutlined,
+  RedoOutlined,
+  DeleteOutlined,
+  DiffOutlined,
+  SaveOutlined
+} from '@ant-design/icons-vue'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import MonacoEditor from 'monaco-editor-vue3'
 
+import fileHistoryDB from '../utils/fileHistoryDB.js'
 import * as XLSX from 'xlsx'
 import {
   listRepos,
@@ -911,6 +1251,12 @@ import { omit } from '../service/str'
 const store = useStore()
 // computed 用于展现 snackbar 数据（减少不必要的更新）
 const snackbar = computed(() => store.state.snackbar)
+
+// AI 描述是否溢出（基于字符串长度）
+const isAiDescriptionOverflow = computed(() => {
+  if (!currentFileAiDescription.value) return false
+  return currentFileAiDescription.value.length > aiDescriptionMaxLength
+})
 
 // 主题检测和高亮样式管理
 const isDarkTheme = ref(false)
@@ -940,8 +1286,29 @@ let searchDecorations = [] // 搜索高亮装饰ID数组
 let monacoReady = false // 标记Monaco编辑器是否完全初始化完成
 let pendingScrollActions = [] // 缓存等待执行的滚动操作
 
+// 文件编辑锁定状态
+const fileEditLocked = ref(true) // 默认为只读模式
+const hasUnsavedChanges = ref(false) // 是否有未保存的更改
+const isAutoSaving = ref(false) // 是否正在自动保存
+
+// 时间线功能相关状态
+const showTimeline = ref(false)
+const fileHistory = ref([]) // 文件历史记录
+const currentHistoryIndex = ref(-1) // 当前查看的历史版本索引
+const showDiffMode = ref(false) // 是否显示差异模式
+const diffEditor = ref(null) // Monaco差异编辑器实例
+const selectedHistoryItem = ref(null) // 当前选中的历史项
+const originalContent = ref('') // 原始内容（用于差异对比）
+const historyStats = ref(null) // 历史统计信息
+
+// 差异视图弹窗相关状态
+const showDiffModal = ref(false) // 是否显示差异弹窗
+const diffModalEditor = ref(null) // 弹窗中的差异编辑器实例
+const diffModalContainer = ref(null) // 弹窗中的编辑器容器引用
+
 /* NEW ─ onEditorMounted：注册快捷键、补全、装饰 */
 function onEditorMounted(editor) {
+  console.log('Monaco编辑器正在挂载')
   // 获取Monaco全局对象和编辑器实例
   monacoGlobal = editor.$monaco
   monacoInstance = editor
@@ -951,7 +1318,10 @@ function onEditorMounted(editor) {
   console.log('Monaco编辑器初始化完成')
 
   // 修复点2：每次编辑器挂载时显式应用当前主题，避免重建后回落默认
-  editor.updateOptions({ theme: currentTheme.value })
+  editor.updateOptions({
+    theme: currentTheme.value,
+    readOnly: fileEditLocked.value // 同步文件锁定状态
+  })
 
   // 执行之前缓存的滚动操作
   if (pendingScrollActions.length > 0) {
@@ -960,8 +1330,11 @@ function onEditorMounted(editor) {
     pendingScrollActions = []
   }
 
-  // 拿到 Monaco 的全局对象
-  // monacoGlobal = editor.$monaco
+  // 添加内容变化监听
+  setupContentChangeListener(editor)
+
+  // 设置编辑器快捷键
+  setupEditorShortcuts(editor)
 
   // 1. 强制开启触发字符补全和片段建议
   editor.updateOptions({
@@ -991,11 +1364,6 @@ function onEditorMounted(editor) {
       }
     }
   })
-
-  // 2. 自定义保存快捷键 Ctrl/Cmd+S → 格式化当前文档
-  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS, () =>
-    editor.getAction('editor.action.formatDocument').run()
-  )
 
   // 3. 行高亮装饰示例
   const deco = editor.deltaDecorations(
@@ -1037,6 +1405,112 @@ const languageMap = {
   yml: 'yaml',
   jsx: 'javascript',
   tsx: 'typescript'
+}
+
+// 设置编辑器快捷键
+function setupEditorShortcuts(editor) {
+  if (!editor || !monacoGlobal) return
+
+  // Ctrl/Cmd + S: 保存文件
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyS, () => {
+    saveCurrentFile()
+  })
+
+  // Ctrl/Cmd + Z: 撤销
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyZ, () => {
+    if (!editor.hasTextFocus()) return
+    editor.trigger('keyboard', 'undo', null)
+  })
+
+  // Ctrl/Cmd + Y 或 Ctrl/Cmd + Shift + Z: 重做
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyY, () => {
+    if (!editor.hasTextFocus()) return
+    editor.trigger('keyboard', 'redo', null)
+  })
+
+  editor.addCommand(
+    monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyMod.Shift | monacoGlobal.KeyCode.KeyZ,
+    () => {
+      if (!editor.hasTextFocus()) return
+      editor.trigger('keyboard', 'redo', null)
+    }
+  )
+
+  // Ctrl/Cmd + A: 全选
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyA, () => {
+    if (!editor.hasTextFocus()) return
+    editor.trigger('keyboard', 'editor.action.selectAll', null)
+  })
+
+  // Ctrl/Cmd + F: 查找
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyF, () => {
+    editor.trigger('keyboard', 'actions.find', null)
+  })
+
+  // Ctrl/Cmd + H: 替换
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyH, () => {
+    editor.trigger('keyboard', 'editor.action.startFindReplaceAction', null)
+  })
+
+  // Ctrl/Cmd + D: 复制当前行
+  editor.addCommand(monacoGlobal.KeyMod.CtrlCmd | monacoGlobal.KeyCode.KeyD, () => {
+    editor.trigger('keyboard', 'editor.action.copyLinesDownAction', null)
+  })
+
+  // Alt + Shift + 上箭头: 向上复制行
+  editor.addCommand(
+    monacoGlobal.KeyMod.Alt | monacoGlobal.KeyMod.Shift | monacoGlobal.KeyCode.UpArrow,
+    () => {
+      editor.trigger('keyboard', 'editor.action.copyLinesUpAction', null)
+    }
+  )
+
+  // Alt + Shift + 下箭头: 向下复制行
+  editor.addCommand(
+    monacoGlobal.KeyMod.Alt | monacoGlobal.KeyMod.Shift | monacoGlobal.KeyCode.DownArrow,
+    () => {
+      editor.trigger('keyboard', 'editor.action.copyLinesDownAction', null)
+    }
+  )
+
+  console.log('编辑器快捷键设置完成')
+}
+
+// 保存当前文件
+async function saveCurrentFile() {
+  if (fileEditLocked.value || !selectedFileName.value || !fileContent.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '无法保存：文件处于只读模式或没有内容',
+      color: 'warning'
+    })
+    return
+  }
+
+  try {
+    isAutoSaving.value = true
+    const currentFilePath = currentTab.value?.path || selectedFileName.value
+
+    // 保存文件到磁盘
+    await window.electron.saveFile(currentFilePath, fileContent.value, { encoding: 'utf-8' })
+
+    // 保存到历史记录
+    await saveToHistory(currentFilePath, fileContent.value, '手动保存')
+
+    hasUnsavedChanges.value = false
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: `文件已保存: ${window.electron.path.basename(currentFilePath)}`,
+      color: 'success'
+    })
+  } catch (error) {
+    console.error('保存文件失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: `保存失败：${error.message}`,
+      color: 'error'
+    })
+  } finally {
+    isAutoSaving.value = false
+  }
 }
 
 // 根据文件扩展名获取语言类型
@@ -1338,6 +1812,13 @@ const loading = ref(true)
 const treeRef = ref(null) // Reference to the el-tree-v2 component
 const searchQuery = ref('') // Search query for filtering the tree
 const filteredTreeData = ref([]) // Filtered tree data based on search
+const searchConfig = ref({
+  maxResults: 100, // 最大搜索结果数量
+  maxDepth: 5, // 最大搜索深度
+  isSearching: false, // 是否正在搜索
+  searchProgress: 0 // 搜索进度
+})
+const treeKey = ref(0) // 用于强制重新渲染树组件
 const tabs = ref([])
 const activeTab = ref(null)
 const breadcrumbs = ref([])
@@ -1356,6 +1837,22 @@ const codeIndex = ref(null)
 const hoveredFunction = ref(null)
 // 代码结构搜索
 const codeStructureSearch = ref('')
+// AI 描述相关
+const currentFileAiDescription = ref('')
+const aiDescriptionCache = ref(new Map()) // 缓存 AI 描述，避免重复请求
+const aiDescriptionDebounceTimer = ref(null) // 防抖定时器
+const aiDescriptionExpanded = ref(false) // AI 描述是否展开
+const aiDescriptionMaxLength = 200 // AI 描述最大字符长度
+const aiDescriptionRef = ref(null) // AI 描述元素的引用
+// 目录树悬停提示相关
+const hoverTooltip = ref({
+  show: false,
+  content: '',
+  x: 0,
+  y: 0,
+  loading: false
+})
+const hoverDebounceTimer = ref(null) // 悬停防抖定时器
 // 快速查找代码
 const quickFindText = ref('')
 const findResults = ref([])
@@ -1489,6 +1986,18 @@ const menuIcons = {
   rename: {
     viewBox: '0 0 24 24',
     path: 'M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z'
+  },
+  expand: {
+    viewBox: '0 0 24 24',
+    path: 'M16.59,8.59L12,13.17L7.41,8.59L6,10L12,16L18,10L16.59,8.59Z'
+  },
+  collapse: {
+    viewBox: '0 0 24 24',
+    path: 'M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z'
+  },
+  stats: {
+    viewBox: '0 0 24 24',
+    path: 'M22,21H2V3H4V19H6V17H10V19H12V16H16V19H18V17H22V21Z'
   }
 }
 
@@ -1775,9 +2284,11 @@ function onPathSelectionChanged(newPath) {
         store.dispatch('tabs/setActiveTabTitle', `代码视窗·${matched.name || matched.title}`)
         // 使用正确的事件方式更新标签页标题
         const title = `代码视窗·${matched.name || matched.title}`
-        window.dispatchEvent(new CustomEvent('tabs:set-title', { 
-          detail: { title } 
-        }))
+        window.dispatchEvent(
+          new CustomEvent('tabs:set-title', {
+            detail: { title }
+          })
+        )
       }
     } catch {
       // 忽略错误
@@ -1840,7 +2351,7 @@ async function loadFileByType(selectedPath) {
     try {
       await window.electron.readDirectory(selectedPath)
       isDir = true
-    } catch (e) {
+    } catch {
       isDir = false
     }
   }
@@ -1930,8 +2441,11 @@ function updateFileState(selectedPath, updates) {
   nextTick(() => {
     if (isCodeFile.value && selectedPath) {
       loadCodeIndex(selectedPath)
+      // 同时加载 AI 描述
+      debouncedLoadFileAiDescription(selectedPath)
     } else {
       codeIndex.value = null
+      currentFileAiDescription.value = ''
     }
   })
 }
@@ -1944,6 +2458,12 @@ function restoreState(tab) {
   renderedXlsx.value = tab.renderedXlsx || ''
   selectedFileUrl.value = tab.selectedFileUrl || ''
   breadcrumbs.value = tab.breadcrumbs || []
+
+  // 如果是代码文件，加载代码索引和 AI 描述
+  if (isCodeFile.value && tab.path) {
+    loadCodeIndex(tab.path)
+    debouncedLoadFileAiDescription(tab.path)
+  }
 }
 
 function addOrSwitchTab(tabData) {
@@ -1986,9 +2506,16 @@ async function handleNodeSelection(filePath) {
     name: node.name,
     breadcrumbs: breadcrumbPath
   })
+
+  // 如果是代码文件，加载代码索引和 AI 描述
+  if (isCodeFile.value && node.path) {
+    loadCodeIndex(node.path)
+    debouncedLoadFileAiDescription(node.path)
+  }
 }
 
 // 递归搜索文件和文件夹
+// eslint-disable-next-line no-unused-vars
 async function searchFileAndFolders(dir, query, maxDepth = 100, currentDepth = 0) {
   let results = []
   if (currentDepth > maxDepth) return results
@@ -2052,6 +2579,12 @@ function selectTab(tab) {
     breadcrumbs: tab.breadcrumbs
   })
   loadFileByType(tab.path)
+
+  // 如果是代码文件，加载代码索引和 AI 描述
+  if (isCodeFile.value && tab.path) {
+    loadCodeIndex(tab.path)
+    debouncedLoadFileAiDescription(tab.path)
+  }
 }
 
 function removeTab(index) {
@@ -2062,6 +2595,7 @@ function removeTab(index) {
   fileContent.value = ''
 }
 
+// eslint-disable-next-line no-unused-vars
 function highlightCode(code, extension) {
   const language = extension ? extension.slice(1) : ''
   const validLang = hljs.getLanguage(language) ? language : 'plaintext'
@@ -2081,7 +2615,7 @@ function renderMarkdown(content) {
 async function processLocalImages() {
   try {
     // 获取当前文件所在目录
-    const path = window.electron.path
+    // const path = window.electron.path
     const currentFilePath = currentTab.value?.path
     if (!currentFilePath) return
 
@@ -2510,6 +3044,7 @@ async function pull() {
 }
 
 // 预览仓库内容，使用 Vue Router 进行跳转
+// eslint-disable-next-line no-unused-vars
 const previewIde = (path) => {
   if (path) {
     // 构建路由参数
@@ -2526,32 +3061,33 @@ const previewIde = (path) => {
 }
 
 // 在IDE中打开当前文件或目录
-const openInIDE = async (filePath) => {
-  // 如果没有指定文件路径，则使用当前选中的文件或目录
-  const pathToOpen = filePath || (currentTab.value ? currentTab.value.path : newRootPath.value)
 
-  if (!pathToOpen) {
-    store.dispatch('snackbar/showSnackbar', {
-      message: '请先选择一个文件或目录',
-      type: 'warning'
-    })
-    return
-  }
+// const openInIDE = async (filePath) => {
+//   // 如果没有指定文件路径，则使用当前选中的文件或目录
+//   const pathToOpen = filePath || (currentTab.value ? currentTab.value.path : newRootPath.value)
 
-  // 构建路由参数
-  // rootDir 应该始终是文件树的根目录，即 newRootPath.value
-  let rootDir = newRootPath.value
-  // 如果rootDir是文件，则使用其所在的目录
-  if (await isFilePath(rootDir, null, allowedFileName, findNodeByPath, treeData.value)) {
-    rootDir = window.electron.path.dirname(rootDir)
-  }
-  console.log('openInIDE:', encodeURIComponent(pathToOpen), encodeURIComponent(rootDir))
-  // 构建带参数的URL
-  const url = `${window.location.origin}/#/ide/${encodeURIComponent(pathToOpen)}?rootPath=${encodeURIComponent(rootDir)}`
+//   if (!pathToOpen) {
+//     store.dispatch('snackbar/showSnackbar', {
+//       message: '请先选择一个文件或目录',
+//       type: 'warning'
+//     })
+//     return
+//   }
 
-  // 调用主进程打开新窗口，并传递URL参数
-  window.electron.openNewWindowIDE(url)
-}
+//   // 构建路由参数
+//   // rootDir 应该始终是文件树的根目录，即 newRootPath.value
+//   let rootDir = newRootPath.value
+//   // 如果rootDir是文件，则使用其所在的目录
+//   if (await isFilePath(rootDir, null, allowedFileName, findNodeByPath, treeData.value)) {
+//     rootDir = window.electron.path.dirname(rootDir)
+//   }
+//   console.log('openInIDE:', encodeURIComponent(pathToOpen), encodeURIComponent(rootDir))
+//   // 构建带参数的URL
+//   const url = `${window.location.origin}/#/ide/${encodeURIComponent(pathToOpen)}?rootPath=${encodeURIComponent(rootDir)}`
+
+//   // 调用主进程打开新窗口，并传递URL参数
+//   window.electron.openNewWindowIDE(url)
+// }
 
 watch(
   () => props.localPath,
@@ -2583,6 +3119,8 @@ watch(activeTab, (newIndex) => {
     if (tabs.value[newIndex].path) {
       console.log('Loading code index for:', tabs.value[newIndex].path)
       loadCodeIndex(tabs.value[newIndex].path)
+      // 同时加载 AI 描述
+      debouncedLoadFileAiDescription(tabs.value[newIndex].path)
     }
   }
 })
@@ -2598,35 +3136,98 @@ watch(newRootPath, (newPath) => {
   }
 })
 // Filter tree data based on search query
-const filterTree = () => {
+const filterTree = async () => {
   if (!searchQuery.value || searchQuery.value.trim() === '') {
     filteredTreeData.value = treeData.value
+    // 清空搜索时重置展开状态
+    openNodes.value = []
+    searchConfig.value.isSearching = false
+    searchConfig.value.searchProgress = 0
     return
   }
 
-  const filter = (nodes, query) => {
-    if (!nodes) return []
+  const query = searchQuery.value.toLowerCase()
+  const expandedPaths = new Set()
+  let resultCount = 0
+  searchConfig.value.isSearching = true
+  searchConfig.value.searchProgress = 0
 
-    return nodes.filter((node) => {
+  const filter = async (nodes, query, depth = 0) => {
+    if (!nodes || depth > searchConfig.value.maxDepth) return []
+    if (resultCount >= searchConfig.value.maxResults) return []
+
+    const results = []
+
+    for (const node of nodes) {
+      if (resultCount >= searchConfig.value.maxResults) break
+
       // Check if current node matches
-      const matches = node.name.toLowerCase().includes(query.toLowerCase())
+      const matches = node.name.toLowerCase().includes(query)
+
+      if (matches) {
+        resultCount++
+        results.push(node)
+      }
 
       // If it has children, recursively filter them
       if (node.children && node.children.length > 0) {
-        const filteredChildren = filter(node.children, query)
+        const filteredChildren = await filter(node.children, query, depth + 1)
+
+        // 如果当前节点匹配或有匹配的子节点，添加到展开列表
+        if (matches || filteredChildren.length > 0) {
+          expandedPaths.add(node.path)
+          // 为搜索到的文件夹添加可展开标记
+          if (node.isDirectory) {
+            node.hasSearchResults = true
+            node.searchExpandable = true
+          }
+        }
+
         node.children = filteredChildren
 
         // Include this node if it matches or has matching children
-        return matches || filteredChildren.length > 0
+        if (matches || filteredChildren.length > 0) {
+          if (!matches) {
+            results.push(node)
+          }
+        }
       }
 
-      return matches
-    })
+      // 更新搜索进度
+      searchConfig.value.searchProgress = Math.min(
+        100,
+        (resultCount / searchConfig.value.maxResults) * 100
+      )
+
+      // 如果结果数量达到限制，停止搜索
+      if (resultCount >= searchConfig.value.maxResults) {
+        break
+      }
+    }
+
+    return results
   }
 
-  // Create a deep copy of the tree data to avoid modifying the original
-  const clonedData = JSON.parse(JSON.stringify(treeData.value))
-  filteredTreeData.value = filter(clonedData, searchQuery.value)
+  try {
+    // Create a deep copy of the tree data to avoid modifying the original
+    const clonedData = JSON.parse(JSON.stringify(treeData.value))
+    filteredTreeData.value = await filter(clonedData, query)
+
+    // 自动展开所有匹配的路径
+    openNodes.value = Array.from(expandedPaths)
+
+    console.log(
+      '[Search] 搜索完成，结果数量:',
+      resultCount,
+      '展开节点数量:',
+      openNodes.value.length
+    )
+  } catch (error) {
+    console.error('[Search] 搜索出错:', error)
+  } finally {
+    searchConfig.value.isSearching = false
+    searchConfig.value.searchProgress = 100
+  }
 }
 
 /**
@@ -2634,11 +3235,12 @@ const filterTree = () => {
  * 这是一个示例方法，展示如何使用autoExpandPath
  * @param {string} inputPath - 要展开到的路径
  */
+// eslint-disable-next-line no-unused-vars
 function expandToInputPath(inputPath) {
   if (!inputPath) return
 
   // 确保路径格式正确
-  const normalizedPath = path.normalize(inputPath)
+  const normalizedPath = window.electron.path.normalize(inputPath)
   console.log('尝试展开到路径:', normalizedPath)
 
   // 调用自动展开方法
@@ -2715,6 +3317,478 @@ const handleNodeContextMenu = (event, data) => {
   showContextMenu(event, menuType, { path: data.path, name: data.name })
 }
 
+// 处理搜索结果点击事件
+const handleSearchResultClick = async (data, event) => {
+  // 如果是搜索到的文件夹，展开/折叠它
+  if (data.isDirectory && data.hasSearchResults) {
+    event.stopPropagation()
+
+    // 切换展开状态
+    if (openNodes.value.includes(data.path)) {
+      // 如果已展开，则折叠
+      const index = openNodes.value.indexOf(data.path)
+      if (index > -1) {
+        openNodes.value.splice(index, 1)
+      }
+      console.log('[Search] 折叠搜索文件夹:', data.path)
+    } else {
+      // 如果未展开，则展开并加载子内容
+      openNodes.value.push(data.path)
+      console.log('[Search] 展开搜索文件夹:', data.path)
+
+      // 如果文件夹没有子内容，尝试加载
+      if (!data.children || data.children.length === 0) {
+        try {
+          await loadDirectoryChildren(data)
+        } catch (error) {
+          console.error('[Search] 加载文件夹子内容失败:', error)
+        }
+      }
+    }
+
+    // 强制刷新树组件
+    nextTick(() => {
+      // Element Plus Tree 组件通过 default-expanded-keys 属性控制展开状态
+      // 不需要手动调用 setExpanded 方法
+      console.log('[DEBUG] 节点展开状态已更新:', data.path, openNodes.value.includes(data.path))
+    })
+  } else {
+    // 普通文件或文件夹，使用原有逻辑
+    handleNodeClick(data)
+  }
+}
+
+// 加载目录的子内容
+async function loadDirectoryChildren(node) {
+  try {
+    const children = await window.electron.readDirectory(node.path)
+    const childNodes = children.map((child) => ({
+      name: child.name,
+      path: window.electron.path.join(node.path, child.name),
+      isDirectory: child.isDirectory,
+      children: child.isDirectory ? [] : undefined
+    }))
+
+    // 更新节点数据
+    node.children = childNodes
+
+    // 更新过滤后的树数据
+    const updateNodeInTree = (nodes) => {
+      for (const n of nodes) {
+        if (n.path === node.path) {
+          n.children = childNodes
+          return true
+        }
+        if (n.children) {
+          if (updateNodeInTree(n.children)) {
+            return true
+          }
+        }
+      }
+      return false
+    }
+
+    updateNodeInTree(filteredTreeData.value)
+
+    console.log('[Search] 成功加载文件夹子内容:', node.path, childNodes.length)
+  } catch (error) {
+    console.error('[Search] 加载文件夹子内容失败:', error)
+  }
+}
+
+// 全部展开功能
+async function expandAllNodes(targetPath) {
+  try {
+    const allPaths = []
+
+    // 递归加载并收集指定目录下的所有子目录路径
+    const collectPathsRecursively = async (nodes, basePath) => {
+      console.log('[ExpandAll] 开始收集路径，basePath:', basePath, 'nodes数量:', nodes.length)
+
+      for (const node of nodes) {
+        if (node.isDirectory) {
+          console.log('[ExpandAll] 检查目录:', node.path, 'basePath:', basePath)
+
+          // 判断是否应该处理这个目录
+          let shouldProcess = false
+          if (basePath === '') {
+            // 根目录展开，处理所有目录
+            shouldProcess = true
+          } else if (node.path === basePath) {
+            // 目标目录本身
+            shouldProcess = true
+          } else if (node.path.startsWith(basePath + '/')) {
+            // 目标目录的子目录
+            shouldProcess = true
+          }
+
+          console.log('[ExpandAll] 是否处理目录:', node.path, shouldProcess)
+
+          if (shouldProcess) {
+            allPaths.push(node.path)
+            console.log('[ExpandAll] 添加路径到展开列表:', node.path)
+
+            // 如果子目录还没有加载内容，先加载
+            if (!node.children || node.children.length === 0) {
+              try {
+                console.log('[ExpandAll] 开始加载子目录内容:', node.path)
+                const children = await window.electron.readDirectory(node.path)
+                const childNodes = children.map((child) => ({
+                  name: child.name,
+                  path: window.electron.path.join(node.path, child.name),
+                  isDirectory: child.isDirectory,
+                  children: child.isDirectory ? [] : undefined
+                }))
+
+                // 更新节点数据
+                node.children = childNodes
+
+                // 更新过滤后的树数据
+                const updateNodeInTree = (treeNodes) => {
+                  for (const n of treeNodes) {
+                    if (n.path === node.path) {
+                      n.children = childNodes
+                      return true
+                    }
+                    if (n.children) {
+                      if (updateNodeInTree(n.children)) {
+                        return true
+                      }
+                    }
+                  }
+                  return false
+                }
+
+                updateNodeInTree(filteredTreeData.value)
+
+                console.log('[ExpandAll] 成功加载子目录:', node.path, childNodes.length)
+              } catch (error) {
+                console.error('[ExpandAll] 加载子目录失败:', node.path, error)
+              }
+            }
+
+            // 递归处理子目录
+            if (node.children && node.children.length > 0) {
+              console.log(
+                '[ExpandAll] 递归处理子目录:',
+                node.path,
+                '子目录数量:',
+                node.children.length
+              )
+              await collectPathsRecursively(node.children, basePath)
+            }
+          }
+        }
+      }
+    }
+
+    // 使用原始树数据而不是过滤后的数据
+    const treeDataToUse = searchQuery.value ? treeData.value : filteredTreeData.value
+
+    // 如果指定了目标路径，只展开该目录下的子目录
+    if (targetPath) {
+      console.log('[ExpandAll] 目标路径:', targetPath)
+
+      // 先确保目标目录本身被展开
+      if (!openNodes.value.includes(targetPath)) {
+        openNodes.value.push(targetPath)
+      }
+
+      // 找到目标目录在树数据中的位置
+      const findTargetNode = (nodes, targetPath) => {
+        for (const node of nodes) {
+          if (node.path === targetPath) {
+            return node
+          }
+          if (node.children) {
+            const found = findTargetNode(node.children, targetPath)
+            if (found) return found
+          }
+        }
+        return null
+      }
+
+      const targetNode = findTargetNode(treeDataToUse, targetPath)
+      if (targetNode) {
+        console.log('[ExpandAll] 找到目标目录:', targetNode.path)
+        // 从目标目录开始递归收集路径
+        await collectPathsRecursively([targetNode], targetPath)
+      } else {
+        console.warn('[ExpandAll] 未找到目标目录:', targetPath)
+        // 如果找不到目标目录，尝试从根节点开始查找
+        await collectPathsRecursively(treeDataToUse, targetPath)
+      }
+    } else {
+      // 如果没有指定目标路径，展开所有目录
+      await collectPathsRecursively(treeDataToUse, '')
+    }
+
+    // 设置所有路径为展开状态
+    openNodes.value = [...new Set([...openNodes.value, ...allPaths])]
+
+    // 强制重新渲染树组件
+    treeKey.value++
+
+    const message = targetPath
+      ? `已展开 ${allPaths.length} 个子目录`
+      : `已展开 ${allPaths.length} 个目录`
+
+    store.dispatch('snackbar/showSnackbar', {
+      message,
+      type: 'success'
+    })
+
+    console.log('[ExpandAll] 展开目录:', allPaths.length, '目标路径:', targetPath)
+  } catch (error) {
+    console.error('[ExpandAll] 展开失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '展开失败',
+      type: 'error'
+    })
+  }
+}
+
+// 全部折叠功能
+async function collapseAllNodes(targetPath) {
+  try {
+    // 先保存当前展开的节点
+    const currentExpandedKeys = [...openNodes.value]
+    let pathsToCollapse = []
+
+    if (targetPath) {
+      // 只折叠指定目录下的子目录
+      pathsToCollapse = currentExpandedKeys.filter(
+        (path) => path !== targetPath && path.startsWith(targetPath + '/')
+      )
+      // 保留目标目录本身和其他不相关的目录
+      openNodes.value = currentExpandedKeys.filter(
+        (path) => path === targetPath || !path.startsWith(targetPath + '/')
+      )
+    } else {
+      // 折叠所有目录
+      pathsToCollapse = currentExpandedKeys
+      openNodes.value = []
+    }
+
+    // 强制重新渲染树组件
+    treeKey.value++
+
+    const message = targetPath ? `已折叠 ${pathsToCollapse.length} 个子目录` : '已折叠所有目录'
+
+    store.dispatch('snackbar/showSnackbar', {
+      message,
+      type: 'success'
+    })
+
+    console.log('[CollapseAll] 折叠目录:', pathsToCollapse.length, '目标路径:', targetPath)
+  } catch (error) {
+    console.error('[CollapseAll] 折叠失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '折叠失败',
+      type: 'error'
+    })
+  }
+}
+
+// 文件夹统计功能
+async function showFolderStatistics(folderPath) {
+  try {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '正在统计文件夹信息...',
+      type: 'info'
+    })
+
+    const stats = {
+      totalFiles: 0,
+      totalDirectories: 0,
+      totalFunctions: 0,
+      totalLines: 0,
+      fileTypes: {},
+      importantFiles: [],
+      lastModified: null
+    }
+
+    // 递归统计文件夹信息
+    const countFolderContents = async (dirPath, depth = 0) => {
+      if (depth > 10) return // 防止无限递归
+
+      try {
+        const children = await window.electron.readDirectory(dirPath)
+
+        for (const child of children) {
+          const fullPath = window.electron.path.join(dirPath, child.name)
+
+          if (child.isDirectory) {
+            stats.totalDirectories++
+            await countFolderContents(fullPath, depth + 1)
+          } else {
+            stats.totalFiles++
+
+            // 统计文件类型
+            const ext = window.electron.path.extname(child.name).toLowerCase()
+            stats.fileTypes[ext] = (stats.fileTypes[ext] || 0) + 1
+
+            // 统计代码行数（仅对文本文件）
+            try {
+              const content = await window.electron.readFile(fullPath, 'utf8')
+              const lines = content.split('\n').length
+              stats.totalLines += lines
+
+              // 判断重要文件（基于文件名和内容）
+              if (isImportantFile(child.name, content)) {
+                stats.importantFiles.push({
+                  name: child.name,
+                  path: fullPath,
+                  lines: lines,
+                  reason: getImportanceReason(child.name, content)
+                })
+              }
+            } catch {
+              // 忽略无法读取的文件
+            }
+
+            // 更新最后修改时间
+            if (child.mtime && (!stats.lastModified || child.mtime > stats.lastModified)) {
+              stats.lastModified = child.mtime
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[Stats] 无法访问目录:', dirPath, error)
+      }
+    }
+
+    await countFolderContents(folderPath)
+
+    // 获取函数统计（如果支持）
+    try {
+      const response = await checkIndexApi(newRootPath.value, folderPath)
+      if (response.data && response.data.functions) {
+        const functions = response.data.functions
+        if (Array.isArray(functions)) {
+          stats.totalFunctions = functions.length
+        } else if (typeof functions === 'object') {
+          stats.totalFunctions = Object.values(functions).flat().length
+        }
+      }
+    } catch (error) {
+      console.warn('[Stats] 无法获取函数统计:', error)
+    }
+
+    // 显示统计结果
+    const statsMessage = `
+文件夹统计结果：
+📁 目录数量: ${stats.totalDirectories}
+📄 文件数量: ${stats.totalFiles}
+🔧 函数数量: ${stats.totalFunctions}
+📝 总行数: ${stats.totalLines.toLocaleString()}
+📅 最后修改: ${stats.lastModified ? new Date(stats.lastModified).toLocaleString() : '未知'}
+
+文件类型分布：
+${Object.entries(stats.fileTypes)
+  .sort(([, a], [, b]) => b - a)
+  .slice(0, 10)
+  .map(([ext, count]) => `${ext || '无扩展名'}: ${count}`)
+  .join('\n')}
+
+${
+  stats.importantFiles.length > 0
+    ? `\n重要文件 (${stats.importantFiles.length}):\n${stats.importantFiles
+        .slice(0, 5)
+        .map((f) => `• ${f.name} (${f.reason})`)
+        .join('\n')}`
+    : ''
+}
+    `.trim()
+
+    // 复制到剪贴板
+    await navigator.clipboard.writeText(statsMessage)
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: `统计完成！结果已复制到剪贴板\n目录: ${stats.totalDirectories}, 文件: ${stats.totalFiles}, 函数: ${stats.totalFunctions}`,
+      type: 'success',
+      timeout: 5000
+    })
+
+    console.log('[Stats] 文件夹统计完成:', stats)
+  } catch (error) {
+    console.error('[Stats] 统计失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '统计失败: ' + error.message,
+      type: 'error'
+    })
+  }
+}
+
+// 判断重要文件
+function isImportantFile(fileName, content) {
+  const importantPatterns = [
+    /package\.json$/i,
+    /readme\.md$/i,
+    /\.config\.(js|ts|json)$/i,
+    /\.env$/i,
+    /dockerfile$/i,
+    /makefile$/i,
+    /\.gitignore$/i,
+    /\.eslintrc/i,
+    /\.prettierrc/i,
+    /tsconfig\.json$/i,
+    /webpack\.config/i,
+    /vite\.config/i,
+    /\.lock$/i
+  ]
+
+  // 检查文件名模式
+  if (importantPatterns.some((pattern) => pattern.test(fileName))) {
+    return true
+  }
+
+  // 检查文件内容关键词
+  const importantKeywords = [
+    'main',
+    'index',
+    'app',
+    'server',
+    'client',
+    'config',
+    'setup',
+    'init',
+    'bootstrap',
+    'entry',
+    'entrypoint',
+    'start'
+  ]
+
+  const lowerContent = content.toLowerCase()
+  return importantKeywords.some(
+    (keyword) => lowerContent.includes(keyword) && content.length < 10000 // 避免大文件误判
+  )
+}
+
+// 获取重要性原因
+function getImportanceReason(fileName, content) {
+  if (/package\.json$/i.test(fileName)) return '项目配置'
+  if (/readme\.md$/i.test(fileName)) return '项目文档'
+  if (/\.config\./i.test(fileName)) return '配置文件'
+  if (/\.env$/i.test(fileName)) return '环境配置'
+  if (/dockerfile$/i.test(fileName)) return '容器配置'
+  if (/makefile$/i.test(fileName)) return '构建配置'
+  if (/\.gitignore$/i.test(fileName)) return 'Git配置'
+  if (/\.lock$/i.test(fileName)) return '依赖锁定'
+
+  const lowerContent = content.toLowerCase()
+  if (lowerContent.includes('main') || lowerContent.includes('index')) return '入口文件'
+  if (lowerContent.includes('config')) return '配置文件'
+  if (lowerContent.includes('setup') || lowerContent.includes('init')) return '初始化文件'
+
+  return '重要文件'
+}
+
+// 切换 AI 描述展开/折叠
+function toggleAiDescription() {
+  aiDescriptionExpanded.value = !aiDescriptionExpanded.value
+}
+
 // Initialize filteredTreeData with the original treeData
 watch(
   treeData,
@@ -2727,16 +3801,10 @@ watch(
     nextTick(() => {
       console.log('[DEBUG] nextTick 中检查 treeRef:', treeRef.value)
       if (treeRef.value && openNodes.value.length > 0) {
-        console.log('[DEBUG] 尝试设置展开节点:', openNodes.value)
-        // 强制设置展开节点
-        openNodes.value.forEach((nodeKey) => {
-          try {
-            treeRef.value.setExpanded(nodeKey, true)
-            console.log('[DEBUG] 成功展开节点:', nodeKey)
-          } catch (e) {
-            console.warn('[DEBUG] 展开节点失败:', nodeKey, e)
-          }
-        })
+        console.log('[DEBUG] 展开节点列表:', openNodes.value)
+        // Element Plus Tree 组件通过 default-expanded-keys 属性控制展开状态
+        // 不需要手动调用 setExpanded 方法
+        console.log('[DEBUG] 展开状态已通过 default-expanded-keys 设置')
       }
     })
 
@@ -2775,8 +3843,21 @@ watch(
 )
 
 // 生命周期挂载时执行初始化
-onMounted(() => {
+let globalShortcutsCleanup = null
+
+onMounted(async () => {
+  // 初始化 IndexedDB
+  try {
+    await fileHistoryDB.init()
+    console.log('IndexedDB 初始化成功')
+  } catch (error) {
+    console.error('IndexedDB 初始化失败:', error)
+  }
+
   initializePage()
+
+  // 设置全局快捷键
+  globalShortcutsCleanup = setupGlobalShortcuts()
 
   // 从localStorage读取侧边栏显示偏好
   const savedLeftPanel = localStorage.getItem('fileBrowser.showLeftPanel')
@@ -2792,14 +3873,49 @@ onMounted(() => {
 
   // 添加全局点击事件监听，用于隐藏右键菜单
   document.addEventListener('click', hideContextMenu)
+
+  // 添加全局鼠标移动监听，用于隐藏悬停提示
+  document.addEventListener('mousemove', handleGlobalMouseMove)
+
+  // 添加窗口大小改变监听器，用于重新布局差异编辑器
+  window.addEventListener('resize', handleWindowResize)
 })
 
 // 组件卸载时清理
 onUnmounted(() => {
+  // 清理定时器
+  if (saveHistoryTimer) {
+    clearTimeout(saveHistoryTimer)
+    saveHistoryTimer = null
+  }
+
+  // 清理全局快捷键
+  if (globalShortcutsCleanup) {
+    globalShortcutsCleanup()
+    globalShortcutsCleanup = null
+  }
+
+  // 清理差异编辑器
+  if (diffEditor.value) {
+    diffEditor.value.dispose()
+    diffEditor.value = null
+  }
+
+  // 清理弹窗差异编辑器
+  if (diffModalEditor.value) {
+    diffModalEditor.value.dispose()
+    diffModalEditor.value = null
+  }
+
+  // 关闭 IndexedDB 连接
+  fileHistoryDB.close()
+
   // 移除事件监听
   document.removeEventListener('click', hideContextMenu)
+  document.removeEventListener('mousemove', handleGlobalMouseMove)
   window.removeEventListener('mousemove', onResizing)
   window.removeEventListener('mouseup', stopResizing)
+  window.removeEventListener('resize', handleWindowResize)
 })
 
 // 组件激活时重新检查主题（解决返回页面时样式不一致的问题）
@@ -2895,8 +4011,7 @@ async function startIndexProcess4Toolbar(targetPath) {
         newRootPath.value,
         window.electron.path.relative(newRootPath.value, targetPath)
       )
-      const { real_file_count, total_file_count, total_function_count, functions } =
-        checkIndex.data.data
+      const { total_file_count, total_function_count } = checkIndex.data.data
       let message = `索引状态检查完成\n`
       message += `函数索引量: ${total_function_count}\n`
       message += `总文件数量: ${total_file_count}`
@@ -3059,7 +4174,7 @@ async function generateAnalysisReportForPath(targetPath) {
       console.warn('未找到匹配的仓库路径')
       return
     }
-    const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+    const { indexing, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
       newRootPath.value
     )
     if (indexing) {
@@ -3099,7 +4214,7 @@ async function generateFlowchartForPath(targetPath) {
       console.warn('未找到匹配的仓库路径')
       return
     }
-    const { indexing, hasDb, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
+    const { indexing, hasFullIndex } = await window.electron.checkMemoryFlashStatus(
       newRootPath.value
     )
     if (indexing) {
@@ -3158,6 +4273,338 @@ async function loadCodeIndex(filePath) {
   }
 }
 
+// 获取文件 AI 描述
+async function loadFileAiDescription(filePath) {
+  if (!filePath || !newRootPath.value) {
+    currentFileAiDescription.value = ''
+    return
+  }
+
+  try {
+    // 检查缓存
+    const cacheKey = filePath
+    if (aiDescriptionCache.value.has(cacheKey)) {
+      currentFileAiDescription.value = aiDescriptionCache.value.get(cacheKey)
+      return
+    }
+
+    await loadPathSuggestions()
+    const repoPath = pathSuggestions.value.find((item) => {
+      return filePath.includes(item.value)
+    })?.value
+
+    if (!repoPath) {
+      currentFileAiDescription.value = ''
+      return
+    }
+
+    const response = await checkIndexApi(
+      repoPath,
+      toUnixPath(window.electron.path.relative(repoPath, filePath))
+    )
+
+    if (response && response.data.code === 0) {
+      const data = response.data.data
+      // 从返回的数据中提取描述信息
+      let description = ''
+
+      // 优先使用模块描述
+      if (data.modules && data.modules.current && data.modules.current.length > 0) {
+        description = data.modules.current[0].description || ''
+      }
+
+      // 如果没有模块描述，尝试从函数描述中提取
+      if (!description && data.functions && Object.keys(data.functions).length > 0) {
+        // 获取第一个文件的函数列表
+        const firstFileFunctions = Object.values(data.functions)[0]
+        if (firstFileFunctions && firstFileFunctions.length > 0) {
+          const functionDescriptions = firstFileFunctions
+            .map((func) => {
+              const parsed = getParsedDescription(func.description)
+              return parsed.description
+            })
+            .filter((desc) => desc && desc.trim())
+            .slice(0, 3) // 只取前3个函数的描述
+
+          if (functionDescriptions.length > 0) {
+            description = functionDescriptions.join('；')
+          }
+        }
+      }
+
+      // 如果还是没有描述，使用默认文本
+      if (!description) {
+        description = '暂无 AI 描述信息'
+      }
+
+      currentFileAiDescription.value = description
+      // 缓存结果
+      aiDescriptionCache.value.set(cacheKey, description)
+    } else {
+      currentFileAiDescription.value = '暂无 AI 描述信息'
+    }
+  } catch (error) {
+    console.error('Failed to load AI description:', error)
+    currentFileAiDescription.value = '获取 AI 描述失败'
+  }
+}
+
+// 防抖获取 AI 描述
+function debouncedLoadFileAiDescription(filePath) {
+  // 清除之前的定时器
+  if (aiDescriptionDebounceTimer.value) {
+    clearTimeout(aiDescriptionDebounceTimer.value)
+  }
+
+  // 设置新的定时器
+  aiDescriptionDebounceTimer.value = setTimeout(() => {
+    loadFileAiDescription(filePath)
+  }, 500) // 500ms 防抖延迟
+}
+
+// 获取悬停节点的 AI 描述
+async function loadHoverAiDescription(filePath, event) {
+  if (!filePath || !newRootPath.value) {
+    return
+  }
+
+  try {
+    // 检查缓存
+    const cacheKey = filePath
+    if (aiDescriptionCache.value.has(cacheKey)) {
+      const description = aiDescriptionCache.value.get(cacheKey)
+      showHoverTooltip(event, description)
+      return
+    }
+
+    hoverTooltip.value.loading = true
+    showHoverTooltip(event, '正在加载 AI 描述...')
+
+    await loadPathSuggestions()
+    const repoPath = pathSuggestions.value.find((item) => {
+      return filePath.includes(item.value)
+    })?.value
+
+    if (!repoPath) {
+      showHoverTooltip(event, '暂无 AI 描述信息')
+      return
+    }
+
+    // 判断是否为根目录
+    const relativePath = toUnixPath(window.electron.path.relative(repoPath, filePath))
+    const isRootDirectory = relativePath === '' || relativePath === '.' || filePath === repoPath
+
+    const response = await checkIndexApi(repoPath, relativePath)
+
+    if (response && response.data.code === 0) {
+      const data = response.data.data
+      let description = ''
+
+      // 如果是根目录，从 modules.root 中查找
+      if (
+        isRootDirectory &&
+        data.modules &&
+        data.modules.root &&
+        Array.isArray(data.modules.root)
+      ) {
+        const rootModule = data.modules.root.find(
+          (module) => module.parent_path === '' && module.path === ''
+        )
+        if (rootModule && rootModule.description) {
+          description = rootModule.description
+        }
+      } else {
+        // 非根目录，使用原有逻辑
+        // 优先使用模块描述
+        if (data.modules && data.modules.current && data.modules.current.length > 0) {
+          description = data.modules.current[0].description || ''
+        }
+
+        // 如果没有模块描述，尝试从函数描述中提取
+        if (!description && data.functions && Object.keys(data.functions).length > 0) {
+          // 获取第一个文件的函数列表
+          const firstFileFunctions = Object.values(data.functions)[0]
+          if (firstFileFunctions && firstFileFunctions.length > 0) {
+            const functionDescriptions = firstFileFunctions
+              .map((func) => {
+                const parsed = getParsedDescription(func.description)
+                return parsed.description
+              })
+              .filter((desc) => desc && desc.trim())
+              .slice(0, 2) // 悬停提示只取前2个函数的描述
+
+            if (functionDescriptions.length > 0) {
+              description = functionDescriptions.join('；')
+            }
+          }
+        }
+      }
+
+      // 如果还是没有描述，使用默认文本
+      if (!description) {
+        description = '暂无 AI 描述信息'
+      }
+
+      // 缓存结果
+      aiDescriptionCache.value.set(cacheKey, description)
+      showHoverTooltip(event, description)
+    } else {
+      showHoverTooltip(event, '暂无 AI 描述信息')
+    }
+  } catch (error) {
+    console.error('Failed to load hover AI description:', error)
+    showHoverTooltip(event, '获取 AI 描述失败')
+  } finally {
+    hoverTooltip.value.loading = false
+  }
+}
+
+// 显示悬停提示
+function showHoverTooltip(event, content) {
+  hoverTooltip.value.show = true
+  hoverTooltip.value.content = content
+  hoverTooltip.value.x = event.clientX + 10
+  hoverTooltip.value.y = event.clientY - 10
+}
+
+// 隐藏悬停提示
+function hideHoverTooltip() {
+  // 清除防抖定时器
+  if (hoverDebounceTimer.value) {
+    clearTimeout(hoverDebounceTimer.value)
+    hoverDebounceTimer.value = null
+  }
+
+  hoverTooltip.value.show = false
+  hoverTooltip.value.content = ''
+  hoverTooltip.value.loading = false
+}
+
+// 全局鼠标移动处理
+function handleGlobalMouseMove(event) {
+  // 如果悬停提示正在显示，检查鼠标是否还在目录树区域内
+  if (hoverTooltip.value.show) {
+    const treeContainer = document.querySelector('.el-tree')
+    if (treeContainer && !treeContainer.contains(event.target)) {
+      hideHoverTooltip()
+    }
+  }
+}
+
+// 防抖悬停处理
+function debouncedHoverHandler(filePath, event) {
+  // 清除之前的定时器
+  if (hoverDebounceTimer.value) {
+    clearTimeout(hoverDebounceTimer.value)
+  }
+
+  // 设置新的定时器
+  hoverDebounceTimer.value = setTimeout(() => {
+    loadHoverAiDescription(filePath, event)
+  }, 300) // 300ms 防抖延迟
+}
+
+// 复制AI描述到剪贴板
+async function copyAiDescriptionToClipboard(filePath) {
+  if (!filePath || !newRootPath.value) {
+    store.dispatch('snackbar/showSnackbar', {
+      message: '无法获取文件路径',
+      color: 'error'
+    })
+    return
+  }
+
+  try {
+    await loadPathSuggestions()
+    const repoPath = pathSuggestions.value.find((item) => {
+      return filePath.includes(item.value)
+    })?.value
+
+    if (!repoPath) {
+      store.dispatch('snackbar/showSnackbar', {
+        message: '无法找到对应的仓库路径',
+        color: 'error'
+      })
+      return
+    }
+
+    // 判断是否为根目录
+    const relativePath = toUnixPath(window.electron.path.relative(repoPath, filePath))
+    const isRootDirectory = relativePath === '' || relativePath === '.' || filePath === repoPath
+
+    const response = await checkIndexApi(repoPath, relativePath)
+
+    if (response && response.data.code === 0) {
+      const data = response.data.data
+      let description = ''
+
+      // 如果是根目录，从 modules.root 中查找
+      if (
+        isRootDirectory &&
+        data.modules &&
+        data.modules.root &&
+        Array.isArray(data.modules.root)
+      ) {
+        const rootModule = data.modules.root.find(
+          (module) => module.parent_path === '' && module.path === ''
+        )
+        if (rootModule && rootModule.description) {
+          description = rootModule.description
+        }
+      } else {
+        // 非根目录，使用原有逻辑
+        // 优先使用模块描述
+        if (data.modules && data.modules.current && data.modules.current.length > 0) {
+          description = data.modules.current[0].description || ''
+        }
+
+        // 如果没有模块描述，尝试从函数描述中提取
+        if (!description && data.functions && Object.keys(data.functions).length > 0) {
+          // 获取第一个文件的函数列表
+          const firstFileFunctions = Object.values(data.functions)[0]
+          if (firstFileFunctions && firstFileFunctions.length > 0) {
+            const functionDescriptions = firstFileFunctions
+              .map((func) => {
+                const parsed = getParsedDescription(func.description)
+                return parsed.description
+              })
+              .filter((desc) => desc && desc.trim())
+              .slice(0, 5) // 复制时取前5个函数的描述
+
+            if (functionDescriptions.length > 0) {
+              description = functionDescriptions.join('\n\n')
+            }
+          }
+        }
+      }
+
+      if (description && description !== '暂无 AI 描述信息') {
+        await navigator.clipboard.writeText(description)
+        store.dispatch('snackbar/showSnackbar', {
+          message: 'AI描述已复制到剪贴板',
+          color: 'success'
+        })
+      } else {
+        store.dispatch('snackbar/showSnackbar', {
+          message: '该文件暂无AI描述信息',
+          color: 'warning'
+        })
+      }
+    } else {
+      store.dispatch('snackbar/showSnackbar', {
+        message: '获取AI描述失败',
+        color: 'error'
+      })
+    }
+  } catch (error) {
+    console.error('复制AI描述失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: '复制AI描述失败',
+      color: 'error'
+    })
+  }
+}
+
 // 过滤函数列表（用于代码结构搜索）
 function filterFunctions(functions) {
   if (!codeStructureSearch.value || codeStructureSearch.value.trim() === '') {
@@ -3193,9 +4640,31 @@ function filterFunctions(functions) {
 async function fetchFunctionDetails(functionName, packageName, filePath) {
   try {
     functionTooltip.value.loading = true
-    const repoPath = newRootPath.value
-    // filePath 已经是相对路径，直接使用
 
+    // 根据newRootPath从pathSuggestions中找到对应的项目路径
+    let repoPath = newRootPath.value
+    if (newRootPath.value && pathSuggestions.value.length > 0) {
+      // 遍历pathSuggestions，找到包含newRootPath的项目
+      const matchedRepo = pathSuggestions.value.find((repo) => {
+        // 检查newRootPath是否包含于或等于repo的local_path
+        return (
+          newRootPath.value.includes(repo.local_path) || repo.local_path.includes(newRootPath.value)
+        )
+      })
+
+      if (matchedRepo) {
+        repoPath = matchedRepo.local_path
+        console.log('[DEBUG] 找到匹配的项目路径:', {
+          newRootPath: newRootPath.value,
+          matchedRepoPath: matchedRepo.local_path,
+          repoName: matchedRepo.name
+        })
+      } else {
+        console.warn('[DEBUG] 未找到匹配的项目路径，使用newRootPath:', newRootPath.value)
+      }
+    }
+
+    // filePath 已经是相对路径，直接使用
     console.log('[DEBUG] 获取函数详情:', { functionName, packageName, filePath, repoPath })
 
     const response = await getFunctionInfo(repoPath, filePath, packageName, functionName)
@@ -3209,11 +4678,599 @@ async function fetchFunctionDetails(functionName, packageName, filePath) {
       functionTooltip.value.data = null
       console.log('[DEBUG] 函数详情响应无效或为空')
     }
-  } catch (error) {
-    console.error('获取函数详情失败:', error)
+  } catch {
+    console.error('获取函数详情失败')
     functionTooltip.value.data = null
   } finally {
     functionTooltip.value.loading = false
+  }
+}
+
+// 切换文件编辑锁定状态
+async function toggleFileLock() {
+  fileEditLocked.value = !fileEditLocked.value
+
+  // 更新Monaco编辑器的只读状态
+  monacoOptions.readOnly = fileEditLocked.value
+
+  if (monacoInstance) {
+    monacoInstance.updateOptions({ readOnly: fileEditLocked.value })
+  }
+
+  // 如果切换到编辑模式，保存当前文件状态到历史
+  if (!fileEditLocked.value && selectedFileName.value && fileContent.value) {
+    const currentFilePath = currentTab.value?.path || selectedFileName.value
+    await saveToHistory(currentFilePath, fileContent.value, '切换到编辑模式')
+  }
+}
+
+// 切换时间线显示
+async function toggleTimeline() {
+  showTimeline.value = !showTimeline.value
+
+  if (showTimeline.value && selectedFileName.value && fileContent.value) {
+    // 获取当前文件的完整路径
+    const currentFilePath = currentTab.value?.path || selectedFileName.value
+    await loadFileHistory(currentFilePath)
+  } else {
+    // 退出差异模式
+    if (showDiffMode.value) {
+      exitDiffMode()
+    }
+  }
+}
+
+// 保存文件到历史记录 - 使用 IndexedDB
+async function saveToHistory(filePath, content, description = '') {
+  try {
+    // 检查是否为重复内容
+    const isDuplicate = await fileHistoryDB.isDuplicateContent(filePath, content)
+    if (isDuplicate) {
+      // 根据描述类型提供不同的日志信息
+      if (description.includes('恢复到')) {
+        console.log(`恢复操作：内容与历史记录重复，无需保存 - ${description}`)
+      } else {
+        console.log(`跳过保存重复内容 - ${description}`)
+      }
+      return null // 返回 null 表示没有保存
+    }
+
+    // 获取文件语言类型
+    const language = getFileLanguage(selectedFileName.value)
+
+    // 保存到 IndexedDB
+    const historyItem = await fileHistoryDB.saveHistory(
+      filePath,
+      content,
+      description || `编辑于 ${new Date().toLocaleString()}`,
+      { language }
+    )
+
+    // 清理过期版本（保留最近 20 个版本）
+    await fileHistoryDB.cleanupHistory(filePath, 20)
+
+    console.log('文件历史保存成功:', historyItem)
+
+    // 如果当前正在查看该文件的时间线，刷新历史列表
+    if (showTimeline.value && selectedFileName.value === window.electron.path.basename(filePath)) {
+      await loadFileHistory(filePath)
+    }
+
+    return historyItem
+  } catch (error) {
+    console.error('保存文件历史失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: `保存历史失败：${error.message}`,
+      color: 'error'
+    })
+    throw error // 重新抛出错误以便调用者处理
+  }
+}
+
+// 加载文件历史记录 - 使用 IndexedDB
+async function loadFileHistory(filePath) {
+  try {
+    // 从 IndexedDB 加载历史记录
+    const history = await fileHistoryDB.getFileHistory(filePath, 50)
+
+    // 转换为组件需要的格式
+    fileHistory.value = history.map((item) => ({
+      id: item.id,
+      filename: window.electron.path.basename(filePath),
+      content: item.content,
+      timestamp: new Date(item.timestamp),
+      size: item.size,
+      description: item.description,
+      metadata: item.metadata,
+      hash: item.hash
+    }))
+
+    // 添加当前版本到历史（如果有内容）
+    if (fileContent.value) {
+      const currentItem = {
+        id: 'current',
+        filename: window.electron.path.basename(filePath),
+        content: fileContent.value,
+        timestamp: new Date(),
+        size: fileContent.value.length,
+        description: '当前版本',
+        isCurrent: true
+      }
+      fileHistory.value.unshift(currentItem) // 添加到最前面
+    }
+
+    currentHistoryIndex.value = 0 // 默认选中当前版本
+    originalContent.value = fileContent.value // 保存原始内容
+
+    // 加载统计信息
+    historyStats.value = await fileHistoryDB.getHistoryStats(filePath)
+
+    console.log(`加载文件历史成功: ${fileHistory.value.length} 个版本`)
+  } catch (error) {
+    console.error('加载文件历史失败:', error)
+    fileHistory.value = []
+    currentHistoryIndex.value = -1
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: `加载历史失败：${error.message}`,
+      color: 'error'
+    })
+  }
+}
+
+// 查看历史版本 - 支持差异模式
+async function viewHistoryVersion(index) {
+  if (index >= 0 && index < fileHistory.value.length) {
+    const historyItem = fileHistory.value[index]
+    currentHistoryIndex.value = index
+    selectedHistoryItem.value = historyItem
+
+    // 切换到差异模式
+    if (!historyItem.isCurrent && originalContent.value) {
+      showDiffMode.value = true
+      await createDiffEditor(originalContent.value, historyItem.content)
+    } else {
+      // 如果是当前版本，使用普通编辑器
+      showDiffMode.value = false
+      if (monacoInstance) {
+        monacoInstance.setValue(historyItem.content)
+      }
+    }
+  }
+}
+
+// 创建 Monaco 差异编辑器
+async function createDiffEditor(originalContent, modifiedContent) {
+  try {
+    if (!monacoGlobal) {
+      console.warn('Monaco 编辑器尚未初始化')
+      return
+    }
+
+    // 获取编辑器容器 - 直接查询DOM元素
+    const mainContainer = document.querySelector('.monaco-container')
+    if (!mainContainer) {
+      console.warn('Monaco 容器未找到')
+      return
+    }
+
+    // 清空容器
+    mainContainer.innerHTML = ''
+
+    // 确保容器有足够的尺寸
+    mainContainer.style.height = '100%'
+    mainContainer.style.width = '100%'
+    mainContainer.style.minHeight = '400px'
+
+    // 创建差异编辑器
+    diffEditor.value = monacoGlobal.editor.createDiffEditor(mainContainer, {
+      theme: currentTheme.value,
+      readOnly: true,
+      automaticLayout: true,
+      renderSideBySide: true,
+      ignoreTrimWhitespace: false,
+      renderOverviewRuler: true,
+      diffWordWrap: 'on',
+      originalEditable: false,
+      modifiedEditable: false,
+      scrollBeyondLastLine: false,
+      minimap: { enabled: false },
+      contextmenu: false
+    })
+
+    // 创建模型
+    const language = getFileLanguage(selectedFileName.value)
+    const originalModel = monacoGlobal.editor.createModel(originalContent, language)
+    const modifiedModel = monacoGlobal.editor.createModel(modifiedContent, language)
+
+    // 设置模型
+    diffEditor.value.setModel({
+      original: originalModel,
+      modified: modifiedModel
+    })
+
+    // 强制布局更新 - 多次尝试确保正确显示
+    setTimeout(() => {
+      if (diffEditor.value) {
+        diffEditor.value.layout()
+        // 再次强制更新布局
+        setTimeout(() => {
+          if (diffEditor.value) {
+            diffEditor.value.layout()
+          }
+        }, 200)
+      }
+    }, 100)
+
+    console.log('差异编辑器创建成功')
+  } catch (error) {
+    console.error('创建差异编辑器失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: `差异显示失败：${error.message}`,
+      color: 'error'
+    })
+  }
+}
+
+// 退出差异模式
+function exitDiffMode() {
+  showDiffMode.value = false
+
+  if (diffEditor.value) {
+    diffEditor.value.dispose()
+    diffEditor.value = null
+  }
+
+  // 恢复普通编辑器
+  nextTick(() => {
+    if (originalContent.value && selectedFileName.value) {
+      // 重新设置文件内容到 Monaco 编辑器
+      fileContent.value = originalContent.value
+    }
+  })
+}
+
+// 设置全局快捷键监听
+function setupGlobalShortcuts() {
+  const handleKeydown = (event) => {
+    // 检查是否在编辑模式下
+    if (!isCodeFile.value) return
+
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+    const ctrlCmd = isMac ? event.metaKey : event.ctrlKey
+
+    // Ctrl/Cmd + S: 保存（需要检查只读状态）
+    if (ctrlCmd && event.key === 's') {
+      if (fileEditLocked.value) return
+      event.preventDefault()
+      saveCurrentFile()
+      return
+    }
+  }
+
+  // 添加全局键盘监听
+  document.addEventListener('keydown', handleKeydown)
+
+  // 返回清理函数
+  return () => {
+    document.removeEventListener('keydown', handleKeydown)
+  }
+}
+// 打开差异视图弹窗
+function openDiffModal() {
+  if (selectedHistoryItem.value && !selectedHistoryItem.value.isCurrent) {
+    showDiffModal.value = true
+    // 等待DOM更新后创建差异编辑器
+    nextTick(() => {
+      createDiffModalEditor(originalContent.value, selectedHistoryItem.value.content)
+    })
+  }
+}
+
+// 关闭差异视图弹窗
+function closeDiffModal() {
+  showDiffModal.value = false
+  // 清理差异编辑器实例
+  if (diffModalEditor.value) {
+    diffModalEditor.value.dispose()
+    diffModalEditor.value = null
+  }
+}
+
+// 在弹窗中创建 Monaco 差异编辑器
+async function createDiffModalEditor(originalContent, modifiedContent) {
+  try {
+    if (!monacoGlobal) {
+      console.warn('Monaco 编辑器尚未初始化')
+      return
+    }
+
+    // 获取弹窗中的编辑器容器
+    if (!diffModalContainer.value) {
+      console.warn('差异弹窗容器未找到')
+      return
+    }
+
+    // 清空容器
+    diffModalContainer.value.innerHTML = ''
+
+    // 确保容器有足够的尺寸
+    diffModalContainer.value.style.height = '70vh'
+    diffModalContainer.value.style.width = '100%'
+    diffModalContainer.value.style.minHeight = '500px'
+
+    // 创建差异编辑器
+    diffModalEditor.value = monacoGlobal.editor.createDiffEditor(diffModalContainer.value, {
+      theme: currentTheme.value,
+      readOnly: true,
+      automaticLayout: true,
+      renderSideBySide: true,
+      ignoreTrimWhitespace: false,
+      renderOverviewRuler: true,
+      diffWordWrap: 'on',
+      originalEditable: false,
+      modifiedEditable: false,
+      scrollBeyondLastLine: false,
+      minimap: { enabled: true },
+      contextmenu: true,
+      lineNumbers: 'on',
+      glyphMargin: true,
+      folding: true
+    })
+
+    // 创建模型
+    const language = getFileLanguage(selectedFileName.value)
+    const originalModel = monacoGlobal.editor.createModel(originalContent, language)
+    const modifiedModel = monacoGlobal.editor.createModel(modifiedContent, language)
+
+    // 设置模型
+    diffModalEditor.value.setModel({
+      original: originalModel,
+      modified: modifiedModel
+    })
+
+    // 强制布局更新 - 多次尝试确保正确显示
+    setTimeout(() => {
+      if (diffModalEditor.value) {
+        diffModalEditor.value.layout()
+        // 再次强制更新布局
+        setTimeout(() => {
+          if (diffModalEditor.value) {
+            diffModalEditor.value.layout()
+          }
+        }, 200)
+      }
+    }, 100)
+
+    console.log('弹窗差异编辑器创建成功')
+  } catch (error) {
+    console.error('创建弹窗差异编辑器失败:', error)
+    store.dispatch('snackbar/showSnackbar', {
+      message: `差异显示失败：${error.message}`,
+      color: 'error'
+    })
+  }
+}
+
+// 从差异视图中恢复版本
+async function restoreFromDiff() {
+  if (selectedHistoryItem.value && !selectedHistoryItem.value.isCurrent) {
+    // 关闭差异弹窗
+    closeDiffModal()
+    // 执行恢复操作
+    await restoreToHistoryVersion(currentHistoryIndex.value)
+  }
+}
+
+// 监听窗口大小改变，重新布局差异编辑器
+function handleWindowResize() {
+  if (diffModalEditor.value && showDiffModal.value) {
+    // 延迟重新布局，等待窗口大小改变完成
+    setTimeout(() => {
+      if (diffModalEditor.value) {
+        diffModalEditor.value.layout()
+      }
+    }, 100)
+  }
+}
+function restoreCurrentVersion() {
+  if (fileContent.value && monacoInstance) {
+    monacoInstance.setValue(fileContent.value)
+    currentHistoryIndex.value = fileHistory.value.length - 1
+
+    store.dispatch('snackbar/showSnackbar', {
+      message: '已恢复到当前版本',
+      color: 'success'
+    })
+  }
+}
+
+// 恢复到某个历史版本
+async function restoreToHistoryVersion(index) {
+  if (index >= 0 && index < fileHistory.value.length) {
+    const historyItem = fileHistory.value[index]
+
+    if (confirm(`确定要恢复到 "${historyItem.description}" 吗？这将会替换当前的文件内容。`)) {
+      try {
+        // 设置恢复标志，防止触发自动保存
+        isRestoringHistory = true
+
+        // 清除任何挂起的自动保存定时器
+        if (saveHistoryTimer) {
+          clearTimeout(saveHistoryTimer)
+          saveHistoryTimer = null
+        }
+
+        // 更新文件内容
+        fileContent.value = historyItem.content
+
+        // 更新Monaco编辑器内容（不触发变化事件）
+        if (monacoInstance) {
+          // 临时移除内容变化监听器
+          const model = monacoInstance.getModel()
+          if (model) {
+            // 使用 pushEditOperations 来设置内容，这样不会触发变化事件
+            const fullRange = model.getFullModelRange()
+            monacoInstance.executeEdits('restore-history', [
+              {
+                range: fullRange,
+                text: historyItem.content
+              }
+            ])
+          } else {
+            monacoInstance.setValue(historyItem.content)
+          }
+        }
+
+        // 只有在内容确实不同时才保存到历史
+        const currentFilePath = currentTab.value?.path || selectedFileName.value
+
+        // 检查是否真的需要保存（避免重复内容）
+        const isDuplicate = await fileHistoryDB.isDuplicateContent(
+          currentFilePath,
+          historyItem.content
+        )
+        if (!isDuplicate) {
+          await saveToHistory(
+            currentFilePath,
+            historyItem.content,
+            `恢复到: ${historyItem.description}`
+          )
+        } else {
+          console.log('恢复的内容与历史记录重复，跳过保存')
+        }
+
+        // 退出差异模式
+        if (showDiffMode.value) {
+          exitDiffMode()
+        }
+
+        // 更新原始内容引用
+        originalContent.value = historyItem.content
+
+        // 标记为已保存状态
+        hasUnsavedChanges.value = false
+
+        store.dispatch('snackbar/showSnackbar', {
+          message: `已恢复到: ${historyItem.description}`,
+          color: 'success'
+        })
+      } catch (error) {
+        console.error('恢复历史版本失败:', error)
+        store.dispatch('snackbar/showSnackbar', {
+          message: `恢复失败：${error.message}`,
+          color: 'error'
+        })
+      } finally {
+        // 延迟重置恢复标志，确保所有相关操作完成
+        setTimeout(() => {
+          isRestoringHistory = false
+          console.log('恢复历史版本操作完成')
+        }, 1000)
+      }
+    }
+  }
+}
+
+// 删除历史版本 - 使用 IndexedDB
+async function deleteHistoryVersion(index) {
+  if (index >= 0 && index < fileHistory.value.length) {
+    const historyItem = fileHistory.value[index]
+
+    // 不能删除当前版本
+    if (historyItem.isCurrent) {
+      store.dispatch('snackbar/showSnackbar', {
+        message: '不能删除当前版本',
+        color: 'warning'
+      })
+      return
+    }
+
+    if (confirm('确定要删除这个历史版本吗？')) {
+      try {
+        // 从 IndexedDB 中删除
+        await fileHistoryDB.deleteHistory(historyItem.id)
+
+        // 从本地列表中移除
+        fileHistory.value.splice(index, 1)
+
+        // 调整 currentHistoryIndex
+        if (currentHistoryIndex.value > index) {
+          currentHistoryIndex.value--
+        } else if (currentHistoryIndex.value === index) {
+          currentHistoryIndex.value = Math.min(
+            currentHistoryIndex.value,
+            fileHistory.value.length - 1
+          )
+        }
+
+        // 如果当前在差异模式且删除的是选中的项，退出差异模式
+        if (showDiffMode.value && selectedHistoryItem.value?.id === historyItem.id) {
+          exitDiffMode()
+        }
+
+        store.dispatch('snackbar/showSnackbar', {
+          message: '历史版本已删除',
+          color: 'success'
+        })
+      } catch (error) {
+        console.error('删除历史版本失败:', error)
+        store.dispatch('snackbar/showSnackbar', {
+          message: `删除失败：${error.message}`,
+          color: 'error'
+        })
+      }
+    }
+  }
+}
+
+// 获取文件大小的友好显示
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// 监听文件内容变化，自动保存到历史（防抖）
+let saveHistoryTimer = null
+let isRestoringHistory = false // 添加标志位，防止恢复时触发自动保存
+
+async function handleContentChange() {
+  // 如果正在恢复历史版本，跳过自动保存
+  if (isRestoringHistory || (!fileEditLocked.value && selectedFileName.value)) {
+    if (isRestoringHistory) {
+      console.log('正在恢复历史版本，跳过自动保存')
+      return
+    }
+
+    // 标记有未保存的更改
+    hasUnsavedChanges.value = true
+
+    // 清除之前的定时器
+    if (saveHistoryTimer) {
+      clearTimeout(saveHistoryTimer)
+    }
+
+    // 设置新的定时器，3秒后保存
+    saveHistoryTimer = setTimeout(async () => {
+      if (fileContent.value && !isRestoringHistory) {
+        const currentFilePath = currentTab.value?.path || selectedFileName.value
+        await saveToHistory(currentFilePath, fileContent.value, '自动保存')
+        // 自动保存后仍然有未保存的更改（只是保存到历史，未保存到磁盘）
+        // hasUnsavedChanges.value = true 保持为 true
+      }
+    }, 3000)
+  }
+}
+
+// 在onEditorMounted中添加内容变化监听
+function setupContentChangeListener(editor) {
+  if (editor && editor.onDidChangeModelContent) {
+    editor.onDidChangeModelContent(() => {
+      handleContentChange()
+    })
   }
 }
 
@@ -3267,6 +5324,7 @@ function handleFunctionMouseLeave() {
 }
 
 // 在代码中查找文本
+// eslint-disable-next-line no-unused-vars
 function findInCode() {
   if (!quickFindText.value || !fileContent.value || !monacoInstance) {
     findResults.value = []
@@ -3355,6 +5413,7 @@ function jumpToResult(index) {
 }
 
 // 查找下一个结果
+// eslint-disable-next-line no-unused-vars
 function findNext() {
   if (findResults.value.length === 0) return
 
@@ -3417,7 +5476,7 @@ function getParsedDescription(description) {
       description: parsed.description || '',
       process: Array.isArray(parsed.process) ? parsed.process : []
     }
-  } catch (error) {
+  } catch {
     // 解析失败，返回原始描述
     return { description: description, process: [] }
   }
@@ -3795,6 +5854,11 @@ function getContextMenuItems(type) {
         label: '解释并生成流程图',
         action: 'generateFlowchart'
       },
+      {
+        id: 'copy-ai-description',
+        label: '复制AI描述',
+        action: 'copyAiDescription'
+      },
       { separator: true },
       {
         id: 'open',
@@ -3873,6 +5937,26 @@ function getContextMenuItems(type) {
   if (type === 'folder') {
     return [
       {
+        id: 'expand-all',
+        label: '全部展开',
+        icon: menuIcons.expand,
+        action: 'expandAll'
+      },
+      {
+        id: 'collapse-all',
+        label: '全部折叠',
+        icon: menuIcons.collapse,
+        action: 'collapseAll'
+      },
+      { separator: true },
+      {
+        id: 'folder-stats',
+        label: '文件夹统计',
+        icon: menuIcons.stats,
+        action: 'showFolderStats'
+      },
+      { separator: true },
+      {
         id: 'build-index',
         label: '构建索引',
         action: 'buildIndex'
@@ -3886,6 +5970,11 @@ function getContextMenuItems(type) {
         id: 'generate-flowchart',
         label: '解释并生成流程图',
         action: 'generateFlowchart'
+      },
+      {
+        id: 'copy-ai-description',
+        label: '复制AI描述',
+        action: 'copyAiDescription'
       },
       { separator: true },
       {
@@ -3989,6 +6078,26 @@ async function handleContextMenuAction(action) {
         }
         break
 
+      case 'copyAiDescription':
+        if (target?.path) {
+          await copyAiDescriptionToClipboard(target.path)
+        }
+        break
+
+      case 'expandAll':
+        await expandAllNodes(target?.path)
+        break
+
+      case 'collapseAll':
+        await collapseAllNodes(target?.path)
+        break
+
+      case 'showFolderStats':
+        if (target?.path) {
+          await showFolderStatistics(target.path)
+        }
+        break
+
       case 'openFile':
         if (target?.path) {
           await loadFileByType(target.path)
@@ -4001,12 +6110,13 @@ async function handleContextMenuAction(action) {
         }
         break
 
-      case 'openInFolder':
+      case 'openInFolder': {
         const pathToShow = target?.tab?.path || target?.path
         if (pathToShow) {
           await window.electron.showItemInFolder(pathToShow)
         }
         break
+      }
 
       case 'copyFile':
         if (target?.path || target?.tab?.path) {
@@ -4040,7 +6150,7 @@ async function handleContextMenuAction(action) {
         }
         break
 
-      case 'copyPath':
+      case 'copyPath': {
         const pathToCopy = target?.tab?.path || target?.path
         if (pathToCopy) {
           await navigator.clipboard.writeText(pathToCopy)
@@ -4050,6 +6160,7 @@ async function handleContextMenuAction(action) {
           })
         }
         break
+      }
 
       case 'closeTab':
         if (target?.index !== undefined) {
@@ -4073,19 +6184,21 @@ async function handleContextMenuAction(action) {
         createNewFolder()
         break
 
-      case 'renameFile':
+      case 'renameFile': {
         const pathToRename = target?.path || target?.tab?.path
         if (pathToRename) {
           await renameFile(pathToRename)
         }
         break
+      }
 
-      case 'deleteFile':
+      case 'deleteFile': {
         const pathToDelete = target?.path || target?.tab?.path
         if (pathToDelete) {
           await deleteFileByPath(pathToDelete)
         }
         break
+      }
     }
   } catch (error) {
     store.dispatch('snackbar/showSnackbar', {
@@ -4246,6 +6359,250 @@ function closeAllTabs() {
   padding: 1px;
 }
 
+/* 搜索结果文件夹样式 */
+.search-result-folder {
+  background-color: rgba(64, 158, 255, 0.1);
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin: 1px 0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-result-folder:hover {
+  background-color: rgba(64, 158, 255, 0.2);
+}
+
+.search-expand-hint {
+  color: #409eff;
+  font-size: 12px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.search-result-folder:hover .search-expand-hint {
+  opacity: 1;
+}
+
+/* 搜索进度样式 */
+.search-progress-container {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: rgba(64, 158, 255, 0.05);
+  border-radius: 4px;
+  border: 1px solid rgba(64, 158, 255, 0.2);
+}
+
+.search-progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: rgba(64, 158, 255, 0.2);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.search-progress-fill {
+  height: 100%;
+  background-color: #409eff;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.search-progress-text {
+  font-size: 12px;
+  color: #409eff;
+  font-weight: 500;
+}
+
+/* AI 描述 markdown 样式 */
+.ai-description-content {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  color: inherit;
+}
+
+.ai-description-content h1,
+.ai-description-content h2,
+.ai-description-content h3,
+.ai-description-content h4,
+.ai-description-content h5,
+.ai-description-content h6 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.ai-description-content h1 {
+  font-size: 1.5em;
+  border-bottom: 1px solid rgba(var(--v-theme-primary), 0.2);
+  padding-bottom: 0.3em;
+}
+
+.ai-description-content h2 {
+  font-size: 1.25em;
+  border-bottom: 1px solid rgba(var(--v-theme-primary), 0.2);
+  padding-bottom: 0.3em;
+}
+
+.ai-description-content h3 {
+  font-size: 1.1em;
+}
+
+.ai-description-content p {
+  margin-bottom: 12px;
+}
+
+.ai-description-content ul,
+.ai-description-content ol {
+  margin-bottom: 12px;
+  padding-left: 20px;
+}
+
+.ai-description-content li {
+  margin-bottom: 4px;
+}
+
+.ai-description-content code {
+  background-color: rgba(var(--v-theme-primary), 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+}
+
+.ai-description-content pre {
+  background-color: rgba(var(--v-theme-primary), 0.05);
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.ai-description-content pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.ai-description-content blockquote {
+  border-left: 4px solid rgba(var(--v-theme-primary), 0.3);
+  margin: 12px 0;
+  padding-left: 16px;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.ai-description-content a {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: none;
+}
+
+.ai-description-content a:hover {
+  text-decoration: underline;
+}
+
+/* 悬停提示气泡样式 */
+.hover-tooltip-card {
+  background-color: rgba(0, 0, 0, 0.9) !important;
+  color: white !important;
+}
+
+/* 日间模式下的悬停提示气泡样式 */
+.v-theme--light .hover-tooltip-card {
+  background-color: #f3f3f3 !important;
+  color: #616161 !important;
+}
+
+/* 悬停提示 markdown 样式 */
+.hover-tooltip-content {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.4;
+  color: white;
+}
+
+.hover-tooltip-content h1,
+.hover-tooltip-content h2,
+.hover-tooltip-content h3,
+.hover-tooltip-content h4,
+.hover-tooltip-content h5,
+.hover-tooltip-content h6 {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: white;
+  font-size: 0.9em;
+}
+
+/* 日间模式下的文字颜色 */
+.v-theme--light .hover-tooltip-content {
+  color: #616161 !important;
+}
+
+.v-theme--light .hover-tooltip-content h1,
+.v-theme--light .hover-tooltip-content h2,
+.v-theme--light .hover-tooltip-content h3,
+.v-theme--light .hover-tooltip-content h4,
+.v-theme--light .hover-tooltip-content h5,
+.v-theme--light .hover-tooltip-content h6 {
+  color: #616161 !important;
+}
+
+.hover-tooltip-content p {
+  margin-bottom: 6px;
+  font-size: 0.8em;
+}
+
+.hover-tooltip-content ul,
+.hover-tooltip-content ol {
+  margin-bottom: 6px;
+  padding-left: 16px;
+  font-size: 0.8em;
+}
+
+.hover-tooltip-content li {
+  margin-bottom: 2px;
+}
+
+.hover-tooltip-content code {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.75em;
+}
+
+.hover-tooltip-content a {
+  color: #79c0ff;
+  text-decoration: none;
+}
+
+.hover-tooltip-content a:hover {
+  text-decoration: underline;
+}
+
+/* 日间模式下的代码块和链接颜色 */
+.v-theme--light .hover-tooltip-content code {
+  background-color: rgba(97, 97, 97, 0.15);
+  color: #616161;
+}
+
+.v-theme--light .hover-tooltip-content a {
+  color: #1976d2;
+}
+
+.v-theme--light .hover-tooltip-content a:hover {
+  color: #1565c0;
+}
+
+/* AI 描述折叠样式 */
+.ai-description-collapsed {
+  position: relative;
+}
+
 /* 修改tr被选中时的样式 */
 .code-table tr:hover {
   background-color: rgba(var(--v-theme-primary), 0.05);
@@ -4402,7 +6759,7 @@ body {
 .file-tree-panel {
   flex: 0 0 auto;
   height: 100%;
-  overflow: hidden;
+  overflow: auto;
   padding: 4px;
 }
 
@@ -4812,6 +7169,154 @@ body.resizing .resizer::after {
   filter: grayscale(100%) !important;
 }
 
+/* 时间线相关样式 */
+.ant-list-item-selected {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border-left: 3px solid #1890ff;
+}
+
+.v-theme--dark .ant-list-item-selected {
+  background-color: rgba(24, 144, 255, 0.15) !important;
+}
+
+.timeline-panel {
+  background: rgba(var(--v-theme-surface), 1);
+  border-radius: 8px;
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+}
+
+/* 编辑按钮组样式适配 */
+.v-theme--dark :deep(.ant-btn) {
+  background-color: #1f1f1f !important;
+  border-color: #434343 !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-btn:hover) {
+  background-color: #2a2a2a !important;
+  border-color: #595959 !important;
+  color: #ffffff !important;
+}
+
+.v-theme--dark :deep(.ant-btn-primary) {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+.v-theme--dark :deep(.ant-btn-primary:hover) {
+  background-color: #40a9ff !important;
+  border-color: #40a9ff !important;
+}
+
+.v-theme--dark :deep(.ant-btn-primary.ant-btn-ghost) {
+  background-color: transparent !important;
+  border-color: #1890ff !important;
+  color: #1890ff !important;
+}
+
+.v-theme--dark :deep(.ant-btn-primary.ant-btn-ghost:hover) {
+  background-color: rgba(24, 144, 255, 0.1) !important;
+  border-color: #40a9ff !important;
+  color: #40a9ff !important;
+}
+
+.v-theme--dark :deep(.ant-btn.ant-btn-dangerous) {
+  background-color: transparent !important;
+  border-color: #ff4d4f !important;
+  color: #ff4d4f !important;
+}
+
+.v-theme--dark :deep(.ant-btn.ant-btn-dangerous:hover) {
+  background-color: rgba(255, 77, 79, 0.1) !important;
+  border-color: #ff7875 !important;
+  color: #ff7875 !important;
+}
+
+/* 时间线列表深色主题适配 */
+.v-theme--dark :deep(.ant-list) {
+  background-color: #1f1f1f !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-list-item) {
+  border-bottom-color: #434343 !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-list-item:hover) {
+  background-color: #2a2a2a !important;
+}
+
+.v-theme--dark :deep(.ant-list-item-meta-title) {
+  color: #ffffff !important;
+}
+
+.v-theme--dark :deep(.ant-list-item-meta-description) {
+  color: #a0a0a0 !important;
+}
+
+.v-theme--dark :deep(.ant-tag) {
+  background-color: #434343 !important;
+  border-color: #595959 !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-divider) {
+  border-color: #434343 !important;
+}
+
+.v-theme--dark :deep(.ant-tooltip) {
+  background-color: #1f1f1f !important;
+}
+
+.v-theme--dark :deep(.ant-tooltip .ant-tooltip-inner) {
+  background-color: #1f1f1f !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-tooltip .ant-tooltip-arrow::before) {
+  background-color: #1f1f1f !important;
+}
+
+/* 编辑按钮组的特殊状态样式 */
+.v-theme--dark .edit-button-group .ant-btn {
+  background-color: #2a2a2a !important;
+  border-color: #434343 !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark .edit-button-group .ant-btn:hover {
+  background-color: #3a3a3a !important;
+  border-color: #595959 !important;
+  color: #ffffff !important;
+}
+
+.v-theme--dark .edit-button-group .ant-btn-primary {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+.v-theme--dark .edit-button-group .ant-btn-primary:hover {
+  background-color: #40a9ff !important;
+  border-color: #40a9ff !important;
+}
+
+/* 保存状态指示器 */
+.v-theme--dark .edit-button-group .save-button-unsaved {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 6px rgba(24, 144, 255, 0.3) !important;
+}
+
+.v-theme--dark .edit-button-group .save-button-saving {
+  background-color: #52c41a !important;
+  border-color: #52c41a !important;
+  color: #ffffff !important;
+}
+
 /* 函数详情气泡浮窗样式 */
 .function-tooltip {
   position: fixed;
@@ -4829,5 +7334,229 @@ body.resizing .resizer::after {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 深色主题下的时间线和编辑按钮增强样式 */
+.v-theme--dark :deep(.ant-btn-text) {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-btn-text:hover) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+
+/* 时间线标题和操作按钮 */
+.v-theme--dark .timeline-panel {
+  background-color: #1f1f1f !important;
+  border-color: #434343 !important;
+}
+
+.v-theme--dark .timeline-panel > div:first-child {
+  color: #e0e0e0 !important;
+}
+
+/* 编辑按钮组容器 */
+.v-theme--dark .edit-buttons-container {
+  background-color: transparent !important;
+}
+
+/* 保存按钮在有未保存更改时的样式 */
+.v-theme--dark :deep(.ant-btn-primary.save-button-changed) {
+  background-color: #ff9500 !important;
+  border-color: #ff9500 !important;
+  color: #ffffff !important;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 149, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 149, 0, 0);
+  }
+}
+
+/* 功能按钮图标适配 */
+.v-theme--dark :deep(.anticon) {
+  color: inherit !important;
+}
+
+/* 历史统计信息区域 */
+.v-theme--dark .history-stats {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid #434343 !important;
+  color: #a0a0a0 !important;
+}
+
+/* 历史版本项hover效果增强 */
+.v-theme--dark :deep(.ant-list-item:hover) {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+/* 时间线面板分隔线 */
+.v-theme--dark .timeline-panel :deep(.ant-divider-horizontal) {
+  border-top-color: #434343 !important;
+}
+
+/* 操作按钮组 */
+.v-theme--dark .timeline-actions {
+  border-top: 1px solid #434343 !important;
+  padding-top: 12px !important;
+}
+
+/* 确保Ant Design表单控件在深色主题下的可见性 */
+.v-theme--dark :deep(.ant-input) {
+  background-color: #1f1f1f !important;
+  border-color: #434343 !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-input:hover) {
+  border-color: #595959 !important;
+}
+
+.v-theme--dark :deep(.ant-input:focus) {
+  border-color: #1890ff !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+}
+
+/* 时间线列表选中项优化 */
+.v-theme--dark .ant-list-item-selected {
+  background-color: rgba(24, 144, 255, 0.2) !important;
+  border-left-color: #40a9ff !important;
+  border-radius: 0 4px 4px 0;
+}
+
+/* 按钮加载状态 */
+.v-theme--dark :deep(.ant-btn-loading) {
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.ant-btn-loading .anticon) {
+  color: #e0e0e0 !important;
+}
+
+/* 差异编辑器容器适配 */
+.v-theme--dark .monaco-container {
+  border: 1px solid #434343 !important;
+  border-radius: 4px;
+}
+
+/* 确保所有文本在深色主题下可见 */
+.v-theme--dark .timeline-panel,
+.v-theme--dark .timeline-panel * {
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark .timeline-panel strong {
+  color: #ffffff !important;
+}
+
+/* 面包屑导航深色适配 */
+.v-theme--dark :deep(.v-breadcrumbs) {
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark :deep(.v-breadcrumbs-item) {
+  color: #a0a0a0 !important;
+}
+
+.v-theme--dark :deep(.v-breadcrumbs-item:hover) {
+  color: #ffffff !important;
+}
+
+/* 代码搜索框深色适配 */
+.v-theme--dark .code-search-container .custom-search-input {
+  background-color: #1f1f1f !important;
+  border-color: #434343 !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark .code-search-container .custom-search-input:focus {
+  border-color: #1890ff !important;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2) !important;
+}
+
+/* Monaco 编辑器主题同步 */
+.v-theme--dark .monaco-editor {
+  background-color: #1e1e1e !important;
+}
+
+/* 确保所有图标在深色主题下可见 */
+.v-theme--dark .timeline-panel .anticon {
+  color: #a0a0a0 !important;
+}
+
+.v-theme--dark .timeline-panel .anticon:hover {
+  color: #ffffff !important;
+}
+
+/* 差异视图弹窗样式 */
+.diff-modal {
+  z-index: 2000;
+}
+
+.diff-modal :deep(.ant-modal-content) {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-modal :deep(.ant-modal-body) {
+  flex: 1;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.diff-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-editor-container {
+  flex: 1;
+  position: relative;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* 深色主题下的差异弹窗样式 */
+.v-theme--dark .diff-modal :deep(.ant-modal-content) {
+  background-color: #1f1f1f !important;
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark .diff-modal :deep(.ant-modal-header) {
+  background-color: #1f1f1f !important;
+  border-bottom-color: #434343 !important;
+}
+
+.v-theme--dark .diff-modal :deep(.ant-modal-title) {
+  color: #e0e0e0 !important;
+}
+
+.v-theme--dark .diff-modal :deep(.ant-modal-close) {
+  color: #a0a0a0 !important;
+}
+
+.v-theme--dark .diff-modal :deep(.ant-modal-close:hover) {
+  color: #ffffff !important;
+}
+
+.v-theme--dark .diff-editor-container {
+  border-color: #434343 !important;
+  background-color: #1e1e1e !important;
 }
 </style>

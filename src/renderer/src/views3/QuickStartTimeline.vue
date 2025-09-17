@@ -714,6 +714,11 @@ const steps = ref([
         value: '/report'
       },
       {
+        title: '脉络感知',
+        icon: 'mdi-sitemap-outline',
+        route: '/module-graphs'
+      },
+      {
         title: '提交审查',
         icon: 'mdi-github',
         value: '/commits/history'
@@ -727,12 +732,12 @@ const steps = ref([
         title: '代码视窗',
         icon: 'mdi-code-block-tags',
         value: '/finder'
-      },
-      {
-        title: '推送机器人',
-        icon: 'mdi-robot',
-        value: '/sender'
       }
+      // {
+      //   title: '推送机器人',
+      //   icon: 'mdi-robot',
+      //   value: '/sender'
+      // }
     ],
     more: true,
     currentStep: 5
@@ -777,6 +782,25 @@ const aiFeatures = ref([
       '🔄 实时索引状态检测，自动检查和管理代码库索引',
       '📖 Markdown渲染支持，美观展示搜索结果和代码描述',
       '⚡ 快捷键操作，支持键盘快捷键快速切换搜索模式'
+    ]
+  },
+  {
+    title: '脉络感知',
+    description: 'AI驱动的代码仓库结构分析与可视化工具，通过网络结构、目录树、树状图、旭日图等多种视图展示代码模块关系',
+    icon: 'mdi-sitemap-outline',
+    color: 'deep-purple',
+    route: '/module-graphs',
+    features: [
+      '🔍 网络结构可视化，直观展示代码模块间的依赖关系和调用链路',
+      '🌳 目录树展示，清晰呈现代码仓库的层级结构和文件分布',
+      '🌲 树状图分析，分层展示代码模块的组织结构',
+      '🌞 旭日图展示，多维度展示代码模块的占比和关系',
+      '🤖 AI智能分析，自动生成模块功能描述和接口说明',
+      '⚡ 实时索引构建，支持函数级别的代码结构分析',
+      '🎯 交互式导航，点击图表节点快速跳转到对应代码',
+      '📊 模块详情展示，查看模块的函数信息、索引状态和AI分析摘要',
+      '🔄 一键刷新功能，实时更新模块图谱数据',
+      '📥 项目目录选择，支持快速切换和分析不同代码仓库'
     ]
   },
   {
@@ -834,20 +858,6 @@ const aiFeatures = ref([
       '🎯 右键菜单操作，支持文件的创建、重命名、删除等',
       '📋 剪贴板操作，支持文件和文件夹的复制粘贴',
       '🔧 侧边栏自定义，可隐藏/显示目录树和索引面板'
-    ]
-  },
-  {
-    title: '推送机器人',
-    description: '智能企业微信推送机器人，自动化团队协作和代码变更通知',
-    icon: 'mdi-robot',
-    color: 'pink',
-    route: '/sender',
-    features: [
-      '🤖 企业微信机器人集成，支持自动推送消息到团队群聊',
-      '⚡ 实时状态监控，显示机器人运行状态和健康检查',
-      '🎛️ 一键启停控制，通过可视化开关快速管理机器人服务',
-      '🔧 智能配置管理，自动读取系统配置并启动服务',
-      '📊 服务状态反馈，实时显示启动、运行、停止等状态'
     ]
   },
   {
@@ -1031,6 +1041,7 @@ function getRouteTitle(route) {
     '/space': '空间透镜',
     '/search': '深度搜索',
     '/report': '文件枢纽',
+    '/module-graphs': '脉络感知',
     '/commits/history': '提交审查',
     '/finder': '代码视窗',
     '/sender': '推送机器人',

@@ -12,6 +12,7 @@
       class="drag-region app-drawer"
     >
       <v-list dense>
+
         <v-divider></v-divider>
 
         <!-- 遍历导航项 -->
@@ -133,7 +134,7 @@
           <template #prepend>
             <v-icon size="small">{{
               isCompactMode ? 'mdi-magnify-plus' : 'mdi-magnify-minus'
-            }}</v-icon>
+              }}</v-icon>
           </template>
         </v-list-item>
 
@@ -148,10 +149,7 @@
     </v-navigation-drawer>
 
     <!-- 顶部标签栏 -->
-    <div
-      class="tabs-toolbar drag-region"
-      :class="{ 'dark-toolbar': isDark, 'macos-toolbar': isMacOS }"
-    >
+    <div class="tabs-toolbar drag-region" :class="{ 'dark-toolbar': isDark }">
       <div class="tabs-container drag-region">
         <!-- 导航：返回 / 前进 -->
         <div class="toolbar-nav-buttons no-drag-region mr-2">
@@ -175,8 +173,8 @@
           </v-btn>
           <div class="tabs-viewport">
             <v-tabs
-              v-if="openTabs.length > 0"
               ref="tabsRef"
+              v-if="openTabs.length > 0"
               v-model="activeTabIndex"
               density="compact"
               height="40"
@@ -225,7 +223,8 @@
       </div>
 
       <!-- 右侧主题指示器 -->
-      <div class="toolbar-right no-drag-region"></div>
+      <div class="toolbar-right no-drag-region">
+      </div>
     </div>
     <!-- 主体区域：条件渲染 router-view 或加载状态 -->
     <v-main class="custom-main">
@@ -299,11 +298,11 @@
                   class="mr-2"
                 >
                   {{
-                    log.type === 'error'
-                      ? 'mdi-alert-circle'
-                      : log.type === 'success'
-                        ? 'mdi-check-circle'
-                        : 'mdi-information'
+                  log.type === 'error'
+                  ? 'mdi-alert-circle'
+                  : log.type === 'success'
+                  ? 'mdi-check-circle'
+                  : 'mdi-information'
                   }}
                 </v-icon>
                 <span class="log-service">[{{ log.serviceName === 'app' ? '核心' : '索引' }}]</span>
@@ -582,7 +581,7 @@
                 color:
                   log.type === 'error' ? '#ff4d4f' : log.type === 'success' ? '#52c41a' : '#1677ff'
               }"
-              >●</span
+            >●</span
             >
             <span class="log-message">{{ log.message }}</span>
           </div>
@@ -842,10 +841,10 @@
                 <div class="d-flex flex-column">
                   <span class="font-weight-medium">{{ repo.name }}</span>
                   <span class="text-caption text-grey"
-                    >ID: {{ repo.id }} | 路径: {{ repo.local_path }}</span
+                  >ID: {{ repo.id }} | 路径: {{ repo.local_path }}</span
                   >
                   <span class="text-caption text-grey"
-                    >创建时间: {{ new Date(repo.created_at).toLocaleString() }} | 描述：{{
+                  >创建时间: {{ new Date(repo.created_at).toLocaleString() }} | 描述：{{
                       omitDesc(repo.desc, 20)
                     }}</span
                   >
@@ -1020,10 +1019,7 @@ export default {
         interface: ''
       },
       // 弹窗强制重挂载计数器
-      dialogNonce: 0,
-      // 标签页会话缓存相关
-      sessionSaveTimer: null,
-      lastSaveData: null
+      dialogNonce: 0
     }
   },
   computed: {
@@ -1059,9 +1055,6 @@ export default {
     },
     isWindows() {
       return navigator.platform.indexOf('Win') > -1
-    },
-    isMacOS() {
-      return navigator.platform.indexOf('Mac') > -1
     },
     fmHttpChipColor() {
       if (this.fmHttpHealthState === '正在重启') return 'orange'
@@ -1144,15 +1137,6 @@ export default {
     }, 3000)
   },
   beforeUnmount() {
-    // 保存当前标签页会话
-    this.saveTabSession()
-
-    // 清理会话保存定时器
-    if (this.sessionSaveTimer) {
-      clearTimeout(this.sessionSaveTimer)
-      this.sessionSaveTimer = null
-    }
-
     if (this.healthInterval) {
       clearInterval(this.healthInterval)
     }
@@ -1176,9 +1160,6 @@ export default {
           active.title = title
           // 标记该标签具有自定义标题，防止被路由变化覆盖
           active.hasCustomTitle = true
-
-          // 自动保存标签页会话
-          this.debouncedSaveTabSession()
         }
       } catch (err) {
         console.warn('更新标签标题失败:', err)
@@ -1193,9 +1174,9 @@ export default {
           console.warn('新增标签页事件缺少路由信息')
           return
         }
-
+        
         console.log('收到新增标签页事件:', { route, title })
-
+        
         // 创建新标签页
         const newTab = {
           id: ++this.tabIdCounter,
@@ -1212,10 +1193,7 @@ export default {
 
         // 跳转到新页面
         this.$router.push(route)
-
-        // 自动保存标签页会话
-        this.debouncedSaveTabSession()
-
+        
         console.log('新增标签页成功:', newTab)
       } catch (err) {
         console.error('新增标签页失败:', err)
@@ -1362,6 +1340,7 @@ export default {
         }
 
         return false // 如果当前版本小于或等于目标版本
+
       } catch {
         this.pythonInstalled = false
         return false
@@ -1400,6 +1379,20 @@ export default {
           break
         default:
           this.fmHttpToggleTip = '操作索引服务'
+      }
+    },
+
+    updateTabsScrollState() {
+      try {
+        const host = this.$refs.tabsRef && this.$refs.tabsRef.$el
+        if (!host) return
+        const prevBtn = host.querySelector('.v-slide-group__prev')
+        const nextBtn = host.querySelector('.v-slide-group__next')
+        this.tabsCanScrollPrev = prevBtn ? !prevBtn.hasAttribute('disabled') : false
+        this.tabsCanScrollNext = nextBtn ? !nextBtn.hasAttribute('disabled') : false
+      } catch {
+        this.tabsCanScrollPrev = false
+        this.tabsCanScrollNext = false
       }
     },
 
@@ -1476,9 +1469,6 @@ export default {
 
       // 跳转到新页面（路由相同也可重复打开）
       this.$router.push(item.to)
-
-      // 自动保存标签页会话
-      this.debouncedSaveTabSession()
     },
 
     // 切换到指定标签页
@@ -1487,9 +1477,6 @@ export default {
       const target = tab.history?.stack?.[tab.history.index] || tab.to
       tab.to = target
       this.$router.push(target)
-
-      // 自动保存标签页会话
-      this.debouncedSaveTabSession()
     },
 
     // 当前标签返回
@@ -1502,9 +1489,6 @@ export default {
         tab.to = target
         this.lastNavigatedTabId = tab.id
         this.$router.push(target)
-
-        // 自动保存标签页会话
-        this.debouncedSaveTabSession()
       }
     },
     // 当前标签前进
@@ -1517,9 +1501,6 @@ export default {
         tab.to = target
         this.lastNavigatedTabId = tab.id
         this.$router.push(target)
-
-        // 自动保存标签页会话
-        this.debouncedSaveTabSession()
       }
     },
 
@@ -1539,9 +1520,6 @@ export default {
         // 如果关闭的标签页在当前激活标签页之前，调整索引
         this.activeTabIndex--
       }
-
-      // 自动保存标签页会话
-      this.debouncedSaveTabSession()
     },
 
     // —— 标签拖拽排序 ——
@@ -1568,9 +1546,6 @@ export default {
       if (newActiveIndex !== -1) {
         this.activeTabIndex = newActiveIndex
       }
-
-      // 自动保存标签页会话
-      this.debouncedSaveTabSession()
     },
     async toggleCompactMode() {
       this.isCompactMode = !this.isCompactMode
@@ -2408,8 +2383,7 @@ export default {
             owner: ownerName,
             repo: repoName,
             branch: 'main',
-            description: `通过索引导入自动克隆的仓库: ${ownerName}/${repoName}。
-          ${existingRepo.description}`,
+            description: `通过索引导入自动克隆的仓库: ${ownerName}/${repoName}`,
             isPrivate: false,
             token
           })
@@ -3043,150 +3017,6 @@ export default {
           console.log('GitHave登录成功，用户信息:', { user_id, username, email })
         }
       }
-    },
-
-    // 标签页会话缓存管理
-    saveTabSession() {
-      try {
-        const sessionData = {
-          tabs: this.openTabs.map((tab) => ({
-            id: tab.id,
-            title: tab.title,
-            to: tab.to,
-            icon: tab.icon,
-            closable: tab.closable,
-            history: tab.history,
-            hasCustomTitle: tab.hasCustomTitle || false
-          })),
-          activeTabIndex: this.activeTabIndex,
-          lastNavigatedTabId: this.lastNavigatedTabId,
-          tabIdCounter: this.tabIdCounter,
-          timestamp: Date.now()
-        }
-
-        localStorage.setItem('githave_tab_session', JSON.stringify(sessionData))
-        console.log('[TabSession] 标签页会话已保存，标签页数量:', this.openTabs.length)
-      } catch (error) {
-        console.error('[TabSession] 保存标签页会话失败:', error)
-      }
-    },
-
-    // 从本地存储恢复标签页会话
-    restoreTabSession() {
-      try {
-        const sessionDataStr = localStorage.getItem('githave_tab_session')
-        if (!sessionDataStr) {
-          console.log('[TabSession] 没有找到保存的标签页会话数据')
-          return false
-        }
-
-        const sessionData = JSON.parse(sessionDataStr)
-
-        // 验证会话数据结构
-        if (!sessionData || typeof sessionData !== 'object') {
-          console.warn('[TabSession] 标签页会话数据结构无效')
-          localStorage.removeItem('githave_tab_session')
-          return false
-        }
-
-        // 检查会话数据是否过期（7天）
-        const maxAge = 7 * 24 * 60 * 60 * 1000 // 7天
-        if (!sessionData.timestamp || Date.now() - sessionData.timestamp > maxAge) {
-          console.log('[TabSession] 标签页会话数据已过期，清除缓存')
-          localStorage.removeItem('githave_tab_session')
-          return false
-        }
-
-        // 恢复标签页
-        if (sessionData.tabs && Array.isArray(sessionData.tabs) && sessionData.tabs.length > 0) {
-          // 验证标签页数据结构
-          const validTabs = sessionData.tabs.filter((tab) => {
-            return (
-              tab &&
-              typeof tab === 'object' &&
-              typeof tab.id === 'number' &&
-              typeof tab.title === 'string' &&
-              typeof tab.to === 'string'
-            )
-          })
-
-          if (validTabs.length > 0) {
-            this.openTabs = validTabs
-
-            // 恢复计数器
-            if (typeof sessionData.tabIdCounter === 'number') {
-              this.tabIdCounter = Math.max(sessionData.tabIdCounter, ...validTabs.map((t) => t.id))
-            }
-
-            // 确保 activeTabIndex 在有效范围内
-            const validActiveTab = Math.max(
-              0,
-              Math.min(sessionData.activeTabIndex || 0, validTabs.length - 1)
-            )
-            this.activeTabIndex = validActiveTab
-
-            // 恢复最后导航的标签ID
-            if (typeof sessionData.lastNavigatedTabId === 'number') {
-              this.lastNavigatedTabId = sessionData.lastNavigatedTabId
-            }
-
-            console.log('[TabSession] 标签页会话已恢复，标签页数量:', this.openTabs.length)
-            return true
-          } else {
-            console.log('[TabSession] 没有有效的标签页可以恢复')
-          }
-        }
-
-        return false
-      } catch (error) {
-        console.error('[TabSession] 恢复标签页会话失败:', error)
-        // 清除损坏的会话数据
-        try {
-          localStorage.removeItem('githave_tab_session')
-        } catch (e) {
-          console.error('[TabSession] 清除损坏的标签页会话数据失败:', e)
-        }
-        return false
-      }
-    },
-
-    // 清除标签页会话缓存
-    clearTabSession() {
-      localStorage.removeItem('githave_tab_session')
-      console.log('[TabSession] 标签页会话缓存已清除')
-    },
-
-    // 防抖保存标签页会话
-    debouncedSaveTabSession() {
-      if (this.sessionSaveTimer) {
-        clearTimeout(this.sessionSaveTimer)
-      }
-
-      this.sessionSaveTimer = setTimeout(() => {
-        // 检查数据是否发生变化
-        const currentData = JSON.stringify({
-          tabs: this.openTabs.map((tab) => ({
-            id: tab.id,
-            title: tab.title,
-            to: tab.to,
-            icon: tab.icon,
-            closable: tab.closable,
-            hasCustomTitle: tab.hasCustomTitle || false
-          })),
-          activeTabIndex: this.activeTabIndex,
-          lastNavigatedTabId: this.lastNavigatedTabId,
-          tabIdCounter: this.tabIdCounter
-        })
-
-        if (currentData !== this.lastSaveData) {
-          this.saveTabSession()
-          this.lastSaveData = currentData
-        } else {
-          console.log('[TabSession] 标签页数据未变化，跳过保存')
-        }
-
-        this.sessionSaveTimer = null
-      }, 1000) // 1秒防抖延迟
     }
   },
   watch: {
@@ -3229,10 +3059,12 @@ export default {
       this.saveNavigationToHistory(navigationItem)
 
       // 更新当前激活的标签页索引（支持重复路由：优先匹配最近导航的tab，否则选择最后一个匹配项）
-      const matches = this.openTabs.map((t, i) => ({ t, i })).filter((x) => x.t.to === to.path)
+      const matches = this.openTabs
+        .map((t, i) => ({ t, i }))
+        .filter((x) => x.t.to === to.path)
       if (matches.length > 0) {
         const byLast = matches.find((m) => m.t.id === this.lastNavigatedTabId)
-        this.activeTabIndex = byLast ? byLast.i : matches[matches.length - 1].i
+        this.activeTabIndex = (byLast ? byLast.i : matches[matches.length - 1].i)
       }
 
       // 将本次路由变更记录到当前活动标签的历史堆栈（确保实例内导航可被后退/前进）
@@ -3261,20 +3093,12 @@ export default {
           activeTab.history.index = activeTab.history.stack.length - 1
           activeTab.to = full
         }
-
-        // 自动保存标签页会话
-        this.debouncedSaveTabSession()
       }
     }
   },
   async mounted() {
-    // 首先尝试恢复标签页会话
-    const sessionRestored = this.restoreTabSession()
-
-    if (!sessionRestored) {
-      // 会话恢复失败，使用默认初始化
-      this.initializeDefaultTab()
-    }
+    // 初始化标签页系统
+    this.initializeDefaultTab()
 
     // 初始化导航历史
     this.initializeFromSavedNavigation()
@@ -3314,11 +3138,6 @@ export default {
     // 监听新增标签页事件
     window.addEventListener('addNewTab', this.onAddNewTab)
 
-    // 添加页面刷新/关闭时的会话保存
-    window.addEventListener('beforeunload', () => {
-      this.saveTabSession()
-    })
-
     // 取消通过全局 store 同步标题的逻辑，改由路由自身管理
 
     // 初始化 tabs 翻页可用状态
@@ -3332,136 +3151,133 @@ export default {
 </script>
 
 <style scoped>
-.drag-region {
+  .drag-region {
   -webkit-app-region: drag;
   .no-drag-region,
   v-tooltip,
   v-switch,
   v-btn {
-    -webkit-app-region: no-drag;
-  }
+  -webkit-app-region: no-drag;
+}
 }
 
-/* 隐藏所有滚动条 */
-:deep(*) {
+  /* 隐藏所有滚动条 */
+  :deep(*) {
   scrollbar-width: none !important; /* Firefox */
   -ms-overflow-style: none !important; /* IE和Edge */
 }
 
-:deep(*::-webkit-scrollbar) {
+  :deep(*::-webkit-scrollbar) {
   display: none !important; /* Chrome, Safari, Opera */
   width: 0 !important;
   height: 0 !important;
 }
 
-/* 确保主要容器的滚动条也被隐藏 */
-:deep(.v-main),
-:deep(.v-container),
-:deep(.v-navigation-drawer),
-:deep(.loading-container),
-:deep(.service-logs-content),
-:deep(.log-container) {
+  /* 确保主要容器的滚动条也被隐藏 */
+  :deep(.v-main),
+  :deep(.v-container),
+  :deep(.v-navigation-drawer),
+  :deep(.loading-container),
+  :deep(.service-logs-content),
+  :deep(.log-container) {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
 
-:deep(.v-main::-webkit-scrollbar),
-:deep(.v-container::-webkit-scrollbar),
-:deep(.v-navigation-drawer::-webkit-scrollbar),
-:deep(.loading-container::-webkit-scrollbar),
-:deep(.service-logs-content::-webkit-scrollbar),
-:deep(.log-container::-webkit-scrollbar) {
+  :deep(.v-main::-webkit-scrollbar),
+  :deep(.v-container::-webkit-scrollbar),
+  :deep(.v-navigation-drawer::-webkit-scrollbar),
+  :deep(.loading-container::-webkit-scrollbar),
+  :deep(.service-logs-content::-webkit-scrollbar),
+  :deep(.log-container::-webkit-scrollbar) {
   display: none !important;
   width: 0 !important;
   height: 0 !important;
 }
 
-.v-list-group__items .v-list-item {
+  .v-list-group__items .v-list-item {
   padding-left: 32px !important;
 }
 
-.active-link {
+  .active-link {
   background-color: rgba(var(--v-theme-primary), 0.12);
 }
 
-:deep(.v-navigation-drawer .v-list-item-title) {
+  :deep(.v-navigation-drawer .v-list-item-title) {
   font-size: 0.8rem !important;
 }
-:deep(.v-main) {
+  :deep(.v-main) {
   :deep(.v-container) {
-    height: calc(100vh - 60px);
-    overflow-y: auto;
-  }
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+}
 }
 
-/* 紧凑模式样式 */
-.compact-btn {
+  /* 紧凑模式样式 */
+  .compact-btn {
   width: 32px !important;
   height: 32px !important;
   min-width: 32px !important;
 }
 
-.compact-switch {
+  .compact-switch {
   transform: scale(0.85);
   margin-right: -8px !important;
 }
 
-/* 减少chip之间的间距 */
-.v-chip.ml-1 {
+  /* 减少chip之间的间距 */
+  .v-chip.ml-1 {
   margin-left: 6px !important;
   margin-right: 2px !important;
   font-size: 0.75rem !important;
   height: 24px !important;
 }
 
-/* 减少按钮间距 */
-.v-btn.ml-1 {
+  /* 减少按钮间距 */
+  .v-btn.ml-1 {
   margin-left: 6px !important;
 }
 
-/* 标签栏样式 */
-.tabs-toolbar {
+  /* 标签栏样式 */
+  .tabs-toolbar {
   display: flex;
   align-items: center;
   height: 40px;
   border-bottom: 1px solid rgba(var(--v-theme-outline), 0.12);
   background-color: rgba(var(--v-theme-surface), 1);
+  padding-left: 200px;
   position: sticky;
   top: 0;
   z-index: 200; /* 保证覆盖侧边抽屉 */
 }
 
-.tabs-toolbar.dark-toolbar {
+  .tabs-toolbar.dark-toolbar {
   background-color: rgba(var(--v-theme-surface), 1);
 }
 
-.tabs-toolbar.macos-toolbar {
-  padding-left: 200px;
-}
-
-.tabs-container {
+  .tabs-container {
   flex: 1;
   display: flex;
   align-items: center;
 }
 
-.tabs-wrapper {
+  .tabs-wrapper {
   flex: 1;
 }
 
-/* Tabs总宽度限制与滚动翻页区域 */
-.tabs-scroll-wrapper {
+  /* Tabs总宽度限制与滚动翻页区域 */
+  .tabs-scroll-wrapper {
   display: flex;
   align-items: center;
-  max-width: 100vw; /* 限制总宽度，可按需调整 */
+  max-width: 70vw; /* 限制总宽度，可按需调整 */
   overflow: hidden;
 }
-.tabs-viewport {
+  .tabs-viewport {
   overflow: hidden;
-  max-width: 70vw;
+  max-width: 68vw;
 }
 
-.tab-item {
+  .tab-item {
   /* 自适应内容宽度：不强制最小/最大宽度，按内容伸缩 */
   min-width: 0 !important;
   max-width: none !important;
@@ -3470,7 +3286,7 @@ export default {
   flex: 0 0 auto; /* 不占据剩余空间，按内容渲染 */
 }
 
-.tab-text {
+  .tab-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3478,37 +3294,37 @@ export default {
   font-size: 0.875rem;
 }
 
-.tab-close-btn {
+  .tab-close-btn {
   opacity: 0.7;
   transition: opacity 0.2s;
 }
 
-.tab-close-btn:hover {
+  .tab-close-btn:hover {
   opacity: 1;
 }
 
-.empty-tabs {
+  .empty-tabs {
   padding: 8px 16px;
   display: flex;
   align-items: center;
 }
 
-.toolbar-right {
+  .toolbar-right {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.theme-chip {
+  .theme-chip {
   font-size: 0.75rem !important;
 }
 
-.theme-chip-text {
+  .theme-chip-text {
   margin-left: 4px;
 }
 
-/* 加载页面样式 */
-.loading-container {
+  /* 加载页面样式 */
+  .loading-container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -3516,20 +3332,20 @@ export default {
   padding: 24px;
 }
 
-.loading-content {
+  .loading-content {
   text-align: center;
   max-width: 600px;
   width: 100%;
 }
 
-.service-status {
+  .service-status {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin: 24px 0;
 }
 
-.status-item {
+  .status-item {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -3539,20 +3355,20 @@ export default {
   font-size: 0.875rem;
 }
 
-.skeleton-container {
+  .skeleton-container {
   max-width: 300px;
   margin: 0 auto;
 }
 
-/* 服务日志样式 */
-.service-logs {
+  /* 服务日志样式 */
+  .service-logs {
   border: 1px solid rgba(var(--v-theme-outline), 0.2);
   border-radius: 8px;
   padding: 12px;
   background-color: rgba(var(--v-theme-surface-variant), 0.05);
 }
 
-.log-container {
+  .log-container {
   max-height: 200px;
   overflow-y: auto;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
@@ -3561,28 +3377,28 @@ export default {
   min-width: 500px;
 }
 
-/* 重启对话框中的服务日志样式 */
-.service-logs-container {
+  /* 重启对话框中的服务日志样式 */
+  .service-logs-container {
   border: 1px solid rgba(var(--v-theme-outline), 0.2);
   border-radius: 8px;
   background-color: rgba(var(--v-theme-surface-variant), 0.05);
   margin-top: 16px;
 }
 
-.service-logs-header {
+  .service-logs-header {
   display: flex;
   align-items: center;
   padding: 12px 16px 8px;
   border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
 }
 
-.service-logs-title {
+  .service-logs-title {
   font-size: 0.875rem;
   font-weight: 500;
   color: rgba(var(--v-theme-on-surface), 0.87);
 }
 
-.service-logs-content {
+  .service-logs-content {
   max-height: 200px;
   overflow-y: auto;
   padding: 8px 16px 12px;
@@ -3590,103 +3406,103 @@ export default {
   font-size: 12px;
 }
 
-.service-log-entry {
+  .service-log-entry {
   display: flex;
   align-items: center;
   padding: 4px 0;
   gap: 8px;
 }
 
-.service-log-entry .log-time {
+  .service-log-entry .log-time {
   color: rgba(var(--v-theme-on-surface), 0.6);
   font-size: 11px;
   min-width: 60px;
   flex-shrink: 0;
 }
 
-.service-log-entry .log-icon {
+  .service-log-entry .log-icon {
   flex-shrink: 0;
 }
 
-.service-log-entry .log-message {
+  .service-log-entry .log-message {
   flex: 1;
   word-break: break-word;
 }
 
-.service-log-entry.log-info .log-message {
+  .service-log-entry.log-info .log-message {
   color: rgb(var(--v-theme-info));
 }
 
-.service-log-entry.log-error .log-message {
+  .service-log-entry.log-error .log-message {
   color: rgb(var(--v-theme-error));
 }
 
-.service-log-entry.log-success .log-message {
+  .service-log-entry.log-success .log-message {
   color: rgb(var(--v-theme-success));
 }
 
-/* 滚动条样式 */
-.service-logs-content::-webkit-scrollbar {
+  /* 滚动条样式 */
+  .service-logs-content::-webkit-scrollbar {
   width: 6px;
 }
 
-.service-logs-content::-webkit-scrollbar-track {
+  .service-logs-content::-webkit-scrollbar-track {
   background: rgba(var(--v-theme-outline), 0.1);
   border-radius: 3px;
 }
 
-.service-logs-content::-webkit-scrollbar-thumb {
+  .service-logs-content::-webkit-scrollbar-thumb {
   background: rgba(var(--v-theme-outline), 0.3);
   border-radius: 3px;
 }
 
-.service-logs-content::-webkit-scrollbar-thumb:hover {
+  .service-logs-content::-webkit-scrollbar-thumb:hover {
   background: rgba(var(--v-theme-outline), 0.5);
 }
 
-.log-entry {
+  .log-entry {
   display: flex;
   align-items: center;
   padding: 4px 0;
   border-bottom: 1px solid rgba(var(--v-theme-outline), 0.1);
 }
 
-.log-entry:last-child {
+  .log-entry:last-child {
   border-bottom: none;
 }
 
-.log-service {
+  .log-service {
   font-weight: bold;
   margin-right: 8px;
   min-width: 40px;
 }
 
-.log-message {
+  .log-message {
   flex: 1;
   margin-right: 8px;
 }
 
-.log-time {
+  .log-time {
   color: rgba(var(--v-theme-on-surface), 0.6);
   font-size: 11px;
   min-width: 60px;
   text-align: right;
 }
 
-.log-info {
+  .log-info {
   color: rgb(var(--v-theme-info));
 }
 
-.log-error {
+  .log-error {
   color: rgb(var(--v-theme-error));
 }
 
-.log-success {
+  .log-success {
   color: rgb(var(--v-theme-success));
 }
 
-/* 自定义工具栏样式 */
-.custom-toolbar {
+  /* 自定义工具栏样式 */
+  .custom-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3702,24 +3518,24 @@ export default {
   z-index: 100;
 }
 
-/* 侧边抽屉层级略低于顶部标签栏 */
-:deep(.app-drawer) {
+  /* 侧边抽屉层级略低于顶部标签栏 */
+  :deep(.app-drawer) {
   z-index: 150 !important;
 }
 
-.dark-toolbar {
+  .dark-toolbar {
   background-color: #1e1e1e;
   border-bottom: 1px solid #333;
 }
 
-.toolbar-left {
+  .toolbar-left {
   display: flex;
   align-items: center;
   flex: 1;
   margin-left: 20%;
 }
 
-.toolbar-nav-buttons {
+  .toolbar-nav-buttons {
   display: flex;
   gap: 4px;
 }
@@ -3735,7 +3551,7 @@ export default {
   pointer-events: none;
 }
 
-.toolbar-center {
+  .toolbar-center {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3743,52 +3559,52 @@ export default {
   flex: 4;
 }
 
-.status-chips {
+  .status-chips {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
 }
 
-.status-chip {
+  .status-chip {
   height: 20px !important;
   padding: 0 4px !important;
 }
 
-.toolbar-right {
+  .toolbar-right {
   display: flex;
   align-items: center;
   flex: 1;
   justify-content: flex-end;
 }
 
-.theme-chip {
+  .theme-chip {
   height: 20px !important;
 }
 
-.toolbar-actions {
+  .toolbar-actions {
   display: flex;
   gap: 2px;
 }
 
-.toolbar-btn {
+  .toolbar-btn {
   margin: 0 !important;
   padding: 0 !important;
 }
 
-.chip-text {
+  .chip-text {
   font-size: 0.7rem;
   margin-left: 2px;
 }
-:deep(.v-chip) {
+  :deep(.v-chip) {
   .theme-chip-text {
-    color: #ff6200 !important;
-  }
+  color: #ff6200 !important;
+}
 }
 
-@media (prefers-color-scheme: dark) {
+  @media (prefers-color-scheme: dark) {
   :deep(.v-chip) .theme-chip-text {
-    color: #fff !important;
-  }
+  color: #fff !important;
+}
 }
 </style>

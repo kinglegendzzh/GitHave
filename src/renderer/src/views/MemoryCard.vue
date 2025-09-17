@@ -2,7 +2,7 @@
   <v-container fluid class="memory-flash-container">
     <!-- 顶部导航栏 -->
     <v-row align="center" justify="space-between" class="header">
-      <v-col >
+      <v-col cols="auto">
         <v-btn color="success" variant="elevated" @click="jumpToRepo">跳转到仓库</v-btn>
       </v-col>
       <v-col>
@@ -17,15 +17,27 @@
           hide-details
         />
       </v-col>
-      <v-col>
-        <v-chip
-          v-if="searchQuery"
-          color="primary"
-          variant="outlined"
-          size="small"
-        >
-          找到 {{ filteredRepositories.length }} 个仓库
-        </v-chip>
+      <v-col cols="auto">
+        <div class="d-flex align-center gap-2">
+          <v-chip
+            v-if="searchQuery"
+            color="primary"
+            variant="outlined"
+            size="small"
+          >
+            找到 {{ filteredRepositories.length }} 个仓库
+          </v-chip>
+          <v-btn
+            color="primary"
+            variant="outlined"
+            :loading="refreshing"
+            @click="refreshRepositories"
+            class="ml-2"
+          >
+            <v-icon>mdi-refresh</v-icon>
+            刷新
+          </v-btn>
+        </div>
       </v-col>
     </v-row>
 
@@ -190,10 +202,6 @@
                 • 免费下载，即用即得<br>
                 • 社区维护，质量保证
               </div>
-              <v-chip color="success" variant="outlined" size="small">
-                <v-icon small class="mr-1">mdi-rocket-launch</v-icon>
-                立即导入
-              </v-chip>
             </v-card>
           </v-col>
           
@@ -216,10 +224,6 @@
                 • 根据热度赚取tokens<br>
                 • 贡献社区，获得收益
               </div>
-              <v-chip color="orange" variant="outlined" size="small">
-                <v-icon small class="mr-1">mdi-currency-usd</v-icon>
-                开始赚取
-              </v-chip>
             </v-card>
           </v-col>
         </v-row>
@@ -500,10 +504,10 @@
     </v-snackbar>
     
     <!-- 导入索引选择弹窗 -->
-    <v-dialog v-model="importDialogVisible" max-width="600" persistent>
+    <v-dialog v-model="importDialogVisible" max-width="800" persistent>
       <v-card>
         <v-card-title class="text-h5 d-flex align-center">
-          <v-icon color="success" class="mr-2">mdi-download-circle</v-icon>
+          <v-icon color="success" class="mr-2 mt-4">mdi-download-circle</v-icon>
           从GitHave AI导入索引
         </v-card-title>
         
@@ -514,7 +518,7 @@
             </p>
           </div>
           
-          <v-list class="max-height-300 overflow-y-auto">
+          <v-list class="max-height-400 overflow-y-auto">
              <v-list-item
                v-for="repo in sortedGithubRepositories"
                :key="repo.id"
@@ -611,7 +615,7 @@
            <v-icon color="orange" class="mr-2">mdi-upload-circle</v-icon>
            上传并发布我的索引
            <v-spacer></v-spacer>
-           <v-chip color="orange" variant="outlined" size="small">
+           <v-chip color="orange" variant="outlined" class="ml-2 mr-2">
              步骤 {{ uploadStep }}/3
            </v-chip>
          </v-card-title>
@@ -620,10 +624,7 @@
            <!-- 步骤1：选择要上传的仓库 -->
            <div v-if="uploadStep === 1">
              <div class="mb-4">
-               <h3 class="text-h6 mb-2">📂 选择要共享的索引</h3>
-               <p class="text-body-2 text-grey-darken-1">
-                 选择一个已构建索引的仓库进行上传分享
-               </p>
+               <h3 class="text-h6 mb-2">选择要共享的索引</h3>
              </div>
              
              <v-list class="max-height-400 overflow-y-auto">
@@ -902,7 +903,7 @@ import TipBanner from "../components/TipBanner.vue";
 const dialogVisible = ref(false);
 const dialogTitle = ref('');
 const dialogMessage = ref('');
-const dialogRepo = ref<Repository | null>(null);
+const dialogRepo = ref<any | null>(null);
 const dialogProgress = ref(0);
 const dialogFunctionsTotal = ref(0);
 const dialogScannedCount = ref(0);
@@ -912,7 +913,7 @@ const dialogHasIndex = ref(false);
 const dialogBuildButton = ref('确认构建');
 // 用来控制 Modal 显示，以及记录当前编辑的 repo
 const excludeShow = ref(false);
-const currentRepo = ref<Repository | null>(null);
+const currentRepo = ref<any | null>(null);
 // 点击齿轮时调用
 async function openExclude(item) {
   if (!Array.isArray(item.excludeRule)) {
@@ -937,47 +938,8 @@ async function openExclude(item) {
 watch(excludeShow, val => {
   if (!val) currentRepo.value = null;
 });
-// TaskData 结构定义（注释形式）
-// {
-//   percent: number
-//   completed: number
-//   total: number
-//   status: string
-// }
-
-// MessageItem 结构定义（注释形式）
-// {
-//   date: string
-//   message: string
-//   href: string
-// }
-
-// Repository 结构定义（注释形式）
-// {
-//   id: number;
-//   repo_url: string;
-//   branch: string;
-//   local_path: string;
-//   created_at: string;
-//   username: string;
-//   password: string;
-//   name: string;
-//   desc: string;
-//   hasMemoryFlash: boolean;
-//   indexing : boolean;
-//   functionsTotal: number;
-//   scannedCount: number;
-//   indexProgress: number; // 百分比
-//   loading: boolean;
-//   excludeRule: string[];
-//   resetIcon: string;
-//   resetText: string;
-//   estimating?: boolean; // 是否正在进行索引量估算
-//   hasFullIndex?: boolean; // 是否已全量构建
-//   moduleAnalyzing?: boolean; // 是否正在构建模块分析
-//   taskData?: TaskData;
-//   totalFileCount?: number | 0;
-// }
+// 删除类型定义以避免语法错误
+// 使用any类型替代
 
 // 声明全局window类型（注释形式）
 // window.electron
@@ -998,7 +960,7 @@ const headers = [
   { title: '操作', key: 'actions', maxWidth: '500px'},
 ]
 
-const messages = ref<MessageItem[]>([
+const messages: any = ref([
   // {
   //   date: '2025.5.5',
   //   message:
@@ -1007,8 +969,9 @@ const messages = ref<MessageItem[]>([
   // },
 ])
 
-const repositories = ref<Repository[]>([]);
+const repositories: any = ref([]);
 const loading = ref(true);
+const refreshing = ref(false);
 // 搜索相关
 const searchQuery = ref('');
 
@@ -1032,9 +995,14 @@ const totalPages = computed(() => {
   return Math.max(1, Math.ceil(total / itemsPerPage.value));
 });
 
-const fetchRepositories = async () => {
+const fetchRepositories = async (isRefresh = false) => {
   try {
-    loading.value = true;
+    if (isRefresh) {
+      refreshing.value = true;
+    } else {
+      loading.value = true;
+    }
+    
     const response = await listRepos();
     const repos = response.status === 200 && Array.isArray(response.data) ? response.data.sort((a, b) => b.id - a.id) : response.data;
 
@@ -1051,8 +1019,23 @@ const fetchRepositories = async () => {
             console.log('任务数据', taskData)
             if (taskData.status === 'running') {  // 任务正在运行
               repo.moduleAnalyzing = true
-            } else {
+            } else if (taskData.status === 'completed' || taskData.status === 'finished' || taskData.status === 'success') {
+              // 任务已完成
               repo.moduleAnalyzing = false
+              // 显示完成提示
+              store.dispatch('snackbar/showSnackbar', {
+                message: `${repo.name} 的模块分析已完成！`,
+                color: 'success'
+              })
+            } else {
+              // 其他状态（如失败、错误等）
+              repo.moduleAnalyzing = false
+              if (taskData.status === 'failed' || taskData.status === 'error') {
+                store.dispatch('snackbar/showSnackbar', {
+                  message: `${repo.name} 的模块分析失败`,
+                  color: 'error'
+                })
+              }
             }
             repo.taskData = taskData
             const oldProgress = loadRepoProgress(repo.id);
@@ -1092,17 +1075,32 @@ const fetchRepositories = async () => {
           hasFullIndex,
           estimating: false, // 初始化为非估算状态
           totalFileCount,
-        } as Repository;
+        } as any;
       })
     );
+    
+    if (isRefresh) {
+      store.dispatch('snackbar/showSnackbar', {
+        message: '仓库列表已刷新',
+        color: 'success'
+      });
+    }
   } catch (error) {
     console.error('获取仓库列表失败:', error);
+    store.dispatch('snackbar/showSnackbar', {
+      message: '刷新仓库列表失败',
+      color: 'error'
+    });
   } finally {
-    loading.value = false;
+    if (isRefresh) {
+      refreshing.value = false;
+    } else {
+      loading.value = false;
+    }
   }
 };
 
-const jumpToModuleGraphs = (repo: Repository) => {
+const jumpToModuleGraphs = (repo: any) => {
   // 二次确认
   if (!confirm(`确定要跳转到仓库 ${repo.name} 的脉络感知页面吗？`)) {
     return;
@@ -1116,7 +1114,7 @@ const jumpToModuleGraphs = (repo: Repository) => {
   })
 }
 
-const clickProgress = async (repo: Repository) => {
+const clickProgress = async (repo: any) => {
   // 防止重复点击，如果当前仓库正在估算中则直接返回
   if (repo.loading || repo.estimating) {
     return;
@@ -1129,7 +1127,7 @@ const clickProgress = async (repo: Repository) => {
   await viewProgress(repo)
 }
 
-const viewProgress = async (repo: Repository) => {
+const viewProgress = async (repo: any) => {
   // 设置用于估算的特殊标记，防止自动刷新任务重置 loading 状态
   repo.estimating = true;
   repo.loading = true;
@@ -1211,7 +1209,7 @@ const checkMemoryFlashStatus = async (local_path: string): Promise<boolean> => {
 };
 
 // 构建函数索引
-const buildMemoryFlash = async (repo: Repository) => {
+const buildMemoryFlash = async (repo: any) => {
   try {
     // 1. 检查是否已构建函数索引
     const { exists, indexing } = await (window as any).electron.checkMemoryFlashStatus(repo.local_path);
@@ -1374,7 +1372,7 @@ const cancelBuildIndex = () => {
   dialogVisible.value = false;
 };
 
-async function deleteRepo(repo: Repository) {
+async function deleteRepo(repo: any) {
   await deleteIndexApi(repo.local_path);
   // …从 repositories.value 中移除…
   removeRepoProgress(repo.id);
@@ -1382,7 +1380,7 @@ async function deleteRepo(repo: Repository) {
   await fetchRepositories()
 }
 
-async function resetClick(repo: Repository) {
+async function resetClick(repo: any) {
   if (repo.indexing) {
     const confirmed = window.confirm(`确定要停止构建吗？`)
     if (!confirmed) return
@@ -1394,7 +1392,7 @@ async function resetClick(repo: Repository) {
   await fetchRepositories()
 }
 
-async function deleteClick(repo: Repository) {
+async function deleteClick(repo: any) {
   const confirmed = window.confirm(`确定清除“${repo.name}”构建的全部内容吗？`)
   if (!confirmed) return
   await deleteRepo(repo)
@@ -1425,7 +1423,7 @@ const jumpToRepo = async () => {
 }
 
 
-const exportMemoryFlash = async (repo: Repository) => {
+const exportMemoryFlash = async (repo: any) => {
   try {
     // 二次确认
     const confirmed = window.confirm(`确定要导出“${repo.name}”的函数索引吗？`)
@@ -1459,6 +1457,13 @@ let intervalId: NodeJS.Timeout | undefined = undefined;
 
 // 定时任务：每5秒刷新一次
 const startAutoRefresh = () => {
+  // 防止重复启动定时器
+  if (intervalId !== undefined) {
+    console.log('定时器已在运行，跳过启动');
+    return;
+  }
+  
+  console.log('启动自动刷新定时器');
   intervalId = setInterval(async () => {
     try {
       // 遍历所有仓库，获取最新的索引进度
@@ -1495,8 +1500,23 @@ const startAutoRefresh = () => {
               console.log('startAutoRefresh 任务数据', taskData)
               if (taskData.status === 'running') {  // 任务正在运行
                 currentRepo.moduleAnalyzing = true
-              } else {
+              } else if (taskData.status === 'completed' || taskData.status === 'finished' || taskData.status === 'success') {
+                // 任务已完成
                 currentRepo.moduleAnalyzing = false
+                // 显示完成提示
+                store.dispatch('snackbar/showSnackbar', {
+                  message: `${currentRepo.name} 的模块分析已完成！`,
+                  color: 'success'
+                })
+              } else {
+                // 其他状态（如失败、错误等）
+                currentRepo.moduleAnalyzing = false
+                if (taskData.status === 'failed' || taskData.status === 'error') {
+                  store.dispatch('snackbar/showSnackbar', {
+                    message: `${currentRepo.name} 的模块分析失败`,
+                    color: 'error'
+                  })
+                }
               }
               currentRepo.taskData = taskData
               const oldProgress = loadRepoProgress(repo.id);
@@ -1574,27 +1594,43 @@ const startAutoRefresh = () => {
 // 清除定时器
 const stopAutoRefresh = () => {
   if (intervalId !== undefined) {
+    console.log('停止自动刷新定时器');
     clearInterval(intervalId);
     intervalId = undefined;
+  } else {
+    console.log('定时器未运行，无需停止');
   }
 };
 
-// 使用 beforeRouteLeave 来处理路由离开时清除定时器
+// 使用路由守卫来处理定时器管理
 import { useRoute, useRouter } from "vue-router";
 
 const router = useRouter();
+const route = useRoute();
 
-router.beforeEach((to, from, next) => {
-  console.log('beforeEach', to, from);
-  stopAutoRefresh(); // 清除定时器
-  next(); // 跳转到下一个路由
-});
+// 监听路由变化，管理定时器
+watch(() => route.path, (newPath, oldPath) => {
+  console.log('路由变化:', oldPath, '->', newPath);
+  
+  // 如果切换到索引页面，启动定时器
+  if (newPath === '/scan' || newPath.includes('/scan')) {
+    console.log('切换到索引页面，启动定时器');
+    startAutoRefresh();
+  } else {
+    // 如果离开索引页面，停止定时器
+    console.log('离开索引页面，停止定时器');
+    stopAutoRefresh();
+  }
+}, { immediate: true });
 
 import { onBeforeRouteLeave } from "vue-router";
 
 onBeforeRouteLeave((to, from, next) => {
   console.log('beforeRouteLeave', to, from);
-  stopAutoRefresh();
+  // 只有在真正离开索引页面时才停止定时器
+  if (to.path !== '/scan' && !to.path.includes('/scan')) {
+    stopAutoRefresh();
+  }
   next(); // 允许路由跳转
 });
 
@@ -1748,8 +1784,8 @@ const openGithaveWebsite = async () => {
 
 // 导入索引弹窗相关状态
 const importDialogVisible = ref(false)
-const githubRepositories = ref<Repository[]>([])
-const selectedRepo = ref<Repository | null>(null)
+const githubRepositories = ref<any[]>([])
+const selectedRepo = ref<any | null>(null)
 const publicIndexStatus = ref<{[key: number]: boolean | null}>({})
 
 // 排序后的GitHub仓库列表（有公共索引的排在前面）
@@ -1768,7 +1804,7 @@ const sortedGithubRepositories = computed(() => {
 })
 
 // 检查仓库是否有公共索引
-const checkPublicIndexStatus = async (repo: Repository) => {
+const checkPublicIndexStatus = async (repo: any) => {
   try {
     const fmConfigResponse = await getFmConfig()
     const apiUrlSimple = fmConfigResponse.data?.api_url_simple || 'http://localhost:5202'
@@ -1783,8 +1819,37 @@ const checkPublicIndexStatus = async (repo: Repository) => {
     // 检查返回的数据中是否有匹配的仓库
     const hasPublicIndex = Array.isArray(data.data.list) && data.data.list.some(item => {
       if (repo.repo_url) {
-        // 如果有repo_url，按URL匹配
-        return item.url && item.url.toLowerCase() === repo.repo_url.toLowerCase()
+        // 如果有repo_url，按URL匹配（支持双向模糊包含关系）
+        if (!item.url) return false
+        
+        const repoUrl = repo.repo_url.toLowerCase().trim()
+        const itemUrl = item.url.toLowerCase().trim()
+        
+        // 标准化URL：移除.git后缀和末尾斜杠
+        const normalizeUrl = (url) => {
+          return url.replace(/\.git$/, '').replace(/\/$/, '')
+        }
+        
+        const normalizedRepoUrl = normalizeUrl(repoUrl)
+        const normalizedItemUrl = normalizeUrl(itemUrl)
+        
+        // 双向模糊匹配：任一URL包含另一个URL的核心部分
+        const isMatch = normalizedRepoUrl.includes(normalizedItemUrl) || 
+                       normalizedItemUrl.includes(normalizedRepoUrl) ||
+                       normalizedRepoUrl === normalizedItemUrl
+        
+        // 调试信息：记录匹配过程
+        if (isMatch) {
+          console.log('URL匹配成功:', {
+            repoUrl: repo.repo_url,
+            itemUrl: item.url,
+            normalizedRepoUrl,
+            normalizedItemUrl,
+            matchType: normalizedRepoUrl === normalizedItemUrl ? 'exact' : 'fuzzy'
+          })
+        }
+        
+        return isMatch
       } else {
         // 如果没有repo_url，按名称匹配
         return item.title && item.title.toLowerCase() === repo.name.toLowerCase()
@@ -1936,10 +2001,10 @@ const cancelImportIndex = () => {
 // 上传索引弹窗相关状态
 const uploadIndexDialogVisible = ref(false)
 const uploadStep = ref(1)
-const selectedUploadRepo = ref<Repository | null>(null)
+const selectedUploadRepo = ref<any | null>(null)
 const exportedIndexPath = ref('')
 const uploadingIndex = ref(false)
-const customUpdateDescription = ref('通过上传功能自动更新索引')
+const customUpdateDescription = ref('')
 
 // 上传并发布索引
 const uploadIndexToGithave = async () => {
@@ -1960,7 +2025,7 @@ const uploadIndexToGithave = async () => {
 }
 
 // 选择要上传的仓库
-const selectUploadRepository = (repo: Repository) => {
+const selectUploadRepository = (repo: any) => {
   selectedUploadRepo.value = repo
 }
 
@@ -2043,7 +2108,7 @@ const exportIndexForUpload = async () => {
     
     // 简化检查逻辑，直接使用同步方法
     try {
-      const fs = window.electron.fs
+      const fs = (window as any).electron.fs
       if (!fs.existsSync(gitgoPath)) {
         console.log('索引目录不存在:', gitgoPath)
         store.dispatch('snackbar/showSnackbar', {
@@ -2121,9 +2186,24 @@ const uploadIndexToServer = async () => {
     })
     
     formData.append('file', file)
-    formData.append('url', repo.repo_url)
+    formData.append('url', repo.repo_url || '')
     formData.append('name', repo.name)
-    formData.append('description', repo.desc || '')
+    
+    // 优先使用自定义更新说明，否则使用仓库描述
+    const description = customUpdateDescription.value && customUpdateDescription.value.trim() !== '' 
+      ? customUpdateDescription.value.trim() 
+      : (repo.desc || '')
+    
+    formData.append('description', description)
+    
+    // 调试信息：打印上传参数
+    console.log('上传参数:', {
+      name: repo.name,
+      url: repo.repo_url || '',
+      description: description,
+      customUpdateDescription: customUpdateDescription.value,
+      hasFile: !!file
+    })
     
     // 获取JWT token
     const loginData = JSON.parse(localStorage.getItem('githave_login_data') || '{}')
@@ -2177,7 +2257,21 @@ const uploadIndexToServer = async () => {
           const updateFormData = new FormData()
           updateFormData.append('file', file)
           updateFormData.append('repository_id', errorData.details.existing_repo_id)
-          updateFormData.append('description', customUpdateDescription.value || '通过上传功能自动更新索引')
+          
+          // 优先使用自定义更新说明，否则使用仓库描述
+          const updateDescription = customUpdateDescription.value && customUpdateDescription.value.trim() !== '' 
+            ? customUpdateDescription.value.trim() 
+            : (repo.desc || '')
+          
+          updateFormData.append('description', updateDescription)
+          
+          // 调试信息：打印更新索引参数
+          console.log('更新索引参数:', {
+            repository_id: errorData.details.existing_repo_id,
+            description: updateDescription,
+            customUpdateDescription: customUpdateDescription.value,
+            hasFile: !!file
+          })
           
           const updateUrl = `${apiUrlSimple}/api/v1/repositories/index/update`
           const updateResponse = await fetch(updateUrl, {
@@ -2293,16 +2387,23 @@ const handleProtocolCallback = async (data: any) => {
 // 协议监听器清理函数
 let protocolListenerCleanup: (() => void) | null = null
 
+// 手动刷新仓库列表
+const refreshRepositories = async () => {
+  await fetchRepositories(true);
+};
+
 // 组件挂载时获取仓库列表
 onMounted(() => {
   fetchRepositories();
-  startAutoRefresh();
   checkGithaveLoginStatus();
   
   // 监听协议回调 - 使用返回的清理函数
   if ((window as any).electron && (window as any).electron.onProtocolUrl) {
     protocolListenerCleanup = (window as any).electron.onProtocolUrl(handleProtocolCallback)
   }
+  
+  // 定时器由路由监听器管理，这里不需要手动启动
+  // 如果当前就在索引页面，路由监听器会自动启动定时器
 });
 
 // 组件卸载时清除定时器

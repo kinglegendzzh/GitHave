@@ -1206,22 +1206,44 @@ export default {
     this.fetchHeatmapFiles()
     this.fetchWeeklyReportFiles() // 新增：获取仓库报刊文件列表
   },
+  mounted() {
+    // 监听路由变化，管理定时器
+    this.$watch(
+      '$route.path',
+      (newPath, oldPath) => {
+        console.log('GitResearch 路由变化:', oldPath, '->', newPath)
+
+        // 如果切换到文件枢纽页面，启动定时器
+        if (newPath === '/report' || newPath.includes('/report')) {
+          console.log('切换到文件枢纽页面，启动定时器')
+          this.startRefreshTimer()
+        } else {
+          // 如果离开文件枢纽页面，停止定时器
+          console.log('离开文件枢纽页面，停止定时器')
+          this.clearRefreshTimer()
+        }
+      },
+      { immediate: true }
+    )
+  },
   beforeUnmount() {
     // 清理所有定时器，防止内存泄漏
     this.clearAllTimers()
   },
   beforeRouteEnter(to, from, next) {
     // 路由进入时的处理
-    next((vm) => {
+    next(() => {
       console.log('GitResearch 路由进入，开启定时任务')
-      // 启动定时刷新文件列表任务，每5秒刷新一次
-      vm.startRefreshTimer()
+      // 定时器由路由监听器管理，这里不需要手动启动
+      // 如果当前就在文件枢纽页面，路由监听器会自动启动定时器
     })
   },
   beforeRouteLeave(to, from, next) {
-    // 离开路由时清理所有定时器
-    console.log('GitResearch 路由离开，清除定时任务')
-    this.clearAllTimers()
+    // 只有在真正离开文件枢纽页面时才停止定时器
+    if (to.path !== '/report' && !to.path.includes('/report')) {
+      console.log('GitResearch 路由离开，清除定时任务')
+      this.clearAllTimers()
+    }
     next()
   },
   methods: {
@@ -2673,23 +2695,30 @@ export default {
 
     // 启动定时刷新任务
     startRefreshTimer() {
-      // 先清理之前的定时器，避免重复启动
-      this.clearRefreshTimer()
-      
+      // 防止重复启动定时器
+      if (this.refreshTimer !== null) {
+        console.log('文件列表定时器已在运行，跳过启动')
+        return
+      }
+
+      console.log('启动文件列表自动刷新定时器')
       // 启动定时刷新，每5秒刷新一次文件列表
       this.refreshTimer = setInterval(() => {
         this.refreshAllReports()
       }, 5000)
-      
+
       console.log('文件列表自动刷新定时任务已启动')
     },
 
     // 清理刷新定时器
     clearRefreshTimer() {
-      if (this.refreshTimer) {
+      if (this.refreshTimer !== null) {
+        console.log('停止文件列表自动刷新定时器')
         clearInterval(this.refreshTimer)
         this.refreshTimer = null
         console.log('文件列表自动刷新定时任务已清除')
+      } else {
+        console.log('文件列表定时器未运行，无需停止')
       }
     },
 
@@ -2697,7 +2726,7 @@ export default {
     clearAllTimers() {
       // 清理刷新定时器
       this.clearRefreshTimer()
-      
+
       // 清理调整大小定时器
       if (this.resizeTimer) {
         clearTimeout(this.resizeTimer)
@@ -2709,7 +2738,7 @@ export default {
         clearTimeout(this.searchTask)
         this.searchTask = null
       }
-      
+
       console.log('GitResearch 所有定时任务已清理完毕')
     }
   }

@@ -573,8 +573,7 @@ import {
   onMounted,
   nextTick,
   onUnmounted,
-  defineAsyncComponent,
-  Suspense
+  defineAsyncComponent
 } from 'vue'
 import { debounce } from 'lodash-es'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
@@ -591,8 +590,6 @@ import * as XLSX from 'xlsx'
 import codeSVG from '../assets/editor-mockup.svg'
 import codeSVGWhite from '../assets/editor-mockup-white.svg'
 import { listRepos, pullRepo } from '../service/api.js'
-import { VSelect } from 'vuetify/components'
-import dynamicLoadingSvg from '../assets/load.svg'
 import { omit } from '../service/str'
 import VirtualTerminal from '../components/VirtualTerminal.vue'
 // 让 Monaco 能正确加载 worker
@@ -1284,7 +1281,7 @@ async function loadFileByType(selectedPath) {
   // 检查文件是否为文本文件
   const isTextFile = await checkIfTextFile(selectedPath)
   if (!isTextFile) {
-    const ext = path.extname(selectedPath).toLowerCase()
+    const ext = window.electron.path.extname(selectedPath).toLowerCase()
     store.dispatch('snackbar/showSnackbar', {
       message: `暂不支持在线预览 "${ext || '该'}" 文件`,
       type: 'warning'
@@ -1327,7 +1324,7 @@ async function loadFileByType(selectedPath) {
 /* 2️⃣ 判断代码文件的通用函数（路径或文件名都能用）*/
 async function isCodeFileName(name) {
   // 检查是否为允许的文件名
-  const fileName = path.basename(name)
+  const fileName = window.electron.path.basename(name)
   if (allowedFileName.includes(fileName)) {
     return true
   }
@@ -1343,7 +1340,7 @@ async function isCodeFileName(name) {
 
 function updateFileState(sp, updates) {
   selectedPath.value = sp
-  selectedFileName.value = path.basename(sp)
+  selectedFileName.value = window.electron.path.basename(sp)
   Object.keys(updates).forEach((key) => {
     if (key === 'fileContent') {
       fileContent.value = updates[key]
@@ -1358,7 +1355,7 @@ function updateFileState(sp, updates) {
 }
 
 function restoreState(tab) {
-  selectedFileName.value = tab.selectedFileName || path.basename(tab.path)
+  selectedFileName.value = tab.selectedFileName || window.electron.path.basename(tab.path)
   fileContent.value = tab.fileContent || ''
   renderedDocx.value = tab.renderedDocx || ''
   renderedXlsx.value = tab.renderedXlsx || ''
@@ -1455,8 +1452,8 @@ async function handleNodeSelection(activeItems) {
 
     if (!isTextFile) {
       // 不是文本文件，显示提示但不添加标签页
-      const ext = path.extname(node.path).toLowerCase()
-      const fileName = path.basename(node.path)
+      const ext = window.electron.path.extname(node.path).toLowerCase()
+      const fileName = window.electron.path.basename(node.path)
       store.dispatch('snackbar/showSnackbar', {
         message: `暂不支持在线预览 "${ext || fileName}" 文件`,
         type: 'warning'
@@ -1476,10 +1473,10 @@ async function handleNodeSelection(activeItems) {
 }
 
 function buildBreadcrumb(fullPath) {
-  const parts = fullPath.split(path.sep).filter((p) => p)
+  const parts = fullPath.split(window.electron.path.sep).filter((p) => p)
   let currentPath = ''
   return parts.map((part, index) => {
-    currentPath += (index ? path.sep : '') + part
+    currentPath += (index ? window.electron.path.sep : '') + part
     return { text: part, path: currentPath }
   })
 }
@@ -1650,7 +1647,7 @@ async function openOutside(breadcrumbsArray, shouldFile) {
     if (platform !== 'win32') {
       url = '/' + url
     }
-    const targetPath = shouldFile ? (isFile ? path.dirname(url) : url) : url
+    const targetPath = shouldFile ? (isFile ? window.electron.path.dirname(url) : url) : url
     await window.electron
       .checkPathExists(targetPath)
       .then(async (exists) => {
@@ -1725,7 +1722,7 @@ async function isFilePath(filePath) {
 
 async function resetTree(newPath) {
   const isFile = await isFilePath(newPath)
-  const targetPath = isFile ? path.dirname(newPath) : newPath
+  const targetPath = isFile ? window.electron.path.dirname(newPath) : newPath
   
   // 保存当前展开状态
   const previousOpenNodes = [...openNodes.value]
@@ -1734,7 +1731,7 @@ async function resetTree(newPath) {
     const rootChildren = await fetchChildren({ path: targetPath, isDirectory: true })
     treeData.value = [
       {
-        name: path.basename(targetPath),
+        name: window.electron.path.basename(targetPath),
         path: targetPath,
         isDirectory: true,
         children: rootChildren
@@ -2097,16 +2094,16 @@ async function confirmCreateFile() {
       const targetPath = contextMenu.value.target.path
       try {
         const stats = await window.electron.getFileStats(targetPath)
-        currentDir = stats.isDirectory ? targetPath : path.dirname(targetPath)
+        currentDir = stats.isDirectory ? targetPath : window.electron.path.dirname(targetPath)
       } catch {
-        currentDir = path.dirname(targetPath)
+        currentDir = window.electron.path.dirname(targetPath)
       }
     } else {
       // 从其他方式触发（如快捷键）
-      currentDir = selectedPath.value ? path.dirname(selectedPath.value) : newRootPath.value
+      currentDir = selectedPath.value ? window.electron.path.dirname(selectedPath.value) : newRootPath.value
     }
     
-    const newFilePath = path.join(currentDir, newFileName.value)
+    const newFilePath = window.electron.path.join(currentDir, newFileName.value)
 
     await window.electron.saveFile(newFilePath, '', { encoding: 'utf-8' })
 
@@ -2146,16 +2143,16 @@ async function confirmCreateFolder() {
       const targetPath = contextMenu.value.target.path
       try {
         const stats = await window.electron.getFileStats(targetPath)
-        currentDir = stats.isDirectory ? targetPath : path.dirname(targetPath)
+        currentDir = stats.isDirectory ? targetPath : window.electron.path.dirname(targetPath)
       } catch {
-        currentDir = path.dirname(targetPath)
+        currentDir = window.electron.path.dirname(targetPath)
       }
     } else {
       // 从其他方式触发（如快捷键）
-      currentDir = selectedPath.value ? path.dirname(selectedPath.value) : newRootPath.value
+      currentDir = selectedPath.value ? window.electron.path.dirname(selectedPath.value) : newRootPath.value
     }
     
-    const newFolderPath = path.join(currentDir, newFolderName.value)
+    const newFolderPath = window.electron.path.join(currentDir, newFolderName.value)
 
     await window.electron.createDirectory(newFolderPath)
 
@@ -2184,7 +2181,7 @@ async function confirmCreateFolder() {
 // 重命名文件/文件夹
 async function renameFile(filePath) {
   renameTargetPath.value = filePath
-  renameValue.value = path.basename(filePath)
+  renameValue.value = window.electron.path.basename(filePath)
   renameDialog.value = true
 }
 
@@ -2194,7 +2191,7 @@ async function confirmRename() {
 
   try {
     const oldPath = renameTargetPath.value
-    const newPath = path.join(path.dirname(oldPath), renameValue.value)
+    const newPath = window.electron.path.join(window.electron.path.dirname(oldPath), renameValue.value)
     
     // 检查新文件名是否与原文件名相同
     if (oldPath === newPath) {
@@ -2221,7 +2218,7 @@ async function confirmRename() {
     const tabIndex = tabs.value.findIndex(tab => tab.path === oldPath)
     if (tabIndex !== -1) {
       tabs.value[tabIndex].path = newPath
-      tabs.value[tabIndex].name = path.basename(newPath)
+      tabs.value[tabIndex].name = window.electron.path.basename(newPath)
       if (activeTab.value === tabIndex) {
         selectedPath.value = newPath
       }
@@ -2269,7 +2266,7 @@ function addNodeToTree(parentPath, newNode) {
 }
 
 function removeNodeFromTree(nodePath) {
-  const parentPath = path.dirname(nodePath)
+  const parentPath = window.electron.path.dirname(nodePath)
   const parentNode = findNodeByPath(treeData.value, parentPath)
   if (parentNode && parentNode.children) {
     const nodeIndex = parentNode.children.findIndex(child => child.path === nodePath)
@@ -2283,7 +2280,7 @@ function updateNodeInTree(oldPath, newPath) {
   const node = findNodeByPath(treeData.value, oldPath)
   if (node) {
     node.path = newPath
-    node.name = path.basename(newPath)
+    node.name = window.electron.path.basename(newPath)
     // 如果节点有子节点，需要递归更新所有子节点的路径
     if (node.children) {
       updateChildrenPaths(node.children, oldPath, newPath)
@@ -2316,7 +2313,7 @@ async function deleteCurrentFile() {
     type: 'warning',
     buttons: ['删除', '取消'],
     defaultId: 1,
-    message: `确定要删除文件 "${path.basename(selectedPath.value)}" 吗？`,
+    message: `确定要删除文件 "${window.electron.path.basename(selectedPath.value)}" 吗？`,
     detail: '此操作不可撤销。'
   })
 
@@ -2876,7 +2873,7 @@ function getNodePathFromText(nodeText) {
   }
   
   const node = findNodeByName(treeData.value, nodeText)
-  return node ? node.path : path.join(newRootPath.value || '', nodeText)
+  return node ? node.path : window.electron.path.join(newRootPath.value || '', nodeText)
 }
 
 // 右键菜单动作处理
@@ -2991,14 +2988,14 @@ async function handlePasteFile(targetDir) {
   if (!clipboard.value.path) return
 
   const sourcePath = clipboard.value.path
-  const fileName = path.basename(sourcePath)
+  const fileName = window.electron.path.basename(sourcePath)
   
   // 检查目标路径是否为目录，如果是文件则使用其父目录
   let actualTargetDir = targetDir
   try {
     const stats = await window.electron.getFileStats(targetDir)
     if (!stats.isDirectory) {
-      actualTargetDir = path.dirname(targetDir)
+      actualTargetDir = window.electron.path.dirname(targetDir)
     }
   } catch (error) {
     // 如果获取文件状态失败，假设是目录
@@ -3006,14 +3003,14 @@ async function handlePasteFile(targetDir) {
   }
   console.log('实际目标目录:', actualTargetDir)
   // 检查actualTargetDir，如果与sourcePath属于同级目录，则忽略操作
-  if (path.dirname(sourcePath) === actualTargetDir) {
+  if (window.electron.path.dirname(sourcePath) === actualTargetDir) {
     store.dispatch('snackbar/showSnackbar', {
       message: '无法将文件移动到自身',
       type: 'warning'
     })
     return
   }
-  const targetPath = path.join(actualTargetDir, fileName)
+  const targetPath = window.electron.path.join(actualTargetDir, fileName)
 
   try {
 
@@ -3070,7 +3067,7 @@ async function deleteFileByPath(filePath) {
     type: 'warning',
     buttons: ['删除', '取消'],
     defaultId: 1,
-    message: `确定要删除 "${path.basename(filePath)}" 吗？`,
+    message: `确定要删除 "${window.electron.path.basename(filePath)}" 吗？`,
     detail: '此操作不可撤销。'
   })
 
