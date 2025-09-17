@@ -31,7 +31,7 @@
             color="primary"
             variant="outlined"
             :loading="refreshing"
-            @click="refreshRepositories"
+            @click="refreshAllIndexProgress"
             class="ml-2"
           >
             <v-icon>mdi-refresh</v-icon>
@@ -392,8 +392,8 @@
             </span>
             <v-tooltip bottom>
               <template #activator="{ props }">
-                <v-btn v-if="!item.hasFullIndex || item.functionsTotal === 0" size="small" v-bind="props" class="mr-2" @click="clickProgress(item)" :loading="item.loading" variant="outlined">
-                  <v-icon>mdi-line-scan</v-icon>
+                <v-btn size="small" v-bind="props" class="mr-2" @click="clickProgress(item)" :loading="item.loading" variant="outlined">
+                  <v-icon>mdi-refresh</v-icon>
                   <!-- <span>扫描</span> -->
                 </v-btn>
               </template>
@@ -1466,9 +1466,33 @@ const startAutoRefresh = () => {
   console.log('启动自动刷新定时器');
   intervalId = setInterval(async () => {
     try {
-      // 遍历所有仓库，获取最新的索引进度
-      for (const repo of repositories.value) {
+      // 计算当前页的仓库范围
+      const startIndex = (currentPage.value - 1) * itemsPerPage.value;
+      const endIndex = startIndex + itemsPerPage.value;
+      
+      // 只获取当前页的仓库列表
+      const currentPageRepos = filteredRepositories.value.slice(startIndex, endIndex);
+      
+      console.log(`刷新第${currentPage.value}页，共${currentPageRepos.length}个仓库`);
+      
+      // 遍历当前页的仓库，获取最新的索引进度
+      for (const repo of currentPageRepos) {
+        // 跳过正在估算的仓库
         if (repo.estimating) continue;
+        
+        // 跳过已全量构建且不在模块分析中的仓库
+        if (repo.hasFullIndex && !repo.moduleAnalyzing) {
+          console.log(`仓库 ${repo.name} 已全量构建且未在模块分析中，跳过刷新`);
+          continue;
+        }
+        
+        // 记录正在刷新的仓库信息
+        if (repo.moduleAnalyzing) {
+          console.log(`仓库 ${repo.name} 正在模块分析中，继续刷新进度`);
+        } else if (!repo.hasFullIndex) {
+          console.log(`仓库 ${repo.name} 未全量构建，继续刷新索引进度`);
+        }
+        
         let scannedCount = 0
         if (repo.local_path) {
           try {
@@ -1503,6 +1527,30 @@ const startAutoRefresh = () => {
               } else if (taskData.status === 'completed' || taskData.status === 'finished' || taskData.status === 'success') {
                 // 任务已完成
                 currentRepo.moduleAnalyzing = false
+                
+                // 重新检查索引状态
+                const newStatus = await (window as any).electron.checkMemoryFlashStatus(repo.local_path);
+                currentRepo.hasMemoryFlash = newStatus.exists;
+                currentRepo.hasFullIndex = newStatus.hasFullIndex;
+                currentRepo.loading = false;
+                currentRepo.indexing = false;
+                
+                // 如果索引已完成，更新进度为100%
+                if (newStatus.hasFullIndex) {
+                  currentRepo.indexProgress = 100;
+                  currentRepo.scannedCount = scannedCount;
+                  
+                  // 保存进度到 localStorage
+                  const oldProgress = loadRepoProgress(repo.id);
+                  const updatedProgress = {
+                    functionsTotal: oldProgress?.functionsTotal || currentRepo.functionsTotal || 0,
+                    scannedCount: scannedCount,
+                    indexProgress: 100,
+                    totalFileCount: oldProgress?.totalFileCount || currentRepo.totalFileCount || 0
+                  };
+                  saveRepoProgress(repo.id, updatedProgress);
+                }
+                
                 // 显示完成提示
                 store.dispatch('snackbar/showSnackbar', {
                   message: `${currentRepo.name} 的模块分析已完成！`,
@@ -2390,6 +2438,173 @@ let protocolListenerCleanup: (() => void) | null = null
 // 手动刷新仓库列表
 const refreshRepositories = async () => {
   await fetchRepositories(true);
+};
+
+// 无差别刷新所有索引进度
+const refreshAllIndexProgress = async () => {
+  try {
+    refreshing.value = true;
+    console.log('开始无差别刷新所有索引进度');
+    
+    // 遍历所有仓库，获取最新的索引进度
+    for (const repo of repositories.value) {
+      // 跳过正在估算的仓库
+      if (repo.estimating) continue;
+      
+      let scannedCount = 0
+      if (repo.local_path) {
+        try {
+          const fn = await listFunctions(repo.local_path, true);
+          scannedCount = fn.data.data;
+          //如果fn.data.data不是数字类型，则跳过
+          if (typeof scannedCount !== 'number') {
+            console.log('fn.data.data is not a number', fn.data.data);
+            continue;
+          }
+        } catch (error) {
+          console.warn('获取仓库函数列表失败:', error);
+          continue;
+        }
+
+        const repoIndex = repositories.value.findIndex((r) => r.id === repo.id);
+        if (repoIndex === -1) continue;
+
+        const currentRepo = repositories.value[repoIndex];
+
+        // 优先检查 hasFullIndex
+        const status = await (window as any).electron.checkMemoryFlashStatus(repo.local_path);
+        if (status.moduleAnalyzing) {
+          // 二次接口判断确认
+          const resp = await getModuleGraphTaskStatus('', repo.local_path);
+          if (resp.data && resp.data.code === 0 && resp.data.data) {
+            const taskData = resp.data.data
+            taskData.percent = taskData.total > 0 ? Math.round((taskData.completed / taskData.total) * 100) : 0
+            console.log('refreshAllIndexProgress 任务数据', taskData)
+            if (taskData.status === 'running') {  // 任务正在运行
+              currentRepo.moduleAnalyzing = true
+            } else if (taskData.status === 'completed' || taskData.status === 'finished' || taskData.status === 'success') {
+              // 任务已完成
+              currentRepo.moduleAnalyzing = false
+              
+              // 重新检查索引状态
+              const newStatus = await (window as any).electron.checkMemoryFlashStatus(repo.local_path);
+              currentRepo.hasMemoryFlash = newStatus.exists;
+              currentRepo.hasFullIndex = newStatus.hasFullIndex;
+              currentRepo.loading = false;
+              currentRepo.indexing = false;
+              
+              // 如果索引已完成，更新进度为100%
+              if (newStatus.hasFullIndex) {
+                currentRepo.indexProgress = 100;
+                currentRepo.scannedCount = scannedCount;
+                
+                // 保存进度到 localStorage
+                const oldProgress = loadRepoProgress(repo.id);
+                const updatedProgress = {
+                  functionsTotal: oldProgress?.functionsTotal || currentRepo.functionsTotal || 0,
+                  scannedCount: scannedCount,
+                  indexProgress: 100,
+                  totalFileCount: oldProgress?.totalFileCount || currentRepo.totalFileCount || 0
+                };
+                saveRepoProgress(repo.id, updatedProgress);
+              }
+              
+              // 显示完成提示
+              store.dispatch('snackbar/showSnackbar', {
+                message: `${currentRepo.name} 的模块分析已完成！`,
+                color: 'success'
+              })
+            } else {
+              // 其他状态（如失败、错误等）
+              currentRepo.moduleAnalyzing = false
+              if (taskData.status === 'failed' || taskData.status === 'error') {
+                store.dispatch('snackbar/showSnackbar', {
+                  message: `${currentRepo.name} 的模块分析失败`,
+                  color: 'error'
+                })
+              }
+            }
+            currentRepo.taskData = taskData
+            const oldProgress = loadRepoProgress(repo.id);
+            const updatedProgress: RepoProgress = {
+              functionsTotal: oldProgress?.functionsTotal || 0,
+              scannedCount: oldProgress?.scannedCount || 0,
+              indexProgress: oldProgress?.indexProgress || 0,
+              totalFileCount: taskData.total
+            };
+            saveRepoProgress(repo.id, updatedProgress);
+          } else {
+            currentRepo.taskData = undefined
+            currentRepo.moduleAnalyzing = false
+          }
+        } else {
+          currentRepo.moduleAnalyzing = false
+          currentRepo.taskData = undefined
+        }
+        currentRepo.hasMemoryFlash = status.exists;
+        currentRepo.hasFullIndex = status.hasFullIndex;
+
+        if (status.hasFullIndex) {
+          // 索引已完成，直接标记并跳过其它进度逻辑
+          currentRepo.loading = false;
+          currentRepo.indexing = false;
+          currentRepo.indexProgress = 100;
+          currentRepo.scannedCount = scannedCount;
+          // 依然保存一次进度到 localStorage
+          const oldProgress = loadRepoProgress(repo.id);
+          let updatedProgress = {
+            functionsTotal: oldProgress?.functionsTotal || currentRepo.functionsTotal || 0,
+            scannedCount: scannedCount,
+            indexProgress: 100,
+            totalFileCount: oldProgress?.totalFileCount || currentRepo.totalFileCount || 0
+          };
+          saveRepoProgress(repo.id, updatedProgress);
+          continue;
+        }
+
+        // 未完成索引才继续后续进度逻辑
+        const oldProgress = loadRepoProgress(repo.id);
+        if (oldProgress != null) {
+          const progress =
+            oldProgress.functionsTotal > 0
+              ? Math.floor((scannedCount / oldProgress.functionsTotal) * 100)
+              : 0;
+          let updatedProgress = {
+            functionsTotal: oldProgress.functionsTotal,
+            scannedCount: scannedCount,
+            indexProgress: progress,
+            totalFileCount: oldProgress.totalFileCount
+          };
+          saveRepoProgress(repo.id, updatedProgress);
+
+          if (oldProgress.functionsTotal != 0) {
+            currentRepo.loading = status.indexing;
+            currentRepo.indexing = status.indexing;
+          }
+        }
+        // 更新 repositories 中的数据
+        currentRepo.scannedCount = scannedCount;
+        if (currentRepo.functionsTotal > 0) {
+          currentRepo.indexProgress = Math.floor(
+            (scannedCount / currentRepo.functionsTotal) * 100
+          );
+        }
+      }
+    }
+    
+    store.dispatch('snackbar/showSnackbar', {
+      message: '所有索引进度已刷新',
+      color: 'success'
+    });
+  } catch (error) {
+    console.error('刷新所有索引进度失败:', error);
+    store.dispatch('snackbar/showSnackbar', {
+      message: '刷新索引进度失败',
+      color: 'error'
+    });
+  } finally {
+    refreshing.value = false;
+  }
 };
 
 // 组件挂载时获取仓库列表
