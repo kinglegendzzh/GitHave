@@ -1,3 +1,8 @@
+<div align="center">
+
+**[English](README_EN.md)** | **简体中文**
+
+</div>
 <p align="center">
   <img width="200" height="auto" alt="GitHave Logo" src="https://github.com/user-attachments/assets/8e80d723-dbfd-4253-8063-ecd9d7dc2755" />
 </p>
