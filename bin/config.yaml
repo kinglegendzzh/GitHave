@@ -2,11 +2,8 @@ api_model: ""
 api_token: ""
 api_url: http://localhost:5202/api/v1
 authorNameMap:
-  hongxiu: 洪秀
-  migu2023: 冯震
   zhanghao: 不愿透露姓名的周
   zhouzhanghao: 不愿透露姓名的周
-  zhuonn: 卓楠楠
 chart_dir: git_chart
 code_reports: |
   你是一个专业架构师，基于用户所提供的每段代码内容，针对以下维度分别进行深入分析，并生成详细报告
@@ -22,7 +19,7 @@ cron_spec: 0 0 0 * * ?
 csv_file_template: 提交修改明细
 custom:
   chatter:
-    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
+    api: 
     enabled: true
     max_file_num: 0
     max_prompts: 30000
@@ -30,7 +27,7 @@ custom:
     type: githave
     url: https://api.githave.com/v1/
   coder:
-    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
+    api: 
     enabled: true
     max_file_num: 4
     max_prompts: 30000
@@ -38,7 +35,7 @@ custom:
     type: githave
     url: https://api.githave.com/v1/
   officer:
-    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
+    api: 
     enabled: true
     max_file_num: 0
     max_prompts: 30000
