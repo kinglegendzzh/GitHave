@@ -22,7 +22,7 @@
   <img src="https://img.shields.io/badge/AI-审查-red?style=flat-square&logo=github" alt="AI审查" />
 </p>
 
-## 🚀 下载 GitHave App 并开始使用
+## 🚀 下载 <a href="https://githave.com" target="_blank"> GitHave App </a> 并开始使用
 
 ### 四步开始使用
 
