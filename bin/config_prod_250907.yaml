@@ -1,0 +1,133 @@
+api_model: ""
+api_token: ""
+api_url: http://localhost:5202/api/v1
+authorNameMap:
+  hongxiu: 洪秀
+  migu2023: 冯震
+  zhanghao: 不愿透露姓名的周
+  zhouzhanghao: 不愿透露姓名的周
+  zhuonn: 卓楠楠
+chart_dir: git_chart
+code_reports: |
+  你是一个专业架构师，基于用户所提供的每段代码内容，针对以下维度分别进行深入分析，并生成详细报告
+  1. 功能概述：请详细描述该代码的功能，包括其作用、用途、适用场景等。
+  2. 使用场景：请详细描述该代码的使用场景，包括其适用场景、适用条件等。
+  3. 代码风格与规范：是否遵守最佳实践，命名清晰度与注释完整性如何？
+  6. 可扩展性与维护性：评估代码的模块化设计与未来扩展潜力。
+  7. 错误处理与稳定性：分析代码的健壮性，是否有适当的异常处理机制？
+  3. 建议：请根据上述分析结果，给出建议，包括优化建议、改进建议等。
+  面对上述多种维度的分析，如果用户提供的代码片段比较有限无法判断，你可以说“信息不足，无法判断”。
+context_window: 10
+cron_spec: 0 0 0 * * ?
+csv_file_template: 提交修改明细
+custom:
+  chatter:
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTk4MTQ5MTMsInVzZXJfaWQiOjJ9.G_YaCH3UvdJU8-RkylzI9Y85EroBIxyP0UHBGlzGDaU
+    enabled: true
+    max_file_num: 0
+    max_prompts: 30000
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
+  coder:
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTk4MTQ5MTMsInVzZXJfaWQiOjJ9.G_YaCH3UvdJU8-RkylzI9Y85EroBIxyP0UHBGlzGDaU
+    enabled: true
+    max_file_num: 4
+    max_prompts: 30000
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
+  officer:
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTk4MTQ5MTMsInVzZXJfaWQiOjJ9.G_YaCH3UvdJU8-RkylzI9Y85EroBIxyP0UHBGlzGDaU
+    enabled: true
+    max_file_num: 0
+    max_prompts: 30000
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
+db:
+  commits: githave.db
+  git_repos: githave.db
+deep_research:
+  code_snippet_text_limit: 5001
+  max_code_snippet_limit: 15
+  max_prompts: 30000
+doc_file_template: 提交分析报告
+expertSlots: {}
+files:
+  save:
+    csv: true
+    heatmap: true
+    research: true
+  send_wechat:
+    csv: true
+    heatmap: true
+    research: true
+flow_chart:
+  max_prompts: 30000
+  max_code_snippet_limit: 15
+  code_snippet_text_limit: 5000
+footerTemplate: "\n> \U0001F978更多详细报告将稍后产出，请稍等...\n> <font color=\"comment\"> \U0001F916我是一只基于端侧小模型驱动下的智能体，运行我的是一台平平无奇的\U0001F4BB苹果电脑，我的上班时间：9️⃣:3️⃣0️⃣～1️⃣8️⃣:1️⃣5️⃣</font>\n>
+  <font color=\"comment\">当前采用基座模型：</font><font color=\"warning\">**DeepSeek-R1:7b**,
+  **Qwen2.5-coder:3b**, **Gemma3:4b**</font>\n"
+headerTemplate: "# \U0001F31F<font color=\"warning\">[{{.RepoDesc}}]</font><font color=\"info\">刚刚收到了一条新的提交记录</font>\n>
+  <font color=\"comment\">代码地址：[{{.RepoName}}]({{.RepoURL}})</font>\n> \U0001F449\U0001F3FC提交人：
+  <font color=\"warning\">{{.AuthorName}}同学</font>\n> ⏰时间： <font color=\"warning\">{{.Time}}</font>\n>
+  \U0001F19A贡献度(满分100)：<font color=\"info\">{{.ContributionScore}}</font> | 活跃度：<font
+  color=\"info\">{{.ActivityScore}}</font>\n> <font color=\"comment\">影响文件：{{.ModifiedFiles}}</font>\n>
+  修改信息：<font color=\"info\">{{.Message}}</font>\n"
+http_port: 19151
+key: your_key
+listen_ip: 127.0.0.1
+listen_port: 19150
+message_templates:
+  humorous: 接收用户传来的提交人和信息,以浮夸幽默的口吻简短地写一条提交评价,不超过150字
+  serious: 接收用户传来的提交人和信息,以严肃认真的口吻简短地写一条提交评价，不超过150字
+mode_ranges:
+- min: 90
+  mode: 无厘头
+- min: 80
+  mode: 搞笑
+- min: 60
+  mode: 悬疑
+- min: 40
+  mode: 黑色幽默
+- min: 20
+  mode: 浮夸
+- min: 0
+  mode: 严肃
+mode_ranges_second:
+- min: 90
+  mode: 无厘头
+- min: 80
+  mode: 搞笑
+- min: 30
+  mode: 专业靠谱
+- min: 20
+  mode: 黑色幽默
+- min: 10
+  mode: 阴阳怪气
+- min: 0
+  mode: 浮夸
+ollama:
+  chatter: gemma3:4b
+  coder: qwen2.5-coder:3b
+  max_file_num: 3
+  max_prompts: 30000
+  officer: deepseek-r1:7b
+plugin_cron:
+  GitHunt: 0 0/10 * * * *
+  GitSummary: 0 0 12 ? * WED
+prompt_daily: ""
+reports_file_path: reports
+repos: []
+repos_daily:
+- Branch: main
+  Desc: Eino智能体编排框架(GitHub)
+  LocalPath: /Users/apple/Library/Application Support/GitHave/eino
+  Name: eino
+  Password: ""
+  RepoURL: https://github.com/cloudwego/eino.git
+  Username: ""
+ttf: NotoSerifSC-VariableFont_wght.ttf
+webhook_url: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key={your_key}

@@ -1,6 +1,8 @@
 ana_prompts:
     external_deps: |
         并使用了外部库:
+    imports: |
+        该函数使用了以下导入包：
     internal_deps: |
         该函数调用了以下内部函数：
     main: |
@@ -8,31 +10,47 @@ ana_prompts:
         （输出必须为一个合法的 JSON 对象，<功能描述>的Key是"description"，Value是字符串类型；<执行流程>的Key是"process"，Value是字符串数组；所有Value均使用中文描述。）
     role: |
         你是一个专业的架构师，请仔细阅读以下函数代码：
+    route: |
+        该函数的所处路径和包名：
 api_base_url: http://127.0.0.1:11434
+api_url: http://localhost:5202/api/v1
+api_url_simple: http://localhost:5202
+auth_base_url: http://localhost:3000
 code_limit: 23000
 completion_api: /api/generate
 default_cloud_model:
-    api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
     enabled: true
     max_prompts: 30000
-    model: Qwen/Qwen2.5-Coder-7B-Instruct
-    type: openai
-    url: https://api.siliconflow.cn/v1/
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
 default_format: json
 default_max_worker: 3
 default_model: qwen2.5-coder:1.5b
 default_temp: 0.1
 embedding_api: /api/embed
 embedding_cloud_model:
-    api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
     enabled: true
     max_prompts: 30000
     model: BAAI/bge-large-zh-v1.5
-    type: openai
-    url: https://api.siliconflow.cn/v1/
+    type: githave
+    url: https://api.githave.com/v1/
 embedding_max_batch: 30
 embedding_max_worker: 3
 embedding_model: quentinz/bge-large-zh-v1.5:latest
+file_analyzer_prompts:
+    footer: |
+        请基于以上函数的功能，生成一个简洁但全面的文件级描述，包括：
+        1. 该文件的主要功能和目的
+        2. 文件中实现的核心功能和关键组件
+        3. 该文件在项目中的作用
+        4. 文件的设计模式或架构特点（如果明显）
+
+        请直接给出描述，不要包含标题或前缀。
+    header: "请为以下文件生成一个全面的模块级描述。文件路径: \n"
+    sub_module_header: '文件中包含的函数/方法及其描述:'
 keyword_prompts:
     system: |
         #### 1．角色
@@ -45,80 +63,16 @@ keyword_prompts:
         - 不得添加其他文本、注释或 Markdown。
     user: |
         {search_query}
-llm_parser_prompts: |
-    C (Context)：
-      你是一名经验丰富的代码分析助理，专门负责快速理解各种编程语言中的函数。
-
-    R (Role)：
-      你的任务是：通过下面给出的代码片段，推测其中的函数名称，以及该函数的核心功能。
-
-    I (Instruction)：
-      - 仔细阅读代码，识别出最可能的函数名（即它在实际项目中应该叫什么）。
-      - 用中文详细描述该函数的主要功能和用途，包括：
-        * 函数的核心目的和解决的问题
-        * 函数的输入参数及其含义
-        * 函数的返回值及其意义
-        * 函数的工作流程和主要算法逻辑
-        * 函数可能的使用场景和应用领域
-        * 函数的任何特殊处理或边界条件处理
-      - 描述应当全面且信息丰富，让人一眼就能理解函数的完整功能和价值。
-      - 如果没有函数，则输出空的json数组。
-
-    S (Structure)：
-      请严格按照以下 JSON 结构输出，**不要**添加额外字段或注释：
-      ```json
-      [
-        {
-          "function_name": "<猜测的函数名1>",
-          "description": "<对该函数功能的简要描述>"
-        },
-        {
-          "function_name": "<猜测的函数名2>",
-          "description": "<对该函数功能的简要描述>"
-        }
-      ]
-      ```
-
-    P (Prompt – your actual输入)：
-      ```
-      {{ code }}
-      ```
-
-    E (Example)：
-
-    - **输入**：
-      ```go
-      func ComputeTax(amount float64, rate float64) float64 {
-          tax := amount * rate / 100
-          return tax
-      }
-      func Addition(a int, b int) int {
-        return a + b
-      }
-      ```
-
-    - **期望输出**：
-      ```json
-      [
-        {
-          "function_name": "ComputeTax",
-          "description": "计算给定金额按指定税率应缴的税额并返回结果"
-        },
-        {
-          "function_name": "Addition",
-          "description": "计算两数之和"
-        }
-      ]
-      ```
+llm_parser_prompts: "C (Context)：\n  你是一名经验丰富的**代码单元分析助理**，能够快速理解各种编程语言中的多种代码单元，包括函数、类（如 POJO 实体）、接口控制器、前端 HTML/JS/CSS 片段等。\n\nR (Role)：\n  你的任务是：根据给定的代码片段，识别出片段中应该重点说明的**代码单元名称**（函数名、类名、文件名或其他具有明显边界的代码结构），并为每个单元给出全面、易懂的功能与用途说明。\n\nI (Instruction)：\n\n1. **识别代码单元**\n\n   * 如果是函数/方法：提取最能代表其意图的函数名。\n   * 如果是类或数据实体（如 POJO）：提取类名。\n   * 如果是接口控制器/服务层：可提取对应类或文件名。\n   * 对于前端文件的特殊处理：\n     - 如果是纯HTML/CSS文件：返回空数组 `[]`。\n     - 如果是Vue/React/TS等动态组件文件：识别并提取其中的函数方法、组件名称和生命周期钩子等。\n\n2. **撰写描述**（用中文，信息务必丰富）：\n\n   * **核心目的**：该单元解决的主要问题或职责。\n   * **关键输入**：主要参数、属性或依赖（若适用）。\n   * **关键输出/影响**：返回值、状态变更或页面效果。\n   * **工作流程 / 主要逻辑**：概括性地说明内部处理流程、算法要点或渲染逻辑。\n   * **典型使用场景**：在哪些业务或技术场景下最常被调用或引用。\n   * **特殊处理与边界条件**：任何异常分支、性能优化、兼容性或安全性细节。\n\n3. **多单元支持**\n\n   * 同一代码片段中若存在多个独立单元，按发现顺序全部列出。\n   * 若片段中没有需要说明的单元（如纯HTML/CSS文件），输出空数组 `[]`。\n\nS (Structure)：\n请严格按以下 JSON 格式输出，**不要**添加多余字段或注释：\n\n```json\n[\n  {\n    \"function_name\": \"<代码单元名称1>\",\n    \"description\": \"<该单元的详细功能描述>\"\n  },\n  {\n    \"function_name\": \"<代码单元名称2>\",\n    \"description\": \"<该单元的详细功能描述>\"\n  }\n]\n```\n\nP (Prompt – your actual 输入)：\n\n```\n{{ code }}\n```\n\nE (Example)：\n\n* **输入（片段节选 - Java后端）**\n\n  ```java\n  /** 用户实体 */\n  public class User {\n      private Long id;\n      private String name;\n      // getter / setter ...\n  }\n\n  /** 登录接口 */\n  @RestController\n  @RequestMapping(\"/auth\")\n  public class LoginController {\n      @PostMapping(\"/login\")\n      public TokenVO login(@RequestBody LoginDTO dto) {\n          // 省略实现\n      }\n  }\n  ```\n\n* **期望输出 - Java后端**\n\n  ```json\n  [\n    {\n      \"function_name\": \"User\",\n      \"description\": \"POJO实体类，描述系统中的用户对象。包含用户ID、姓名等字段，并提供标准的Getter/Setter方法。主要用于数据库映射和业务模型传递。\"\n    },\n    {\n      \"function_name\": \"LoginController\",\n      \"description\": \"用户登录接口控制器，负责接收登录请求并返回令牌。核心逻辑包括参数校验、凭证验证、Token生成与异常处理，常见于基于Spring Boot的RESTful认证模块。\"\n    }\n  ]\n  ```\n  \n* **输入（片段节选 - Vue组件）**\n\n  ```vue\n  <template>\n    <div class=\"user-profile\">\n      <h1>{{ username }}</h1>\n      <button @click=\"updateProfile\">更新资料</button>\n    </div>\n  </template>\n\n  <script>\n  export default {\n    data() {\n      return {\n        username: 'Default User'\n      }\n    },\n    methods: {\n      updateProfile() {\n        this.$emit('profile-updated', this.username);\n      }\n    },\n    mounted() {\n      this.fetchUserData();\n    }\n  }\n  </script>\n  ```\n\n* **期望输出 - Vue组件**\n\n  ```json\n  [\n    {\n      \"function_name\": \"updateProfile\",\n      \"description\": \"用户资料更新方法，负责触发资料更新事件。核心目的是向父组件发送用户名更新通知。不接受参数，通过this.$emit向上传递'profile-updated'事件和当前用户名。典型应用于用户点击更新按钮时，用于实现组件间通信和状态同步。\"\n    },\n    {\n      \"function_name\": \"mounted\",\n      \"description\": \"Vue生命周期钩子，在组件挂载到DOM后执行。核心目的是初始化组件数据。调用fetchUserData方法获取用户数据，确保组件显示最新的用户信息。在组件首次渲染时自动触发，用于数据预加载和初始化操作。\"\n    }\n  ]\n  ```\n  \n* **输入（片段节选 - 纯HTML）**\n\n  ```html\n  <!DOCTYPE html>\n  <html>\n  <head>\n    <title>简单页面</title>\n    <style>\n      body { font-family: Arial; }\n    </style>\n  </head>\n  <body>\n    <h1>欢迎页面</h1>\n    <p>这是一个静态HTML页面</p>\n  </body>\n  </html>\n  ```\n\n* **期望输出 - 纯HTML**\n\n  ```json\n  []\n  ```\n"
 model_configs:
     - cloud_model:
-        api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+        api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
         enabled: true
         max_prompts: 30000
-        model: Qwen/Qwen2.5-Coder-7B-Instruct
+        model: auto
         temperature: 0.1
-        type: openai
-        url: https://api.siliconflow.cn/v1/
+        type: githave
+        url: https://api.githave.com/v1/
       format: json
       max_tokens: 2048
       name: qwen2.5-coder:1.5b
@@ -129,13 +83,13 @@ model_configs:
       size: S
       temperature: 0.1
     - cloud_model:
-        api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+        api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
         enabled: true
         max_prompts: 30000
-        model: Qwen/Qwen2.5-Coder-7B-Instruct
+        model: auto
         temperature: 0.1
-        type: openai
-        url: https://api.siliconflow.cn/v1/
+        type: githave
+        url: https://api.githave.com/v1/
       format: json
       max_tokens: 5000
       name: qwen2.5-coder:3b
@@ -147,13 +101,13 @@ model_configs:
       size: M
       temperature: 0.1
     - cloud_model:
-        api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+        api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
         enabled: true
         max_prompts: 30000
-        model: Qwen/Qwen2.5-Coder-7B-Instruct
+        model: auto
         temperature: 0.1
-        type: openai
-        url: https://api.siliconflow.cn/v1/
+        type: githave
+        url: https://api.githave.com/v1/
       format: json
       max_tokens: 8000
       name: qwen2.5-coder:7b
@@ -165,13 +119,13 @@ model_configs:
       size: L
       temperature: 0.1
     - cloud_model:
-        api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+        api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
         enabled: true
         max_prompts: 30000
-        model: Qwen/Qwen2.5-Coder-7B-Instruct
+        model: auto
         temperature: 0.1
-        type: openai
-        url: https://api.siliconflow.cn/v1/
+        type: githave
+        url: https://api.githave.com/v1/
       format: json
       max_tokens: 18000
       name: qwen2.5-coder:7b
@@ -183,13 +137,13 @@ model_configs:
       size: XL
       temperature: 0.1
     - cloud_model:
-        api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+        api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
         enabled: true
         max_prompts: 30000
-        model: Qwen/Qwen2.5-Coder-7B-Instruct
+        model: auto
         temperature: 0.1
-        type: openai
-        url: https://api.siliconflow.cn/v1/
+        type: githave
+        url: https://api.githave.com/v1/
       format: json
       max_tokens: 30000
       name: qwen2.5-coder:7b
@@ -200,7 +154,47 @@ model_configs:
       repeat_last_n: 128
       size: XXL
       temperature: 0.1
+module_analyzer_prompts:
+    footer: |
+        请基于以上子模块的功能，生成一个简洁但全面的目录级描述，包括：
+        1. 该目录的主要功能和目的
+        2. 目录中实现的核心功能和关键组件
+        3. 该目录在项目中的作用
+        4. 目录的设计模式或架构特点（如果明显）
+
+        请直接给出描述，不要包含标题或前缀。
+    header: "请为以下目录生成一个全面的模块级描述。目录路径: \n"
+    sub_module_desc: "描述: \n"
+    sub_module_dir: "- 目录: \n"
+    sub_module_file: "- 文件: \n"
+    sub_module_header: |
+        该目录包含以下子模块:
 normalize_model: qwen2.5-coder:0.5b
 parser_code_chunk_limit: 20
 parser_code_line_limit: 200
+pip_path: https://mirrors.aliyun.com/pypi/simple
 prompt_limit: 30000
+repo_analyzer_prompts:
+    footer: |
+        请基于以上所有子模块的功能和描述，生成一份完整、详细且具有可读性的项目总览介绍。要求如下：
+
+        - 以自然流畅的语言撰写，适合直接作为 GitHub 项目的 README.md 主体内容，无需额外标题或前缀。
+        - 结合各子模块信息，尽量涵盖以下角度（如部分信息无法推断可省略）：
+          1. 项目的整体目标、背景和主要应用场景
+          2. 项目的核心功能、特色亮点和关键模块
+          3. 项目在实际业务或技术领域中的价值和作用
+          4. 项目的整体架构设计、模块协作方式及显著技术实现（如有）
+          5. 涉及的主要技术栈、依赖或工具（如能从目录、文件或描述中推断）
+          6. 其它有助于理解项目全貌的内容（如使用方式、扩展性、安全性、性能等）
+
+        请确保描述内容详实、条理清晰、表达专业，适合对外展示。
+    header: |
+        请为以下项目生成一个全面的项目级描述。项目路径:
+    sub_module_desc: |
+        描述:
+    sub_module_dir: |
+        - 目录:
+    sub_module_file: |
+        - 文件:
+    sub_module_header: |
+        该项目包含以下主要模块或目录:

@@ -4103,22 +4103,50 @@ async function checkIndexStatus4Toolbar(targetPath) {
       await startIndexProcess4Toolbar(targetPath)
       return true
     } else {
-      const confirmed = window.confirm(
-        `当前路径已经构建过索引，共索引 ${total_file_count}/${real_file_count} 个文件，共 ${total_function_count} 个函数，确定继续并更新索引？`
-      )
-      if (!confirmed) return false
-      if (window.electron.path.relative(newRootPath.value, targetPath) !== '') {
-        await deleteIndexSomeApi(
-          newRootPath.value,
-          window.electron.path.relative(newRootPath.value, targetPath)
-        )
-        await store.dispatch('snackbar/showSnackbar', {
-          message: `已清除 ${window.electron.path.relative(newRootPath.value, targetPath)} 的索引，开始重新索引`,
-          color: 'warning'
-        })
+      // 使用 Electron 的 showMessageBox 进行二次确认
+      const result = await window.electron.showMessageBox({
+        type: 'question',
+        title: '索引更新确认',
+        message: '当前路径已经构建过索引',
+        detail: `共索引 ${total_file_count}/${real_file_count} 个文件，共 ${total_function_count} 个函数。\n\n请选择索引更新方式：\n• 清除并重建：删除所有旧索引，重新构建完整索引\n• 增量更新：仅对新增或修改的文件进行索引\n• 取消：不进行任何操作`,
+        buttons: ['取消', '增量更新索引', '清除并重建'],
+        defaultId: 1,
+        cancelId: 0
+      })
+
+      if (result.response === 0) {
+        console.log('用户取消索引更新操作')
+        return false
       }
-      await startIndexProcess4Toolbar(targetPath)
-      return true
+
+      // 用户选择增量更新索引
+      if (result.response === 1) {
+        console.log('用户选择增量更新索引')
+        await startIndexProcess4Toolbar(targetPath)
+        return true
+      }
+
+      // 用户选择清除并重建
+      if (result.response === 2) {
+        console.log('用户选择清除并重建索引')
+        if (window.electron.path.relative(newRootPath.value, targetPath) !== '') {
+          console.log(
+            `开始清除 ${window.electron.path.relative(newRootPath.value, targetPath)} 的旧索引`
+          )
+          await deleteIndexSomeApi(
+            newRootPath.value,
+            window.electron.path.relative(newRootPath.value, targetPath)
+          )
+          await store.dispatch('snackbar/showSnackbar', {
+            message: `已清除 ${window.electron.path.relative(newRootPath.value, targetPath)} 的索引，开始重新索引`,
+            color: 'warning'
+          })
+        }
+        await startIndexProcess4Toolbar(targetPath)
+        return true
+      }
+
+      return false
     }
   } catch (error) {
     console.error('检查索引状态失败:', error)

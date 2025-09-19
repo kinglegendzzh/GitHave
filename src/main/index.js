@@ -2125,6 +2125,11 @@ ipcMain.handle('get-user-data-path', async () => {
   return app.getPath('userData')
 })
 
+// 获取Documents目录路径
+ipcMain.handle('get-documents-path', async () => {
+  return app.getPath('documents')
+})
+
 // 新增：检查 Python 是否安装
 
 ipcMain.handle('check-python', async () => {

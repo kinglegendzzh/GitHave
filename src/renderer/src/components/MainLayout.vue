@@ -706,7 +706,7 @@
             <!-- 默认路径显示 -->
             <div v-if="cloneMode === 'quick'" class="mb-2">
               <p class="text-body-2 text-grey-600">
-                <strong>本地路径：</strong> 你的用户根目录/githave/{{ operationData.repo }}
+                <strong>本地路径：</strong> {{ getDefaultClonePathDisplay() }}/githave/{{ operationData.repo }}
               </p>
             </div>
 
@@ -1250,9 +1250,9 @@ export default {
             const s = decodeURIComponent(p)
             const segs = s.split(/[/\\]/).filter(Boolean)
             return segs[segs.length - 1] || s
-          } catch (e) {
-            return p
-          }
+      } catch (error) {
+        return p
+      }
         }
 
         let extra = ''
@@ -1272,12 +1272,20 @@ export default {
           return extra ? `${base} · ${extra}` : base
         }
         return base
-      } catch (e) {
+      } catch (error) {
         return route.meta?.title || route.name || '页面'
       }
     },
     omitDesc(str, limit) {
       return omit(str, limit)
+    },
+    // 获取默认克隆路径显示文本
+    getDefaultClonePathDisplay() {
+      if (window.electron.platform === 'win32') {
+        return '你的文档目录'
+      } else {
+        return '你的用户根目录'
+      }
     },
     // 初始化默认标签页
     initializeDefaultTab() {
@@ -1479,6 +1487,9 @@ export default {
 
       // 自动保存标签页会话
       this.debouncedSaveTabSession()
+      
+      // 触发剪切板监听恢复
+      this.onTabOperationComplete()
     },
 
     // 切换到指定标签页
@@ -1542,6 +1553,9 @@ export default {
 
       // 自动保存标签页会话
       this.debouncedSaveTabSession()
+      
+      // 触发剪切板监听恢复
+      this.onTabOperationComplete()
     },
 
     // —— 标签拖拽排序 ——
@@ -1889,7 +1903,7 @@ export default {
         const nextBtn = host.querySelector('.v-slide-group__next')
         this.tabsCanScrollPrev = prevBtn ? !prevBtn.hasAttribute('disabled') : false
         this.tabsCanScrollNext = nextBtn ? !nextBtn.hasAttribute('disabled') : false
-      } catch (err) {
+      } catch (error) {
         this.tabsCanScrollPrev = false
         this.tabsCanScrollNext = false
       }
@@ -2824,10 +2838,17 @@ export default {
 
       let localPath
       if (this.cloneMode === 'quick') {
-        // 快速克隆：使用默认路径
-        const homeDir = window.electron.homeDir || (await window.electron.homeDir)
+        // 快速克隆：根据系统类型使用不同的默认路径
+        let baseDir
+        if (window.electron.platform === 'win32') {
+          // Windows系统使用Documents目录
+          baseDir = await window.electron.getDocumentsPath()
+        } else {
+          // macOS和Linux使用用户主目录
+          baseDir = window.electron.homeDir || (await window.electron.homeDir)
+        }
         const path = window.electron.path
-        localPath = path.join(homeDir, 'githave', repo)
+        localPath = path.join(baseDir, 'githave', repo)
       } else {
         // 自定义目录：使用用户选择的路径
         const path = window.electron.path
@@ -3187,6 +3208,15 @@ export default {
 
         this.sessionSaveTimer = null
       }, 1000) // 1秒防抖延迟
+    },
+
+    // 标签页操作完成后恢复剪切板监听
+    onTabOperationComplete() {
+      console.log('标签页操作完成，触发剪切板监听恢复')
+      // 延迟一点时间确保组件已经重新挂载
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('githave:restore-clipboard'))
+      }, 100)
     }
   },
   watch: {
@@ -3313,6 +3343,9 @@ export default {
 
     // 监听新增标签页事件
     window.addEventListener('addNewTab', this.onAddNewTab)
+    
+    // 监听标签页操作完成事件，恢复剪切板监听
+    window.addEventListener('githave:tab-operation-complete', this.onTabOperationComplete)
 
     // 添加页面刷新/关闭时的会话保存
     window.addEventListener('beforeunload', () => {

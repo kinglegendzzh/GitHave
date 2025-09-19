@@ -181,6 +181,7 @@ const api = {
   env: process.env,
 
   getUserDataPath: () => ipcRenderer.invoke('get-user-data-path'),
+  getDocumentsPath: () => ipcRenderer.invoke('get-documents-path'),
   getResourcePath: (filePath) => ipcRenderer.invoke('get-resource-path', filePath),
   openNewWindow: (url) => ipcRenderer.send('open-new-window', url),
   openNewWindowIDE: (url) => ipcRenderer.send('open-new-window-ide', url),

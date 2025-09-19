@@ -1,10 +1,13 @@
+api_model: ""
+api_token: ""
+api_url: http://localhost:5202/api/v1
 authorNameMap:
   hongxiu: 洪秀
   migu2023: 冯震
   zhanghao: 不愿透露姓名的周
   zhouzhanghao: 不愿透露姓名的周
   zhuonn: 卓楠楠
-chart_dir: ./git_chart
+chart_dir: git_chart
 code_reports: |
   你是一个专业架构师，基于用户所提供的每段代码内容，针对以下维度分别进行深入分析，并生成详细报告
   1. 功能概述：请详细描述该代码的功能，包括其作用、用途、适用场景等。
@@ -19,29 +22,29 @@ cron_spec: 0 0 0 * * ?
 csv_file_template: 提交修改明细
 custom:
   chatter:
-    api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
     enabled: true
     max_file_num: 0
     max_prompts: 30000
-    model: Qwen/Qwen2.5-7B-Instruct
-    type: openai
-    url: https://api.siliconflow.cn/v1/
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
   coder:
-    api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
     enabled: true
     max_file_num: 4
     max_prompts: 30000
-    model: Qwen/Qwen2.5-Coder-7B-Instruct
-    type: openai
-    url: https://api.siliconflow.cn/v1/
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
   officer:
-    api: sk-ixtetrqcehtnutkdzzlzvsgdwncnovyzoousvpnbpyinnuvj
+    api: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjAyNTk2MDAsInVzZXJfaWQiOjJ9.WrC1ugOm9m5meshQl7uCtwBrvt9nxpREbYs0j_2h6rM
     enabled: true
     max_file_num: 0
     max_prompts: 30000
-    model: Qwen/Qwen2.5-7B-Instruct
-    type: openai
-    url: https://api.siliconflow.cn/v1/
+    model: auto
+    type: githave
+    url: https://api.githave.com/v1/
 db:
   commits: githave.db
   git_repos: githave.db
@@ -50,6 +53,7 @@ deep_research:
   max_code_snippet_limit: 15
   max_prompts: 30000
 doc_file_template: 提交分析报告
+expertSlots: {}
 files:
   save:
     csv: true
@@ -115,7 +119,7 @@ plugin_cron:
   GitHunt: 0 0/10 * * * *
   GitSummary: 0 0 12 ? * WED
 prompt_daily: ""
-reports_file_path: ./reports
+reports_file_path: reports
 repos: []
 repos_daily:
 - Branch: main

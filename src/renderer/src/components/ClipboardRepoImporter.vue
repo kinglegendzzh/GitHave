@@ -20,7 +20,7 @@
         </div>
         <div class="mb-3">
           <p class="text-body-1 mb-2"><strong>仓库名称：</strong>{{ clipboardRepoName }}</p>
-          
+
           <!-- 目录选择选项 -->
           <div class="mb-3">
             <v-radio-group v-model="importMode" inline>
@@ -28,14 +28,16 @@
               <v-radio label="自定义目录" value="custom"></v-radio>
             </v-radio-group>
           </div>
-          
+
           <!-- 默认路径显示 -->
           <div v-if="importMode === 'quick'" class="mb-2">
             <p class="text-body-2 text-grey-600">
-              <strong>本地路径：</strong> 你的用户根目录/githave/{{ clipboardRepoName }}
+              <strong>本地路径：</strong> {{ getDefaultPathDisplay() }}/githave/{{
+                clipboardRepoName
+              }}
             </p>
           </div>
-          
+
           <!-- 自定义目录选择 -->
           <div v-if="importMode === 'custom'" class="mb-2">
             <v-text-field
@@ -45,16 +47,16 @@
               variant="outlined"
               density="compact"
               append-inner-icon="mdi-folder-open"
+              placeholder="点击选择目录"
               @click:append-inner="selectDirectory"
               @click="selectDirectory"
-              placeholder="点击选择目录"
             ></v-text-field>
             <p v-if="customPath" class="text-body-2 text-grey-600 mt-1">
               <strong>完整路径：</strong> {{ customPath }}/{{ clipboardRepoName }}
             </p>
           </div>
         </div>
-        
+
         <v-alert type="info" variant="tonal" density="compact" class="mb-3">
           是否要导入此仓库？导入后将自动克隆到{{ importMode === 'quick' ? '默认' : '指定' }}路径。
         </v-alert>
@@ -100,7 +102,7 @@
             rounded
           ></v-progress-linear>
           <p class="text-caption mt-2">{{ progressValue }}%</p>
-          
+
           <!-- 网络速度显示 -->
           <div v-if="networkSpeed.show" class="mt-3 pa-2 bg-grey-lighten-5 rounded">
             <div class="d-flex justify-space-between align-center mb-1">
@@ -146,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
 import { createRepo } from '../service/api'
 
@@ -158,7 +160,7 @@ const clipboardImportDialog = ref(false)
 const clipboardRepoUrl = ref('')
 const clipboardRepoName = ref('')
 const lastClipboardContent = ref('')
-let clipboardCheckInterval = null
+const clipboardCheckInterval = ref(null)
 
 /* ───── 导入模式和路径选择 ───── */
 const importMode = ref('quick') // 'quick' 或 'custom'
@@ -171,7 +173,7 @@ const CANCELLED_URLS_KEY = 'githave_cancelled_clipboard_urls'
 const progressDialog = ref(false)
 const progressValue = ref(0)
 const progressText = ref('准备开始...')
-let progressInterval = null
+const progressInterval = ref(null)
 
 /* ───── Snackbar ───── */
 const snackbar = reactive({
@@ -189,6 +191,15 @@ const networkSpeed = reactive({
   uploadSpeedFormatted: '0 B/s',
   interface: ''
 })
+
+// 获取默认路径显示文本
+const getDefaultPathDisplay = () => {
+  if (window.electron.platform === 'win32') {
+    return '你的文档目录'
+  } else {
+    return '你的用户根目录'
+  }
+}
 
 // 检测是否为GitHub链接
 const isGitHubUrl = (text) => {
@@ -282,15 +293,29 @@ const checkClipboard = async () => {
 
 // 启动剪切板监听
 const startClipboardMonitoring = () => {
+  // 如果已经有定时器在运行，先清理
+  if (clipboardCheckInterval.value) {
+    clearInterval(clipboardCheckInterval.value)
+  }
   // 每2秒检查一次剪切板
-  clipboardCheckInterval = setInterval(checkClipboard, 2000)
+  clipboardCheckInterval.value = setInterval(checkClipboard, 2000)
+  console.log('剪切板监听已启动')
+
+  // 将定时器ID存储到全局，用于状态检查
+  window.githaveClipboardInterval = clipboardCheckInterval.value
 }
 
 // 停止剪切板监听
 const stopClipboardMonitoring = () => {
-  if (clipboardCheckInterval) {
-    clearInterval(clipboardCheckInterval)
-    clipboardCheckInterval = null
+  if (clipboardCheckInterval.value) {
+    clearInterval(clipboardCheckInterval.value)
+    clipboardCheckInterval.value = null
+    console.log('剪切板监听已停止')
+  }
+  // 清理全局引用
+  if (window.githaveClipboardInterval) {
+    clearInterval(window.githaveClipboardInterval)
+    window.githaveClipboardInterval = null
   }
 }
 
@@ -299,10 +324,10 @@ const startNetworkMonitoring = async () => {
   try {
     // 启动网络监控
     await window.electron.startNetworkMonitor()
-    
+
     // 显示网络速度区域
     networkSpeed.show = true
-    
+
     // 监听网络速度更新
     window.electron.onNetworkSpeedUpdate((data) => {
       networkSpeed.downloadSpeed = data.downloadSpeed
@@ -338,11 +363,16 @@ const startProgressSimulation = async () => {
   progressDialog.value = true
   progressValue.value = 0
   progressText.value = '正在克隆仓库...'
-  
+
   // 启动网络监控
   await startNetworkMonitoring()
 
-  progressInterval = setInterval(() => {
+  // 清理之前的定时器
+  if (progressInterval.value) {
+    clearInterval(progressInterval.value)
+  }
+
+  progressInterval.value = setInterval(() => {
     if (progressValue.value < 90) {
       progressValue.value += Math.random() * 10
       if (progressValue.value > 30 && progressValue.value < 60) {
@@ -356,9 +386,9 @@ const startProgressSimulation = async () => {
 
 // 完成进度
 const completeProgress = async (success = true) => {
-  if (progressInterval) {
-    clearInterval(progressInterval)
-    progressInterval = null
+  if (progressInterval.value) {
+    clearInterval(progressInterval.value)
+    progressInterval.value = null
   }
 
   // 停止网络监控
@@ -394,12 +424,12 @@ const selectDirectory = async () => {
       defaultPath: customPath.value,
       properties: ['openDirectory']
     })
-    
+
     if (!result.canceled && result.filePaths && result.filePaths.length > 0) {
       const selectedPath = result.filePaths[0]
       const fs = await window.electron.fs
       const path = await window.electron.path
-      
+
       // 判断选中文件夹是否为空
       const folderContent = fs.readdirSync(selectedPath)
       if (folderContent.length === 0) {
@@ -442,9 +472,16 @@ const confirmClipboardImport = async () => {
     // 根据导入模式确定本地路径
     let localPath
     if (importMode.value === 'quick') {
-      // 快速导入：使用默认路径
-      const homeDir = await window.electron.homeDir
-      localPath = window.electron.path.join(homeDir, 'githave', clipboardRepoName.value)
+      // 快速导入：根据系统类型使用不同的默认路径
+      let baseDir
+      if (window.electron.platform === 'win32') {
+        // Windows系统使用Documents目录
+        baseDir = await window.electron.getDocumentsPath()
+      } else {
+        // macOS和Linux使用用户主目录
+        baseDir = await window.electron.homeDir
+      }
+      localPath = window.electron.path.join(baseDir, 'githave', clipboardRepoName.value)
     } else {
       // 自定义目录：使用用户选择的路径
       localPath = window.electron.path.join(customPath.value, clipboardRepoName.value)
@@ -500,14 +537,49 @@ const cancelClipboardImport = () => {
 
 // 组件挂载时启动监听
 onMounted(() => {
+  console.log('ClipboardRepoImporter 组件挂载，启动剪切板监听')
   startClipboardMonitoring()
 })
 
+// 组件激活时重新启动监听（防止在标签页操作中被意外停止）
+onActivated(() => {
+  console.log('ClipboardRepoImporter 组件激活，检查剪切板监听状态')
+  if (!clipboardCheckInterval.value) {
+    console.log('剪切板监听未运行，重新启动')
+    startClipboardMonitoring()
+  }
+})
+
+// 全局剪切板监听恢复机制
+const restoreClipboardMonitoring = () => {
+  // 检查全局定时器是否存在且有效
+  if (window.githaveClipboardInterval) {
+    try {
+      // 尝试清理可能存在的无效定时器
+      clearInterval(window.githaveClipboardInterval)
+    } catch (error) {
+      console.log('清理无效的全局定时器:', error)
+    }
+    window.githaveClipboardInterval = null
+  }
+
+  // 重新启动监听
+  if (!clipboardCheckInterval.value) {
+    console.log('恢复剪切板监听')
+    startClipboardMonitoring()
+  }
+}
+
+// 监听全局事件，用于恢复剪切板监听
+window.addEventListener('githave:restore-clipboard', restoreClipboardMonitoring)
+
 // 组件卸载时停止监听
 onUnmounted(async () => {
+  console.log('ClipboardRepoImporter 组件卸载，清理定时器')
   stopClipboardMonitoring()
-  if (progressInterval) {
-    clearInterval(progressInterval)
+  if (progressInterval.value) {
+    clearInterval(progressInterval.value)
+    progressInterval.value = null
   }
   // 停止网络监控
   await stopNetworkMonitoring()

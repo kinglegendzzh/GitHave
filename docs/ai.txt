@@ -1,0 +1,159 @@
+
+App.vue:26 this.$route.meta.standalone /finder
+FileBrowser.vue:2738 [DEBUG] treeData 变化，新数据长度: 0
+FileBrowser.vue:2740 [DEBUG] filteredTreeData 设置完成，当前 openNodes: Proxy(Array) {}
+FileBrowser.vue:1156 [FileBrowser] 当前主题: 暗色 (系统偏好: true , Vuetify: false )
+FileBrowser.vue:1120 [FileBrowser] 已加载高亮主题: gradient-dark
+FileBrowser.vue:1270 [FileBrowser] 主题观察器已初始化
+FileBrowser.vue:2795 [FileBrowser] 组件挂载开始初始化
+FileBrowser.vue:950 [Monaco] 预初始化编辑器环境
+FileBrowser.vue:963 [Monaco] 编辑器环境预初始化完成，当前主题: vs-dark
+FileBrowser.vue:1732 [FileBrowser] decodedInitialPath: 
+FileBrowser.vue:1733 [FileBrowser] decodedRootPath: 
+FileBrowser.vue:2817 [FileBrowser] 组件初始化完成
+FileBrowser.vue:1156 [FileBrowser] 当前主题: 暗色 (系统偏好: true , Vuetify: false )
+FileBrowser.vue:1107 [FileBrowser] 已移除之前的高亮主题样式: http://localhost:5173/hljs/gradient-dark.css
+FileBrowser.vue:1120 [FileBrowser] 已加载高亮主题: gradient-dark
+FileBrowser.vue:2832 [FileBrowser] 组件激活，重新检查主题样式
+FileBrowser.vue:2744 [DEBUG] nextTick 中检查 treeRef: Proxy(Object) {…}
+FileBrowser.vue:2407 [DEBUG] resetTree 开始执行，路径: /Volumes/Lenovo/Library/githave/musicpy/musicpy
+file.js:16 isFilePath node null
+FileBrowser.vue:2417 [DEBUG] 目标路径确定为: /Volumes/Lenovo/Library/githave/musicpy/musicpy
+FileBrowser.vue:2371 [DEBUG] getDirectoryTree 原始子项数量: 14 路径: /Volumes/Lenovo/Library/githave/musicpy/musicpy
+FileBrowser.vue:2373 [DEBUG] 过滤隐藏文件后数量: 9
+FileBrowser.vue:2377 [DEBUG] 目录数量: 1 文件数量: 8
+FileBrowser.vue:2378 [DEBUG] 目录名称: ['musicpy']
+FileBrowser.vue:2371 [DEBUG] getDirectoryTree 原始子项数量: 10 路径: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy
+FileBrowser.vue:2373 [DEBUG] 过滤隐藏文件后数量: 10
+FileBrowser.vue:2377 [DEBUG] 目录数量: 0 文件数量: 10
+FileBrowser.vue:2378 [DEBUG] 目录名称: []
+FileBrowser.vue:2420 [DEBUG] 获取到子目录数量: 9
+FileBrowser.vue:2431 [DEBUG] 一级子目录路径: ['/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy']
+FileBrowser.vue:2433 [DEBUG] 设置展开节点: Proxy(Array) {0: '/Volumes/Lenovo/Library/githave/musicpy/musicpy', 1: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy'}
+FileBrowser.vue:2738 [DEBUG] treeData 变化，新数据长度: 1
+FileBrowser.vue:2740 [DEBUG] filteredTreeData 设置完成，当前 openNodes: Proxy(Array) {0: '/Volumes/Lenovo/Library/githave/musicpy/musicpy', 1: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy'}
+FileBrowser.vue:2788 [DEBUG] openNodes 变化: Proxy(Array) {0: '/Volumes/Lenovo/Library/githave/musicpy/musicpy', 1: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy'}
+FileBrowser.vue:2744 [DEBUG] nextTick 中检查 treeRef: Proxy(Object) {…}
+FileBrowser.vue:2746 [DEBUG] 尝试设置展开节点: Proxy(Array) {0: '/Volumes/Lenovo/Library/githave/musicpy/musicpy', 1: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy'}
+FileBrowser.vue:2753 [DEBUG] 展开节点失败: /Volumes/Lenovo/Library/githave/musicpy/musicpy TypeError: treeRef.value.setExpanded is not a function
+    at FileBrowser.vue:2750:27
+    at wrappedFn (chunk-DIQ4WGEM.js?v=382a46fb:979:19)
+    at Array.forEach (<anonymous>)
+    at apply (chunk-DIQ4WGEM.js?v=382a46fb:987:27)
+    at Proxy.forEach (chunk-DIQ4WGEM.js?v=382a46fb:1992:16)
+    at FileBrowser.vue:2748:25
+（匿名） @ FileBrowser.vue:2753
+wrappedFn @ chunk-DIQ4WGEM.js?v=382a46fb:979
+apply @ chunk-DIQ4WGEM.js?v=382a46fb:987
+forEach @ chunk-DIQ4WGEM.js?v=382a46fb:1992
+（匿名） @ FileBrowser.vue:2748
+Promise.then
+nextTick @ chunk-DIQ4WGEM.js?v=382a46fb:2588
+watch.immediate @ FileBrowser.vue:2743
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+callWithAsyncErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2514
+baseWatchOptions.call @ chunk-DIQ4WGEM.js?v=382a46fb:7498
+job @ chunk-DIQ4WGEM.js?v=382a46fb:1550
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+flushJobs @ chunk-DIQ4WGEM.js?v=382a46fb:2706
+Promise.then
+queueFlush @ chunk-DIQ4WGEM.js?v=382a46fb:2621
+queueJob @ chunk-DIQ4WGEM.js?v=382a46fb:2616
+baseWatchOptions.scheduler @ chunk-DIQ4WGEM.js?v=382a46fb:7510
+effect2.scheduler @ chunk-DIQ4WGEM.js?v=382a46fb:1566
+trigger @ chunk-DIQ4WGEM.js?v=382a46fb:1825
+endBatch @ chunk-DIQ4WGEM.js?v=382a46fb:660
+notify @ chunk-DIQ4WGEM.js?v=382a46fb:1942
+trigger @ chunk-DIQ4WGEM.js?v=382a46fb:1916
+set value @ chunk-DIQ4WGEM.js?v=382a46fb:2249
+resetTree @ FileBrowser.vue:2421
+await in resetTree
+onPathSelectionChanged @ FileBrowser.vue:1796
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+callWithAsyncErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2514
+emit @ chunk-DIQ4WGEM.js?v=382a46fb:7686
+（匿名） @ chunk-DIQ4WGEM.js?v=382a46fb:9215
+triggerChange @ ant-design-vue.js?v=382a46fb:16687
+triggerChange @ ant-design-vue.js?v=382a46fb:14628
+onInternalSelect @ ant-design-vue.js?v=382a46fb:14676
+onSelectValue @ ant-design-vue.js?v=382a46fb:13850
+onClick @ ant-design-vue.js?v=382a46fb:14045
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+callWithAsyncErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2514
+invoker @ chunk-DIQ4WGEM.js?v=382a46fb:11573
+FileBrowser.vue:2753 [DEBUG] 展开节点失败: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy TypeError: treeRef.value.setExpanded is not a function
+    at FileBrowser.vue:2750:27
+    at wrappedFn (chunk-DIQ4WGEM.js?v=382a46fb:979:19)
+    at Array.forEach (<anonymous>)
+    at apply (chunk-DIQ4WGEM.js?v=382a46fb:987:27)
+    at Proxy.forEach (chunk-DIQ4WGEM.js?v=382a46fb:1992:16)
+    at FileBrowser.vue:2748:25
+（匿名） @ FileBrowser.vue:2753
+wrappedFn @ chunk-DIQ4WGEM.js?v=382a46fb:979
+apply @ chunk-DIQ4WGEM.js?v=382a46fb:987
+forEach @ chunk-DIQ4WGEM.js?v=382a46fb:1992
+（匿名） @ FileBrowser.vue:2748
+Promise.then
+nextTick @ chunk-DIQ4WGEM.js?v=382a46fb:2588
+watch.immediate @ FileBrowser.vue:2743
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+callWithAsyncErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2514
+baseWatchOptions.call @ chunk-DIQ4WGEM.js?v=382a46fb:7498
+job @ chunk-DIQ4WGEM.js?v=382a46fb:1550
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+flushJobs @ chunk-DIQ4WGEM.js?v=382a46fb:2706
+Promise.then
+queueFlush @ chunk-DIQ4WGEM.js?v=382a46fb:2621
+queueJob @ chunk-DIQ4WGEM.js?v=382a46fb:2616
+baseWatchOptions.scheduler @ chunk-DIQ4WGEM.js?v=382a46fb:7510
+effect2.scheduler @ chunk-DIQ4WGEM.js?v=382a46fb:1566
+trigger @ chunk-DIQ4WGEM.js?v=382a46fb:1825
+endBatch @ chunk-DIQ4WGEM.js?v=382a46fb:660
+notify @ chunk-DIQ4WGEM.js?v=382a46fb:1942
+trigger @ chunk-DIQ4WGEM.js?v=382a46fb:1916
+set value @ chunk-DIQ4WGEM.js?v=382a46fb:2249
+resetTree @ FileBrowser.vue:2421
+await in resetTree
+onPathSelectionChanged @ FileBrowser.vue:1796
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+callWithAsyncErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2514
+emit @ chunk-DIQ4WGEM.js?v=382a46fb:7686
+（匿名） @ chunk-DIQ4WGEM.js?v=382a46fb:9215
+triggerChange @ ant-design-vue.js?v=382a46fb:16687
+triggerChange @ ant-design-vue.js?v=382a46fb:14628
+onInternalSelect @ ant-design-vue.js?v=382a46fb:14676
+onSelectValue @ ant-design-vue.js?v=382a46fb:13850
+onClick @ ant-design-vue.js?v=382a46fb:14045
+callWithErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2507
+callWithAsyncErrorHandling @ chunk-DIQ4WGEM.js?v=382a46fb:2514
+invoker @ chunk-DIQ4WGEM.js?v=382a46fb:11573
+FileBrowser.vue:2672 handleNodeClick: Proxy(Object) {name: 'chunk.py', path: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py', isDirectory: false, children: undefined, $treeNodeId: 5}
+FileBrowser.vue:1533 isText true
+FileBrowser.vue:1842 [File] loadFileByType /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py
+FileBrowser.vue:1913 [File] text loaded, length= 5435
+FileBrowser.vue:1927 [File] updateFileState {selectedPath: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py', keys: Array(2)}
+FileBrowser.vue:1929 [File] 设置 selectedFileName: chunk.py
+FileBrowser.vue:1691 [FileBrowser] selectedFileName: chunk.py 完整路径: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py
+FileBrowser.vue:1936 [File] 设置 fileContent, 长度: 5435
+FileBrowser.vue:885 [Monaco] 开始异步加载 MonacoEditor 组件
+FileBrowser.vue:2607 [Monaco] activeTab changed -> restoring state /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py
+FileBrowser.vue:1691 [FileBrowser] selectedFileName: chunk.py 完整路径: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py
+FileBrowser.vue:2609 Restored state for: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py
+FileBrowser.vue:2611 Loading code index for: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py
+FileBrowser.vue:1948 [Monaco] nextTick after updateFileState
+FileBrowser.vue:1949 [Monaco] 当前状态: {selectedFileName: 'chunk.py', hasFileContent: true, isCodeFile: false, currentTheme: 'vs-dark'}
+FileBrowser.vue:3163 Loading code index for: /Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py /Volumes/Lenovo/Library/githave/musicpy/musicpy Proxy(Array) {0: {…}, 1: {…}, 2: {…}, 3: {…}, 4: {…}, 5: {…}, 6: {…}, 7: {…}, 8: {…}, 9: {…}, 10: {…}, 11: {…}, 12: {…}, 13: {…}, 14: {…}, 15: {…}, 16: {…}, 17: {…}, 18: {…}, 19: {…}, 20: {…}, 21: {…}, 22: {…}, 23: {…}, 24: {…}, 25: {…}, 26: {…}, 27: {…}, 28: {…}, 29: {…}, 30: {…}, 31: {…}, 32: {…}, 33: {…}, 34: {…}, 35: {…}, 36: {…}, 37: {…}, 38: {…}, 39: {…}, 40: {…}, 41: {…}, 42: {…}, 43: {…}, 44: {…}, 45: {…}, 46: {…}, 47: {…}, 48: {…}, 49: {…}, 50: {…}, 51: {…}, 52: {…}}
+2FileBrowser.vue:1533 isText true
+FileBrowser.vue:3174 Code index loaded: Proxy(Object) {total_function_count: 9, total_file_count: 1, real_file_count: 1, functions: {…}, modules: {…}}
+FileBrowser.vue:887 [Monaco] MonacoEditor 组件加载完成
+The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.
+:5173/#/finder:1 The Content Security Policy directive 'frame-ancestors' is ignored when delivered via a <meta> element.
+FileBrowser.vue:3267 [DEBUG] 鼠标进入函数卡片: {functionItem: Proxy(Object), filePath: 'musicpy/chunk.py'}
+FileBrowser.vue:3268 [DEBUG] 设置气泡浮窗显示: Proxy(Object) {show: true, x: 1570.25390625, y: 238.359375, loading: false, data: null, …}
+FileBrowser.vue:3269 [DEBUG] 气泡浮窗位置: {x: 1570.25390625, y: 238.359375, rect: DOMRect, windowSize: {…}}
+FileBrowser.vue:3222 [DEBUG] 获取函数详情: {functionName: '__init__', packageName: 'Chunk', filePath: 'musicpy/chunk.py', repoPath: '/Volumes/Lenovo/Library/githave/musicpy/musicpy'}
+FileBrowser.vue:3226 [DEBUG] 函数详情响应: {data: {…}, status: 200, statusText: 'OK', headers: AxiosHeaders, config: {…}, …}
+FileBrowser.vue:3230 [DEBUG] 设置函数详情数据: Proxy(Object) {name: '__init__', package: 'Chunk', file: 'musicpy/chunk.py', imports: Array(1), calls: Array(4), …}
+FileBrowser.vue:3377 [Jump] click function card {functionItem: Proxy(Object), relFilePath: 'musicpy/chunk.py', newRootPath: '/Volumes/Lenovo/Library/githave/musicpy/musicpy', activeTabPath: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py', monacoReady: false, …}
+FileBrowser.vue:3393 [Jump] resolved path {repoRoot: '/Volumes/Lenovo/Library/githave/musicpy/musicpy', isAbs: false, absPath: '/Volumes/Lenovo/Library/githave/musicpy/musicpy/musicpy/chunk.py'}
+FileBrowser.vue:3477 [Jump] monaco not ready, push pendingScrollActions

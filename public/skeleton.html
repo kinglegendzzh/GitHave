@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GitHave - 启动中...</title>
+  <title>GitHave</title>
   <style>
     /* 浅色模式（默认） */
     body {
@@ -13,12 +13,13 @@
       justify-content: center;
       flex-direction: column;
       min-height: 100vh;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #1e3a8a 0%, #0891b2 100%);
       color: #fff;
       transition: all 0.3s ease;
       font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       overflow: hidden;
       position: relative;
+      -webkit-app-region: drag; /* 添加窗口拖拽支持 */
     }
 
     /* 深色模式 */
@@ -66,26 +67,27 @@
       justify-content: center;
       text-align: center;
       min-height: 100vh;
-      padding: 200px;
+      padding: 20px;
       box-sizing: border-box;
+      width: 100%;
     }
 
     /* 品牌Logo区域 */
     .brand-section {
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       animation: brandFadeIn 1.5s ease-out;
     }
 
     .brand-logo {
-      width: 100px;
-      height: 100px;
-      margin-bottom: 15px;
+      width: 80px;
+      height: 80px;
+      margin-bottom: 10px;
       filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.3));
       animation: logoFloat 3s ease-in-out infinite;
     }
 
     .brand-title {
-      font-size: 2.5rem;
+      font-size: 2.2rem;
       font-weight: 700;
       margin: 0;
       background: linear-gradient(45deg, #fff, #f0f8ff);
@@ -97,9 +99,9 @@
     }
 
     .brand-subtitle {
-      font-size: 1rem;
+      font-size: 0.9rem;
       opacity: 0.9;
-      margin: 8px 0 0 0;
+      margin: 5px 0 0 0;
       font-weight: 300;
     }
 
@@ -120,8 +122,8 @@
 
     /* SVG 样式 */
     #hole {
-      margin: 0 auto 15px auto;
-      width: 70px;
+      margin: 0 auto 10px auto;
+      width: 60px;
       height: auto;
       overflow: visible;
       transform: perspective(900px) rotateX(45deg);
@@ -131,7 +133,8 @@
 
     /* 进度条样式 */
     .progress-container {
-      width: 200px;
+      width: 80%;
+      max-width: 200px;
       height: 4px;
       background: rgba(255, 255, 255, 0.2);
       border-radius: 2px;
@@ -192,12 +195,98 @@
 
     /* 跳动圆点样式优化 */
     .dots-container {
-      margin: 15px auto;
+      margin: 10px auto;
       display: block;
+      width: 60px;
     }
 
     .dots-container circle {
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    }
+    /* 响应式设计，适应小屏幕 */
+    @media (max-width: 500px) {
+      .brand-logo {
+        width: 60px;
+        height: 60px;
+        margin-bottom: 8px;
+      }
+      
+      .brand-title {
+        font-size: 1.8rem;
+      }
+      
+      .brand-subtitle {
+        font-size: 0.8rem;
+      }
+      
+      #hole {
+        width: 50px;
+      }
+      
+      .loading-section {
+        margin: 10px 0;
+      }
+      
+      .dots-container {
+        width: 50px;
+      }
+      
+      .loading-text {
+        font-size: 0.8rem;
+      }
+    }
+    
+    /* 超小屏幕适配 (400px × 300px) */
+    @media (max-width: 400px) and (max-height: 350px) {
+      .brand-logo {
+        width: 40px;
+        height: 40px;
+        margin-bottom: 5px;
+      }
+      
+      .brand-title {
+        font-size: 1.5rem;
+      }
+      
+      .brand-subtitle {
+        font-size: 0.7rem;
+      }
+      
+      #hole {
+        width: 40px;
+      }
+      
+      .loading-section {
+        margin: 5px 0;
+      }
+      
+      .dots-container {
+        width: 40px;
+        height: 20px;
+      }
+      
+      .loading-text {
+        font-size: 0.7rem;
+        margin-top: 5px;
+      }
+      
+      .main-container {
+        padding: 10px;
+      }
+      
+      .brand-section {
+        margin-bottom: 5px;
+      }
+      
+      .progress-container {
+        margin: 8px 0;
+        height: 3px;
+      }
+    }
+
+    /* 排除可交互元素拖拽 */
+    button, input, select, textarea {
+      -webkit-app-region: no-drag;
     }
   </style>
 </head>
@@ -209,9 +298,9 @@
 <div class="main-container">
   <!-- 品牌区域 -->
   <div class="brand-section">
-    <img src="banner.svg" alt="GitHave Logo" class="brand-logo">
+    <img src="banner_v3_low.png" alt="GitHave Logo" class="brand-logo">
     <h1 class="brand-title">GitHave</h1>
-    <p class="brand-subtitle">开源代码仓库AI助理</p>
+    <p class="brand-subtitle">AI驱动的代码仓库助手</p>
   </div>
     <!-- 加载动画区域 -->
   <div class="loading-section">
@@ -381,7 +470,9 @@
   // 创建背景粒子
   function createParticles() {
     const particlesContainer = document.querySelector('.particles');
-    const particleCount = 30;
+    // 根据屏幕大小调整粒子数量
+    const isSmallScreen = window.innerWidth <= 400 && window.innerHeight <= 350;
+    const particleCount = isSmallScreen ? 15 : 30;
 
     for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');

@@ -1265,10 +1265,15 @@ watch(
     if (newUrl && newUrl.trim()) {
       const repoName = extractNameFromUrl(newUrl)
       if (repoName !== 'unknown') {
-        // 获取当前基础路径（保留父目录）
-        const homeDir = await window.electron.homeDir
-        // 如果基础路径为空，则使用用户主目录
-        const basePath = homeDir
+        // 根据系统类型选择基础路径
+        let basePath
+        if (window.electron.platform === 'win32') {
+          // Windows系统使用Documents目录
+          basePath = await window.electron.getDocumentsPath()
+        } else {
+          // macOS和Linux使用用户主目录
+          basePath = await window.electron.homeDir
+        }
         // 更新本地路径，使用仓库名作为文件夹名
         importForm.local_path = window.electron.path.join(basePath, 'githave', repoName)
       }
@@ -1277,9 +1282,16 @@ watch(
 )
 
 const openImportDialog = async () => {
-  // 本地路径默认为用户主目录
-  const homeDir = await window.electron.homeDir
-  importForm.local_path = window.electron.path.join(homeDir, 'githave')
+  // 根据系统类型选择默认路径
+  let basePath
+  if (window.electron.platform === 'win32') {
+    // Windows系统使用Documents目录
+    basePath = await window.electron.getDocumentsPath()
+  } else {
+    // macOS和Linux使用用户主目录
+    basePath = await window.electron.homeDir
+  }
+  importForm.local_path = window.electron.path.join(basePath, 'githave')
   importForm.repo_url = ''
   importDialog.value = true
 }
