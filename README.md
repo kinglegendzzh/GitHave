@@ -359,7 +359,7 @@ npm run build
 
 ## 📄 许可证
 
-本项目采用 [MIT License](LICENSE) 开源协议。
+本项目采用 [Apache License 2.0 License](LICENSE) 开源协议。
 
 ## 📞 联系我们
 
