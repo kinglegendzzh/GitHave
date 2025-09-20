@@ -365,6 +365,8 @@ npm run build
 
 - **GitHub Issues**: [提交问题或建议](https://github.com/kinglegendzzh/githave/issues)
 - **官网**: [GitHave.com](https://githave.com)
+- **微信**：zhanghao_busi
+<img width="200" height="auto" alt="GitHave Logo" src="https://github.com/user-attachments/assets/0d4be040-5388-4508-a1ba-30ae2166c59e" />
 
 ---
 
